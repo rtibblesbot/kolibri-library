@@ -31,11 +31,15 @@ logging.getLogger("requests.packages").setLevel(logging.WARNING)
 logger = logging.getLogger('mitblossoms')
 detaild_fmt = '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
 compact_fmt = '%(name)s\t%(message)s'
-coloredlogs.install(level='INFO', fmt=compact_fmt, logger=logger)
+coloredlogs.install(level='DEBUG', fmt=compact_fmt, logger=logger)
 
 
-# SETTINGS
+# MIT BLOSSOMS CHANNEL SETTINGS
 ################################################################################
+CHANNEL_SOURCE_DOMAIN = 'blossoms.mit.edu'
+CHANNEL_SOURCE_ID = 'mit_blossoms_v1.0b'
+CHANNEL_TITLE = 'MIT Blossoms'
+CHANNEL_THUMBNAIL = 'https://pk12.mit.edu/files/2016/02/MIT-Blossoms.png'
 def get_env(envvar):
     if envvar not in os.environ:
         return None
@@ -48,19 +52,54 @@ ZIP_FILES_TMP_DIR = os.path.join(DATA_DIR, 'zipfiles')
 CONTENT_DIR = 'content'
 BASE_URL = 'https://blossoms.mit.edu'
 VIDEOS_BY_LANGUAGE_PATH = '/videos/by_language'
-SELECTED_LANGUAGES = ['Arabic', 'English']  # which languages to add to channel
+SELECTED_LANGUAGES = ['Arabic', 'English']      # currently using only EN and AR
 
 
 
-# SOURCE_ID CONVENTIONS
+# SOURCE_ID and TITLE CONVENTIONS
 ################################################################################
-
-
-
-# SOURCE_ID CONVENTIONS
-################################################################################
-# LESSON_ID == node-\d+ e.g. node-46, node-123
-# VIDEO_ID == node-\d+:lang
+# 1. In order to identify `transcript`s and `teachers_doc`s belong to a given
+#    video lesson, we prefix their titles with a slug of the lesson's title, e.g.,
+#    "The Construction of ..: Written Transcript of this video lesson in Arabic"
+TITLE_SLUG_LENGTH = 20
+#
+# 2. All the choices for the `source_id` and `title` attibutes of content nodes
+#    are summarized in a global dictionary `BLOSSOMS_FMT` (see Legend below).
+BLOSSOMS_FMT = {
+    'topic': {
+        'source_id': 'mit_blossoms_topic_{title}',
+        'title': '{title}',
+    },
+    'cluster': {
+        'source_id': 'mit_blossoms_cluster_{title}',
+        'title': '{title}',
+    },
+    'lesson': {
+        'source_id': '{node_id}',                              # e.g. "node-123"
+        'title': '{title}',
+    },
+    'video': {
+        'source_id': '{node_id}:{lang_variant}',
+        'title': '{lang_variant}: {title}',
+    },
+    'transcript': {
+        'source_id': '{node_id}:{file_name}',
+        'title': '{slug}: {transcript_title}',
+    },
+    'additional_resources': {
+        'source_id': '{node_id}:additional_resources',
+        'title': 'Additional Resources for {title}',
+    },
+    'teachers_doc': {
+        'source_id': '{node_id}:{file_name}',
+        'title': '{slug}:{doc_title}',
+    },
+}
+# Legend:
+#  node_id = lesson.get_source_id()          e.g. "node-123"
+#  title   = lesson.title                    e.g. "The Construction of Proteins"
+#  slug    = title[:TITLE_SLUG_LENGTH]+'..'  e.g. "The Construction of .."
+#  lang_variant                              e.g. "Arabic-English Subtitles"
 
 
 
@@ -164,10 +203,10 @@ def build_preliminary_tree(selected_laungages=SELECTED_LANGUAGES):
     # STAGE 1.1 OUTPUT: Topics and Lessons before adding the TopicClusters
     web_resource_tree = dict(
         __class__='MitBlossomsResourceTree',
-        source_domain='blossoms.mit.edu',
-        source_id="mit_blossoms_dev_v0.3",
-        title="MIT Blossoms (OPTION E)",
-        thumbnail="https://pk12.mit.edu/files/2016/02/MIT-Blossoms.png",
+        source_domain=CHANNEL_SOURCE_DOMAIN,
+        source_id=CHANNEL_SOURCE_ID,
+        title=CHANNEL_TITLE,
+        thumbnail=CHANNEL_THUMBNAIL,
         children=[],
     )
 
@@ -324,7 +363,6 @@ class MitBlossomsVideoLessonResource(object):
     BASE_URL = 'https://blossoms.mit.edu'
     ALLOWED_EXTS_FOR_TEACHERS_DOCS = ['pdf']
     ALLOWED_EXTS_FOR_TRANSCRIPTS = ['pdf']
-    SLUG_LENGTH = 20
 
     def __init__(self, data):
         assert data['__class__'] == 'MitBlossomsVideoLessonResource'
@@ -341,7 +379,7 @@ class MitBlossomsVideoLessonResource(object):
         return node_div['id']
 
     def get_slug(self):
-        return self.title[0:self.SLUG_LENGTH] + '..'
+        return self.title[0:TITLE_SLUG_LENGTH] + '..'
 
     def get_thumbnail_url(self):
         thumb_div = self.doc.find('div', {'class': "lesson-thumbnail-block"})
@@ -560,12 +598,11 @@ def _get_or_create_topic_child_node(parent_node, source_node):
     for existing_child in parent_node['children']:
         existing_child['title'] == desired_title
         child_node = existing_child
-        logger.debug('Found existing node titled ' + desired_title)
     if child_node is None:
         child_node = dict(
             kind='TopicNode',
-            source_id='mit_blossoms_' + source_node['title'],
-            title=source_node['title'],
+            source_id=BLOSSOMS_FMT['topic']['source_id'].format(title=source_node['title']),
+            title=BLOSSOMS_FMT['topic']['title'].format(title=source_node['title']),
             author='MIT Blossoms',
             description='Video lessons about ' + source_node['title'],
             thumbnail=source_node.get("thumbnail"),
@@ -603,8 +640,8 @@ def _build_json_tree(parent_node, sourcetree):
         elif kind == 'MitBlossomsTopicCluster':
             child_node = dict(
                 kind='TopicNode',
-                source_id='mit_blossoms_' + source_node['title'],
-                title=source_node['title'],
+                source_id=BLOSSOMS_FMT['cluster']['source_id'].format(title=source_node['title']),
+                title=BLOSSOMS_FMT['cluster']['title'].format(title=source_node['title']),
                 author='MIT Blossoms',
                 description='Video lessons from the cluster ' + source_node['title'],
                 thumbnail=source_node.get("thumbnail"),
@@ -619,8 +656,10 @@ def _build_json_tree(parent_node, sourcetree):
             lesson_authors_joined = ','.join(lesson.get_teachers())
             lesson_folder = dict(
                 kind='TopicNode',
-                source_id=lesson.get_source_id(),
-                title=lesson.title,
+                source_id=BLOSSOMS_FMT['lesson']['source_id'].format(
+                    node_id=lesson.get_source_id()
+                ),
+                title=BLOSSOMS_FMT['lesson']['title'].format(title=lesson.title),
                 author=lesson_authors_joined,
                 description=lesson.get_video_summary(),
                 thumbnail=lesson.get_thumbnail_url(),
@@ -632,17 +671,22 @@ def _build_json_tree(parent_node, sourcetree):
             for lang in SELECTED_LANGUAGES:
                 lang_variant, video_url = lesson.get_video_url_for_lang(lang)
                 if video_url is None:
-                    logger.error('No video file for this one, skipping')
-                    logger.error(lesson.url)
+                    logger.error('No video_url found for ' + lang + ' in ' + lesson.url)
                     continue
                 video_grandchild = dict(
                     kind='VideoNode',
-                    title=lang_variant + ': ' + lesson.title,
-                    source_id=lesson.get_source_id() + ':' + lang_variant,
+                    source_id=BLOSSOMS_FMT['video']['source_id'].format(
+                        node_id=lesson.get_source_id(),
+                        lang_variant=lang_variant
+                    ),
+                    title=BLOSSOMS_FMT['video']['title'].format(
+                        lang_variant=lang_variant,
+                        title=lesson.title
+                    ),
                     author=lesson_authors_joined,
                     description=lesson.get_video_summary(),
-                    derive_thumbnail=True,                     # video-specific data
-                    thumbnail=lesson.get_thumbnail_url(),      # ?? repeats the same as in containing TopicNode
+                    derive_thumbnail=True, # TODO: what happens if this is False?
+                    thumbnail=lesson.get_thumbnail_url(),
                 )
                 lesson_folder['children'].append(video_grandchild)
                 video_file = dict(
@@ -667,8 +711,14 @@ def _build_json_tree(parent_node, sourcetree):
                 for transcript in video_transcripts:
                     document_node = dict(
                         kind='DocumentNode',
-                        source_id=lesson.get_source_id()+':'+transcript['file_name'],
-                        title=lesson.get_slug()+': ' + transcript.get('title'),
+                        source_id=BLOSSOMS_FMT['transcript']['source_id'].format(
+                            node_id=lesson.get_source_id(),
+                            file_name=transcript['file_name']
+                        ),
+                        title=BLOSSOMS_FMT['transcript']['title'].format(
+                            slug=lesson.get_slug(),
+                            transcript_title=transcript.get('title')
+                        ),
                         author=lesson_authors_joined,
                         description=transcript.get('title'),
                         thumbnail=None,
@@ -686,8 +736,12 @@ def _build_json_tree(parent_node, sourcetree):
             if resources_zip_path:
                 additional_resources_grandchild = dict(
                     kind='HTML5AppNode',
-                    title='Additional Resources for ' + lesson.title,
-                    source_id=lesson.get_source_id()+':Additional_Resources',
+                    source_id=BLOSSOMS_FMT['additional_resources']['source_id'].format(
+                        node_id = lesson.get_source_id()
+                    ),
+                    title=BLOSSOMS_FMT['additional_resources']['title'].format(
+                        title=lesson.title
+                    ),
                     author=None,
                     description="Additional resources and links.",
                 )
@@ -713,8 +767,14 @@ def _build_json_tree(parent_node, sourcetree):
                 for resource in teachers_docs:
                     document_node = dict(
                         kind='DocumentNode',
-                        source_id=lesson.get_source_id()+':'+resource['file_name'],
-                        title=lesson.get_slug()+': ' + resource.get('title'),
+                        source_id=BLOSSOMS_FMT['teachers_doc']['source_id'].format(
+                            node_id=lesson.get_source_id(),
+                            file_name=resource['file_name']
+                        ),
+                        title=BLOSSOMS_FMT['teachers_doc']['title'].format(
+                            slug=lesson.get_slug(),
+                            doc_title=resource.get('title')
+                        ),
                         author=resource.get("author"),
                         description=resource.get('title'),
                         thumbnail=resource.get("thumbnail"),
