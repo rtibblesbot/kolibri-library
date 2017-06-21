@@ -1,0 +1,4 @@
+git+https://github.com/learningequality/ricecooker#egg=ricecooker
+# git+https://github.com/learningequality/ricecooker@537518fb8ff63d21dd98bd9a7b2696570c5ae206#egg=ricecooker
+html2text==2016.9.19
+coloredlogs==7.0
