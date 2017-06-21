@@ -27,14 +27,14 @@ Running locally for testing
     source venv/bin/activate
     export CONTENTWORKSHOP_URL="http://127.0.0.1:9003"
     export CONTENT_CURATION_TOKEN="a92a8ff947c8423ed0cd11c6ce33ad6b95b6564e"
-    ./mitblossoms_chef.py
+    ./mitblossoms_chef.py --steps all   --pruned
 
 
 Running for real
 ----------------
 
     source venv/bin/activate
-    ./mitblossoms_chef.py  --steps all  --token=<your_ccserver_token>
+    ./mitblossoms_chef.py  --steps all   --token=<your_ccserver_token>
 
 
 Sushi Bar integration

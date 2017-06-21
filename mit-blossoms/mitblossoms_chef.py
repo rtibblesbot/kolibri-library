@@ -4,6 +4,7 @@ from itertools import groupby
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 
@@ -366,7 +367,7 @@ class MitBlossomsVideoLessonResource(object):
                 # handle edge case where multiple teachers included in on <stong>
                 teachers_names.extend([x.strip() for x in strong.text.split('\n')])
         if len(teachers_names) == 0:
-            logger.warn("Couldn't find teacher names for " + self.get_source_id() + ' ' + self.url,)
+            logger.warn("Couldn't find teacher names for " + self.get_source_id() + ' ' + self.url)
         return teachers_names
 
     def get_teachers_biography(self):
@@ -480,7 +481,6 @@ class MitBlossomsVideoLessonResource(object):
                 lang_url_tuples.append((lang_path_tuple[0], video_url))
             else:
                 pass
-                # logger.error('Failed to retrieve mp4 from ' + lang_video_url)
 
         return lang_url_tuples
 
@@ -543,8 +543,7 @@ class MitBlossomsVideoLessonResource(object):
             if _is_more_specific(lang_variant, video_url_tuple[0], lang):
                 video_url_tuple = (lang_variant, url)
         if video_url_tuple[1] is None:
-            logger.info('Missing video for language when processing lesson ' + self.url)
-            logger.info('No video for lang ' + lang + ' found in ' + str(lang_url_tuples))
+            logger.debug('Lesson ' + self.url + ' no video for ' + lang + ' in ' + str(lang_url_tuples))
 
         return video_url_tuple
 
@@ -729,7 +728,7 @@ def _build_json_tree(parent_node, sourcetree):
                     document_node['files']=[document_file]
 
         else:
-            logger.error("Encountered an unknown content node format.")
+            logger.critical("Encountered an unknown content node format.")
             continue
 
     return parent_node
@@ -824,7 +823,7 @@ def prune_tree_for_testing():
 def create_channel(**kwargs):
     # Load json tree data just to read channel info
     json_tree = None
-    with open(os.path.join(DATA_DIR,'ricecooker_pruned_json_tree.json')) as infile:
+    with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
         json_tree = json.load(infile)
     assert json_tree['kind'] == 'ChannelNode'
     channel = nodes.ChannelNode(
@@ -841,9 +840,7 @@ def construct_channel(**kwargs):
 
     # Load json tree data
     json_tree = None
-    # with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
-    prune_tree_for_testing()      # SMALL TREE FOR TESTING
-    with open(os.path.join(DATA_DIR,'ricecooker_pruned_json_tree.json')) as infile:
+    with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
         json_tree = json.load(infile)
     _build_tree(channel, json_tree['children'])
     raise_for_invalid_channel(channel)
@@ -859,7 +856,7 @@ def _build_tree(parent_node, sourcetree):
     for source_node in sourcetree:
         kind = source_node['kind']
         if kind not in EXPECTED_NODE_TYPES:
-            logger.error('Unexpected Node type found: ' + kind)
+            logger.critical('Unexpected Node type found: ' + kind)
             raise NotImplementedError('Unexpected Node type found in channel json.')
 
         if kind == 'TopicNode':
@@ -912,7 +909,7 @@ def _build_tree(parent_node, sourcetree):
             parent_node.add_child(child_node)
 
         else:
-            logger.error("Encountered an unknown content node format.")
+            logger.critical("Encountered an unknown content node format.")
             continue
 
     return parent_node
@@ -925,7 +922,7 @@ def add_files(node, file_list):
 
         file_type = f.get('file_type')
         if file_type not in EXPECTED_FILE_TYPES:
-            logger.error(file_type)
+            logger.critical(file_type)
             raise NotImplementedError('Unexpected File type found in channel json.')
 
         path = f.get('path')  # usually a URL, not a local path
@@ -978,8 +975,8 @@ def main():
     parser.add_argument('--token', help='Token from the content server')
     parser.add_argument('-s','--steps', nargs='*', choices=['crawl', 'scrape', 'channel', 'all'],
                         help='Which steps of import pipeline to run')
+    parser.add_argument('--pruned', action='store_true', help='Prune tree for testing purposes.')
     args = parser.parse_args()
-    # TODO: add --daemon option
 
     if args.steps is None or args.steps == ['all']:
         args.steps = ['crawl', 'scrape', 'channel']
@@ -997,7 +994,15 @@ def main():
         elif step == 'scrape':
             scraping_step()
         elif step == 'channel':
+            if args.pruned:
+                original_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
+                full_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree_full.json')
+                pruned_tree_path = os.path.join(DATA_DIR, 'ricecooker_pruned_json_tree.json')
+                shutil.copyfile(original_tree_path, full_tree_path)     # save a backup of the full tree
+                prune_tree_for_testing()                                # produce pruned version
+                shutil.move(pruned_tree_path, original_tree_path)       # replace full with pruned
             channel_step(token)
+
 
 
 if __name__ == '__main__':
