@@ -596,8 +596,8 @@ def _get_or_create_topic_child_node(parent_node, source_node):
     desired_title = source_node['title']
     child_node = None
     for existing_child in parent_node['children']:
-        existing_child['title'] == desired_title
-        child_node = existing_child
+        if existing_child['title'] == desired_title:
+            child_node = existing_child
     if child_node is None:
         child_node = dict(
             kind='TopicNode',
