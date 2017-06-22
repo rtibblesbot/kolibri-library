@@ -10,6 +10,9 @@ TODOs
   - Add manual override steps for missing/non-standard authors
   - update docs/design.md
   - Implement --daemon mode
+  - Fix raggedness in descriptions fields sub('\n{1}', ' ') 
+  - Test extract text from transcript and add as VideoNode description
+
 
 
 Install
