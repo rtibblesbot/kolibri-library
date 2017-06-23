@@ -12,7 +12,10 @@ TODOs
   - Implement --daemon mode
   - Fix raggedness in descriptions fields sub('\n{1}', ' ') 
   - Test extract text from transcript and add as VideoNode description
-
+  - Fix videos with multiple languages in "Video Summary" (manual override)
+    e.g. https://blossoms.mit.edu/videos/lessons/flu_math_games
+  - Remove links from (remove a href, or remove link altogether?)
+  - Make sure all descriptions are plain text and not Markdown
 
 
 Install

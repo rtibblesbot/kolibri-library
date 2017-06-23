@@ -53,7 +53,7 @@ Notes:
 	
   - Sometimes "Video Summary" `div class="lesson-summary-block"` contains multiple languages
     e.g. https://blossoms.mit.edu/videos/lessons/never_fail_method_probabilistic_problems
-
+    also https://blossoms.mit.edu/videos/lessons/flu_math_games
 
   - Certain video lessons can be present in more than one Topic Cluster, e.g., 
     https://blossoms.mit.edu/videos/lessons/towers_hanoi_experiential_recursive_thinking
