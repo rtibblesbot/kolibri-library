@@ -14,9 +14,9 @@ import requests
 
 # from le_utils.constants import content_kinds
 from le_utils.constants import licenses
+from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
-from ricecooker.commands import uploadchannel_wrapper
-from ricecooker.exceptions import UnknownContentKindError, UnknownFileTypeError, raise_for_invalid_channel
+from ricecooker.exceptions import UnknownFileTypeError, raise_for_invalid_channel
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 # from ricecooker.utils.html import download_file
 from ricecooker.utils.zip import create_predictable_zip
@@ -31,7 +31,7 @@ logging.getLogger("requests.packages").setLevel(logging.WARNING)
 logger = logging.getLogger('mitblossoms')
 detaild_fmt = '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
 compact_fmt = '%(name)s\t%(message)s'
-coloredlogs.install(level='DEBUG', fmt=compact_fmt, logger=logger)
+coloredlogs.install(level='INFO', fmt=compact_fmt, logger=logger)
 
 
 # MIT BLOSSOMS CHANNEL SETTINGS
@@ -40,12 +40,6 @@ CHANNEL_SOURCE_DOMAIN = 'blossoms.mit.edu'
 CHANNEL_SOURCE_ID = 'mit_blossoms_v1.0b'
 CHANNEL_TITLE = 'MIT Blossoms'
 CHANNEL_THUMBNAIL = 'https://pk12.mit.edu/files/2016/02/MIT-Blossoms.png'
-def get_env(envvar):
-    if envvar not in os.environ:
-        return None
-    else:
-        return os.environ[envvar]
-CONTENT_CURATION_TOKEN = get_env('CONTENT_CURATION_TOKEN')
 MIT_BLOSSOMS_LICENSE = licenses.CC_BY_NC_SA
 DATA_DIR = 'chefdata'
 ZIP_FILES_TMP_DIR = os.path.join(DATA_DIR, 'zipfiles')
@@ -53,7 +47,8 @@ CONTENT_DIR = 'content'
 BASE_URL = 'https://blossoms.mit.edu'
 VIDEOS_BY_LANGUAGE_PATH = '/videos/by_language'
 SELECTED_LANGUAGES = ['Arabic', 'English']      # currently using only EN and AR
-
+ALL_LANGUAGES = ['Arabic', 'English','Farsi', 'Hindi', 'Japanese', 'Kannada',
+                 'Korean', 'Malay', 'Mandarin', 'Portuguese', 'Spanish', 'Urdu']
 
 
 # SOURCE_ID and TITLE CONVENTIONS
@@ -114,7 +109,7 @@ SESSION.mount('http://techtv.mit.edu', forever_adapter)
 
 
 
-# STEP 1: CRAWLING
+# PART 1: CRAWLING
 ################################################################################
 
 def get_lang_paths():
@@ -189,14 +184,14 @@ def group_lesson_by_topic(video_lessons):
                             'lessons': topic_lessons})
     return topics_list
 
-def build_preliminary_tree(selected_laungages=SELECTED_LANGUAGES):
+def build_preliminary_tree(languages=None):
     """
     Crawl the MIT Blossoms website and produce a web_resource_tree.
     """
     lang_paths = get_lang_paths()
 
-    if selected_laungages:
-        selected_lang_paths = [p for p in lang_paths if p[0] in selected_laungages]
+    if languages:
+        selected_lang_paths = [p for p in lang_paths if p[0] in languages]
     else:
         selected_lang_paths = lang_paths
 
@@ -218,7 +213,7 @@ def build_preliminary_tree(selected_laungages=SELECTED_LANGUAGES):
         lang_url = BASE_URL + path
         lang_node['url'] = lang_url
 
-        # Crawl lessons by language steps:
+        # Crawl lessons by language
         video_lessons = get_all_lessons_info(lang_url)
         topics_list = group_lesson_by_topic(video_lessons)
 
@@ -313,23 +308,22 @@ def add_topic_cluster_membership(web_resource_tree):
     return web_resource_tree
 
 
-def crawling_step(selected_laungages=SELECTED_LANGUAGES):
+def crawling_part(args, options):
     """
-    Main function for STEP 1: CRAWLING.
+    Main function for PART 1: CRAWLING.
     """
-    web_resource_tree = build_preliminary_tree(selected_laungages=selected_laungages)
+    web_resource_tree = build_preliminary_tree(languages=args.languages)
     web_resource_tree = add_topic_cluster_membership(web_resource_tree)
     json_file_name = os.path.join(DATA_DIR, 'web_resource_tree.json')
     with open(json_file_name, 'w') as json_file:
         json.dump(web_resource_tree, json_file, indent=2)
     logger.info('Intermediate result stored in' + json_file_name)
-    logger.info('Crawling step finished.\n')
+    logger.info('Crawling part finished.\n')
 
 
 
 
-
-# STEP 2: SCRAPING
+# PART 2: SCRAPING HELPERS
 ################################################################################
 
 def get_cloudfront_video_url(lang_video_url):
@@ -337,13 +331,13 @@ def get_cloudfront_video_url(lang_video_url):
     Returns the url of the actual mp4 file for a language variant.
     Returns None if no mp4 file is found.
     """
-    # STEP 1: Open the language specific video player page on MIT Blossoms
+    # PART 1: Open the language specific video player page on MIT Blossoms
     resp1 = SESSION.get(lang_video_url)
     lang_video_doc = BeautifulSoup(resp1.content, 'html.parser')
     player_div = lang_video_doc.find('div', {'class':"video-embeddedplayer"})
     embed_url = player_div.find('iframe')['src']
 
-    # STEP 2: Open the iframe that contains the actual link to the mp4 file
+    # PART 2: Open the iframe that contains the actual link to the mp4 file
     resp2 = SESSION.get(embed_url)
     embed_doc = BeautifulSoup(resp2.content, 'html.parser')
     player = embed_doc.find('div', {'class': 'video-player'})
@@ -614,7 +608,7 @@ def _get_or_create_topic_child_node(parent_node, source_node):
 
 
 # Main beast
-def _build_json_tree(parent_node, sourcetree):
+def _build_json_tree(parent_node, sourcetree, languages=None):
     # type: (dict, List[dict], str) -> None
     """
     Parse the web resource nodes given in `sourcetree` and add as children of `parent_node`.
@@ -630,12 +624,12 @@ def _build_json_tree(parent_node, sourcetree):
             # For OPTION E we do not use the top-level split-by language. Instead,
             # we process the children of all languages together in a single topic tree
             source_tree_children = source_node.get("children", [])
-            _build_json_tree(parent_node, source_tree_children)
+            _build_json_tree(parent_node, source_tree_children, languages=languages)
 
         elif kind == 'MitBlossomsTopic':
             child_node = _get_or_create_topic_child_node(parent_node, source_node)
             source_tree_children = source_node.get("children", [])
-            _build_json_tree(child_node, source_tree_children)
+            _build_json_tree(child_node, source_tree_children, languages=languages)
 
         elif kind == 'MitBlossomsTopicCluster':
             child_node = dict(
@@ -649,7 +643,7 @@ def _build_json_tree(parent_node, sourcetree):
             )
             parent_node['children'].append(child_node)
             source_tree_children = source_node.get("children", [])
-            _build_json_tree(child_node, source_tree_children)
+            _build_json_tree(child_node, source_tree_children, languages=languages)
 
         elif kind == 'MitBlossomsVideoLessonResource':
             lesson = MitBlossomsVideoLessonResource(source_node)
@@ -668,10 +662,10 @@ def _build_json_tree(parent_node, sourcetree):
             parent_node['children'].append(lesson_folder)
 
             # 1. Add the `VideoNode`s
-            for lang in SELECTED_LANGUAGES:
+            for lang in languages:
                 lang_variant, video_url = lesson.get_video_url_for_lang(lang)
                 if video_url is None:
-                    logger.error('No video_url found for ' + lang + ' in ' + lesson.url)
+                    logger.debug('No video_url found for ' + lang + ' in ' + lesson.url)
                     continue
                 video_grandchild = dict(
                     kind='VideoNode',
@@ -794,13 +788,13 @@ def _build_json_tree(parent_node, sourcetree):
     return parent_node
 
 
-
-def scraping_step():
+def scraping_part(args, options):
     """
-    Main function for STEP 2:
+    Main function for PART 2:
       - Reads result of crawl from DATA_DIR/web_resource_tree.json
       - Scrapes content from each video lesson
       - Writes ricecooker-ready json to DATA_DIR/ricecooker_json_tree.json
+    If args.pruned is True, the tree is pruned to leave a few nodes for testing.
     """
     # Read in web_resource_tree.json
     web_resource_tree = None
@@ -808,26 +802,39 @@ def scraping_step():
         web_resource_tree = json.load(json_file)
     assert web_resource_tree['__class__'] == 'MitBlossomsResourceTree'
 
+    # For testing only: give the pruned test channel a different `source_id`
+    if args.pruned:
+        source_id_suffix = '-pruned'
+    else:
+        source_id_suffix = ''
+
     # Ricecooker tree
     ricecooker_json_tree = dict(
         kind='ChannelNode',
         source_domain=web_resource_tree['source_domain'],
-        source_id=web_resource_tree['source_id'],
-        title=web_resource_tree['title'],
+        source_id=web_resource_tree['source_id'] + source_id_suffix,
+        title=web_resource_tree['title'] + source_id_suffix,
         thumbnail=web_resource_tree['thumbnail'],
         children=[],
     )
-    _build_json_tree(ricecooker_json_tree, web_resource_tree['children'])
+    _build_json_tree(ricecooker_json_tree, web_resource_tree['children'], languages=args.languages)
 
     # Write out ricecooker_json_tree.json
     json_file_name = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
     with open(json_file_name, 'w') as json_file:
         json.dump(ricecooker_json_tree, json_file, indent=2)
+
+    # Prune the content tree to leave only a few lessons (used for testing)
+    if args.pruned:
+        original_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
+        full_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree_full.json')
+        pruned_tree_path = os.path.join(DATA_DIR, 'ricecooker_pruned_json_tree.json')
+        shutil.copyfile(original_tree_path, full_tree_path)   # save a backup of the full tree
+        prune_tree_for_testing()                              # produce pruned version
+        shutil.move(pruned_tree_path, original_tree_path)     # replace full with pruned
+
     logger.info('Intermediate result stored in ' + json_file_name)
-    logger.info('Scraping step finished.\n')
-
-
-
+    logger.info('Scraping part finished.\n')
 
 
 
@@ -876,36 +883,8 @@ def prune_tree_for_testing():
 
 
 
-
-# STEP 3
+# PART 3
 ################################################################################
-
-def create_channel(**kwargs):
-    # Load json tree data just to read channel info
-    json_tree = None
-    with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
-        json_tree = json.load(infile)
-    assert json_tree['kind'] == 'ChannelNode'
-    channel = nodes.ChannelNode(
-        source_domain=json_tree['source_domain'],
-        source_id=json_tree['source_id'],
-        title=json_tree['title'],
-        thumbnail=json_tree['thumbnail'],
-    )
-    return channel
-
-
-def construct_channel(**kwargs):
-    channel = create_channel(**kwargs)
-
-    # Load json tree data
-    json_tree = None
-    with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
-        json_tree = json.load(infile)
-    _build_tree(channel, json_tree['children'])
-    raise_for_invalid_channel(channel)
-    return channel
-
 
 def _build_tree(parent_node, sourcetree):
     """
@@ -1000,70 +979,117 @@ def add_files(node, file_list):
             raise UnknownFileTypeError("Unrecognized file type '{0}'".format(f['path']))
 
 
-def channel_step(token):
+
+
+
+
+# CHEF
+################################################################################
+
+class MitBlossomsSushiChef(SushiChef):
     """
-    Upload channel to Kolibri Studio server.
+    This class contains all the methods for the MIT Blossoms sushi chef.
     """
-    this_module = os.path.abspath(__file__)
-    arguments = {
-        '<file_path>': this_module,
-        '-h': False,
-        '-v': True,
-        '-u': False,
-        '--warn': False,
-        '--stage': False,
-        '--compress': False,
-        '--thumbnails': False,
-        '--token': token,
-        '--download-attempts': '3',
-        '--resume': False,
-        '--step': 'last',
-        '--reset': True,
-        '--prompt': False,
-        '--publish': False,
-        '--daemon': False,
-        'OPTIONS': [],
-    }  # this dictionary simulates the arguments as parsed by docopt
-    uploadchannel_wrapper(arguments)
+
+    def __init__(self, *args, **kwargs):
+        """
+        The MIT Blossoms Sushi Chef acceps the `--parts` command line arguement
+        which controls which parts of the import pipeline should run.
+          - `--parts crawl` builds `chefdata/web_resource_tree.json`
+          - `--parts scrape` builds `chefdata/ricecooker_json_tree.json`
+          - `--parts main` runs the entire pipeline (default)
+        """
+        super(MitBlossomsSushiChef, self).__init__(*args, **kwargs)
+
+        self.arg_parser = argparse.ArgumentParser(
+            description="Sushi chef for MIT Blossoms video lessons.",
+            parents=[self.arg_parser]
+        )
+        self.arg_parser.add_argument('--languages', nargs='*', default=SELECTED_LANGUAGES,
+                                     choices=ALL_LANGUAGES,
+                                     help='List of languages to import')
+        self.arg_parser.add_argument('--parts', nargs='*', default=['main'],
+                                     choices=['crawl', 'scrape', 'main',],
+                                     help='Which parts of import pipeline to run')
+        self.arg_parser.add_argument('--pruned', action='store_true',
+                                     help='Prune tree for testing purposes.')
+
+
+    def crawl(self, args, options):
+        """
+        Call function for PART 1: CRAWLING.
+        """
+        crawling_part(args, options)
+
+    def scrape(self, args, options):
+        """
+        Call function for PART 2: SCRAPING.
+        """
+        scraping_part(args, options)
+
+    def pre_run(self, args, options):
+        """
+        Run the preliminary parts:
+          - creawl the blossoms.mit.org site and build a web resource tree
+            (see result in `chefdata/web_resource_tree.json`)
+          - scrape content and links from video lessons to build the json tree
+            of the channel (see result in `chefdata/ricecooker_json_tree.json`)
+          - perform manual content fixes for video lessons with non-standard markup
+        """
+        self.crawl(args, options)
+        self.scrape(args, options)
+        # self.content_fixes(args, options)  TODO
+
+    def get_channel(self, **kwargs):
+        """
+        Load json tree data just to read channel info.
+        """
+        json_tree = None
+        with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
+            json_tree = json.load(infile)
+        assert json_tree['kind'] == 'ChannelNode'
+        channel = nodes.ChannelNode(
+            source_domain=json_tree['source_domain'],
+            source_id=json_tree['source_id'],
+            title=json_tree['title'],
+            thumbnail=json_tree['thumbnail'],
+        )
+        return channel
+
+    def construct_channel(self, **kwargs):
+        channel = self.get_channel(**kwargs)
+        # Load json tree data
+        json_tree = None
+        with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
+            json_tree = json.load(infile)
+        _build_tree(channel, json_tree['children'])
+        raise_for_invalid_channel(channel)
+        return channel
+
 
 
 # CLI
 ################################################################################
 
-def main():
-    parser = argparse.ArgumentParser(description="Sushi chef for MIT Blossoms video lessons.")
-    parser.add_argument('--token', help='Token from the content server')
-    parser.add_argument('-s','--steps', nargs='*', choices=['crawl', 'scrape', 'channel', 'all'],
-                        help='Which steps of import pipeline to run')
-    parser.add_argument('--pruned', action='store_true', help='Prune tree for testing purposes.')
-    args = parser.parse_args()
-
-    if args.steps is None or args.steps == ['all']:
-        args.steps = ['crawl', 'scrape', 'channel']
-
-    # Make sure token is present
-    token = args.token or CONTENT_CURATION_TOKEN
-    if 'channel' in args.steps and token is None:
-        logger.critical('Content curation token not found. Pass in as --token or CONTENT_CURATION_TOKEN env var')
-        sys.exit(1)
-
-    # Dispatch based on step
-    for step in args.steps:
-        if step == 'crawl':
-            crawling_step()
-        elif step == 'scrape':
-            scraping_step()
-        elif step == 'channel':
-            if args.pruned:
-                original_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
-                full_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree_full.json')
-                pruned_tree_path = os.path.join(DATA_DIR, 'ricecooker_pruned_json_tree.json')
-                shutil.copyfile(original_tree_path, full_tree_path)     # save a backup of the full tree
-                prune_tree_for_testing()                                # produce pruned version
-                shutil.move(pruned_tree_path, original_tree_path)       # replace full with pruned
-            channel_step(token)
-
-
-
 if __name__ == '__main__':
-    main()
+    """
+    The command line argument parsing is handled by the chef class hierarchy:
+    MitBlossomsSushiChef  --extends-->  SushiChef  --extends-->  BaseChef
+    """
+    mitchef = MitBlossomsSushiChef()
+
+    # early parsing of args to extract --part information for partial runs
+    args, options = mitchef.parse_args_and_options()
+    logger.debug('In MitBlossomsSushiChef.__main__')
+    logger.debug('args= ' + str(args))
+    logger.debug('options= ' + str(options))
+
+    # Dispatch based on --part specified
+    for part in args.parts:
+        if part == 'crawl':
+            mitchef.crawl(args, options)
+        elif part == 'scrape':
+            mitchef.scrape(args, options)
+        elif part == 'main':
+            mitchef.main()
+
