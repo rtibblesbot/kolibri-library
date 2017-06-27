@@ -312,7 +312,7 @@ def crawling_part(args, options):
     """
     Main function for PART 1: CRAWLING.
     """
-    web_resource_tree = build_preliminary_tree(languages=args.languages)
+    web_resource_tree = build_preliminary_tree(languages=args['languages'])
     web_resource_tree = add_topic_cluster_membership(web_resource_tree)
     json_file_name = os.path.join(DATA_DIR, 'web_resource_tree.json')
     with open(json_file_name, 'w') as json_file:
@@ -811,7 +811,7 @@ def scraping_part(args, options):
       - Reads result of crawl from DATA_DIR/web_resource_tree.json
       - Scrapes content from each video lesson
       - Writes ricecooker-ready json to DATA_DIR/ricecooker_json_tree.json
-    If args.pruned is True, the tree is pruned to leave a few nodes for testing.
+    If args['pruned'] is True, the tree is pruned to leave a few nodes for testing.
     """
     # Read in web_resource_tree.json
     web_resource_tree = None
@@ -820,7 +820,7 @@ def scraping_part(args, options):
     assert web_resource_tree['__class__'] == 'MitBlossomsResourceTree'
 
     # For testing only: give the pruned test channel a different `source_id`
-    if args.pruned:
+    if args['pruned']:
         source_id_suffix = '-pruned'
     else:
         source_id_suffix = ''
@@ -834,7 +834,7 @@ def scraping_part(args, options):
         thumbnail=web_resource_tree['thumbnail'],
         children=[],
     )
-    _build_json_tree(ricecooker_json_tree, web_resource_tree['children'], languages=args.languages)
+    _build_json_tree(ricecooker_json_tree, web_resource_tree['children'], languages=args['languages'])
 
     # Write out ricecooker_json_tree.json
     json_file_name = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
@@ -842,7 +842,7 @@ def scraping_part(args, options):
         json.dump(ricecooker_json_tree, json_file, indent=2)
 
     # Prune the content tree to leave only a few lessons (used for testing)
-    if args.pruned:
+    if args['pruned']:
         original_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
         full_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree_full.json')
         pruned_tree_path = os.path.join(DATA_DIR, 'ricecooker_pruned_json_tree.json')
@@ -1102,7 +1102,7 @@ if __name__ == '__main__':
     logger.debug('options= ' + str(options))
 
     # Dispatch based on --part specified
-    for part in args.parts:
+    for part in args['parts']:
         if part == 'crawl':
             mitchef.crawl(args, options)
         elif part == 'scrape':
