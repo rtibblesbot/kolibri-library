@@ -6,16 +6,17 @@ Import content from https://blossoms.mit.edu into kolibri format.
 TODOs
 -----
 
-  - Make `HTMLZipFile` paths constant repeatable
-  - Add manual override steps for missing/non-standard authors
-  - update docs/design.md
-  - Implement --daemon mode
-  - Fix raggedness in descriptions fields sub('\n{1}', ' ') 
-  - Test extract text from transcript and add as VideoNode description
-  - Fix videos with multiple languages in "Video Summary" (manual override)
-    e.g. https://blossoms.mit.edu/videos/lessons/flu_math_games
-  - Remove links from (remove a href, or remove link altogether?)
-  - Make sure all descriptions are plain text and not Markdown
+* Fix empty clusters bug \[30min\]
+* Make HTMLZipFile paths names repeatable (so won't re-upload every time)
+* Add manual override steps: \[2h\]
+  * For lessons with missing/non-standard authors
+  * Fix videos with multiple languages in "Video Summary" (manual override) e.g. [https://blossoms.mit.edu/videos/lessons/flu\_math\_games](https://blossoms.mit.edu/videos/lessons/flu_math_games)
+* Make sure all descriptions are plain text and not Markdown. 
+* Fix raggedness in descriptions fields sub('\n{1}', ' ') 
+* Remove links from Additional Resources
+  * (remove a href, or remove link altogether?)
+* Style sheet for Additional Resources?
+* Stretch goal: extract text from transcript and add as VideoNode description \[?\]
 
 
 Install

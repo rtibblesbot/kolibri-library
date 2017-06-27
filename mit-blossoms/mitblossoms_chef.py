@@ -603,7 +603,33 @@ def _get_or_create_topic_child_node(parent_node, source_node):
             children=[],
         )
         parent_node['children'].append(child_node)
-        logger.debug('Creating new node titled ' + desired_title)
+        logger.debug('Created new topic node titled ' + desired_title)
+    return child_node
+
+
+def _get_or_create_cluster_child_node(parent_node, source_node):
+    """
+    Looks through `parent_node`s children to see if a cluster with the same title
+    as `source_node` exists and returns the child_node.
+    If it no matching child node exists, creates a new one.
+    """
+    desired_title = source_node['title']
+    child_node = None
+    for existing_child in parent_node['children']:
+        if existing_child['title'] == desired_title:
+            child_node = existing_child
+    if child_node is None:
+        child_node = dict(
+            kind='TopicNode',
+            source_id=BLOSSOMS_FMT['cluster']['source_id'].format(title=source_node['title']),
+            title=BLOSSOMS_FMT['cluster']['title'].format(title=source_node['title']),
+            author='MIT Blossoms',
+            description='Video lessons from the cluster ' + source_node['title'],
+            thumbnail=source_node.get("thumbnail"),
+            children=[],
+        )
+        parent_node['children'].append(child_node)
+        logger.debug('Created new cluster node titled ' + desired_title)
     return child_node
 
 
@@ -632,16 +658,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
             _build_json_tree(child_node, source_tree_children, languages=languages)
 
         elif kind == 'MitBlossomsTopicCluster':
-            child_node = dict(
-                kind='TopicNode',
-                source_id=BLOSSOMS_FMT['cluster']['source_id'].format(title=source_node['title']),
-                title=BLOSSOMS_FMT['cluster']['title'].format(title=source_node['title']),
-                author='MIT Blossoms',
-                description='Video lessons from the cluster ' + source_node['title'],
-                thumbnail=source_node.get("thumbnail"),
-                children=[],
-            )
-            parent_node['children'].append(child_node)
+            child_node = _get_or_create_cluster_child_node(parent_node, source_node)
             source_tree_children = source_node.get("children", [])
             _build_json_tree(child_node, source_tree_children, languages=languages)
 
