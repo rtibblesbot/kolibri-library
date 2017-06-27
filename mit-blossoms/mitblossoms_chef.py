@@ -625,7 +625,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     children=[],
                 )
                 parent_node['children'].append(child_node)
-                logger.debug('Created new topic node titled ' + desired_title)
+                logger.debug('Created new topic node titled ' + child_node.title)
             source_tree_children = source_node.get("children", [])
             _build_json_tree(child_node, source_tree_children, languages=languages)
 
@@ -642,7 +642,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     children=[],
                 )
                 parent_node['children'].append(child_node)
-                logger.debug('Created new cluster node titled ' + desired_title)
+                logger.debug('Created new cluster node titled ' + child_node.title)
             source_tree_children = source_node.get("children", [])
             _build_json_tree(child_node, source_tree_children, languages=languages)
 
