@@ -1,67 +1,116 @@
 #!/usr/bin/env python
 
 import requests
-import json
+import os
 from lxml import html
 from bs4 import BeautifulSoup
+from itertools import groupby
 
 from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import ChannelNode, HTML5AppNode, TopicNode, VideoNode, DocumentNode, AudioNode
-from ricecooker.classes.files import DocumentFile, VideoFile, AudioFile
+from ricecooker.classes.files import DocumentFile, HTMLZipFile
 from le_utils.constants import licenses
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
+from ricecooker.utils.html import download_file
 
-# BASE_URL = "https://storyweaver.org.in"
-# SEARCH_URL = "https://storyweaver.org.in/search"
-# TEMPLATE_URL = "https://storyweaver.org.in/search?page={page_num}\u0026search%5Bpublishers%5D%5B%5D={publisher_name}"
+BASE_URL = "https://storyweaver.org.in"
+SIGNIN_URL = "https://storyweaver.org.in/users/sign_in"
+SEARCH_URL = "https://storyweaver.org.in/search"
+TEMPLATE_URL = "https://storyweaver.org.in/search?page={page_num}\u0026search%5Bpublishers%5D%5B%5D={publisher_name}"
+TEMPLATE_NAME = "Book-{id}"
+TEMPLATE_LANGUAGE_NODE_ID = "{publisher}_{language}"
+TEMPLATE_LEVEL_NODE_ID = "{publisher}_{language}_{level}"
+TEMPLATE_LEVEL_TITLE = "Level {num}"
 
-# session = requests.Session()
+session = requests.Session()
 
-# def get_all_publishers():
-#     # Get the search page
-#     resp = session.get(SEARCH_URL)
-#     search_doc = BeautifulSoup(resp.content, 'html.parser')
 
-#     # Get a list of all the publishers
-#     publishers_lis = books.find('ul', {'id': 'StoryPublishers'}).find_all('li')
-#     publishers = []
-#     for li in publishers_lis:
-#         publishers.append(li.find('label').text.strip())
+# Get login csrf token
+result = session.get(SIGNIN_URL)
+tree = html.fromstring(result.text)
+authenticity_token = list(set(tree.xpath("//input[@name='authenticity_token']/@value")))[0]
 
-#     # Remove the first item "All" from publishers
-#     publishers.pop(0)
-#     return publishers
+headers = {
+            'X-CSRF-Token': 'ySOG84hNCKNit9G7arli4bSFzH00BeS9vVnRNnBY+hA=',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest'
+}
+payload = {
+    'authenticity_token': authenticity_token,
+    'user[email]': 'lywang07@gmail.com',
+    'user[password]': '1234567890',
+}
+session.post(SIGNIN_URL, data=payload)
 
-# def books_for_each_publisher(publisher):
-#     # Change the comma in the name string into %2C
-#     publisher = publisher.replace(",", "%2C")
-#     # Parse the name of the publisher to put into url
-#     list = publisher.split()
-#     name = ""
-#     for i in range(len(list)-1):
-#         name = name + list[i] + "+"
-#     name = name + list[-1]
+def get_all_publishers():
+    # Get the search page
+    resp = session.get(SEARCH_URL)
+    search_doc = BeautifulSoup(resp.content, 'html.parser')
 
-#     # Get the first page of the publisher
-#     pub_first_page_url = TEMPLATE_URL.format(page_num="1", publisher_name=name)
-#     # Header
-#     headers = {
-#         'X-CSRF-Token': 'ySOG84hNCKNit9G7arli4bSFzH00BeS9vVnRNnBY+hA=',
-#         'Accept': 'application/json, text/javascript, */*; q=0.01',
-#         'X-Requested-With': 'XMLHttpRequest'
-#     }
+    # Get a list of all the publishers
+    publishers_lis = books.find('ul', {'id': 'StoryPublishers'}).find_all('li')
+    publishers = []
+    for li in publishers_lis:
+        publishers.append(li.find('label').text.strip())
 
-#     response = session.get(pub_first_page_url, headers=headers)
-#     data = response.json()
-#     search_results = data['search_results']
-#     link_list = []
-#     for i in range(len(search_results)):
-#         download_link = BASE_URL + search_results[i]['links'][0]['download']['low_res_pdf']
-#         link_list.append(download_link)
-#     return link_list
+    # Remove the first item "All" from publishers
+    publishers.pop(0)
+    return publishers
 
-class TestSushiChef(SushiChef):
+def books_for_each_publisher(publisher):
+    # Change the comma in the name string into %2C
+    publisher = publisher.replace(",", "%2C")
+    # Parse the name of the publisher to put into url
+    list = publisher.split()
+    name = ""
+    for i in range(len(list)-1):
+        name = name + list[i] + "+"
+    name = name + list[-1]
+
+    # Get the first page of the publisher
+    pub_first_page_url = TEMPLATE_URL.format(page_num="1", publisher_name=name)
+
+    response = session.get(pub_first_page_url, data=payload, headers=headers)
+    data = response.json()
+    search_results = data['search_results']
+    list = []
+    for i in range(len(search_results)):
+        download_link = BASE_URL + search_results[i]['links'][0]['download']['low_res_pdf']
+        book_dict = {
+            'link': download_link,
+            'source_id': search_results[i]['id'],
+            'title': search_results[i]['title'],
+            'author': ', '.join(search_results[i]['authors']),
+            'description': search_results[i]['synopsis'],
+            'thumbnail': search_results[i]['image_url'],
+            'language': search_results[i]['language'],
+            'level': search_results[i]['reading_level']
+        }
+        list.append(book_dict)
+    return list
+
+def group_books_by_language(book_list):
+    # sort languages alphabetically
+    sorted_books = sorted(book_list, key=lambda book: book['language'])
+
+    grouped_books = {}
+    # group books by languages
+    for lang, item in groupby(sorted_books, lambda book: book['language']):
+        grouped_books[lang] = list(item)
+    return grouped_books
+
+def group_books_by_level(book_list):
+    # sort levels by levels
+    sorted_books = sorted(book_list, key=lambda book: book['level'])
+
+    grouped_books = {}
+    # group books by levels
+    for level, item in groupby(sorted_books, lambda book: book['level']):
+        grouped_books[level] = list(item)
+    return grouped_books
+
+class PrathamBooksStoryWeaverSushiChef(SushiChef):
     """
     The chef class that takes care of uploading channel to the content curation server.
 
@@ -71,9 +120,9 @@ class TestSushiChef(SushiChef):
     # 1. PROVIDE CHANNEL INFO  (replace <placeholders> with your own values)
     ############################################################################
     channel_info = {    #
-        'CHANNEL_SOURCE_DOMAIN': 'learningequality.org',       # who is providing the content (e.g. learningequality.org)
-        'CHANNEL_SOURCE_ID': 'test_test_test',                   # channel's unique id
-        'CHANNEL_TITLE': 'test',
+        'CHANNEL_SOURCE_DOMAIN': 'storyweaver.org.in',       # who is providing the content (e.g. learningequality.org)
+        'CHANNEL_SOURCE_ID': 'pratham_books_storyweaver',                   # channel's unique id
+        'CHANNEL_TITLE': 'Pratham Books\' StoryWeaver',
         # 'CHANNEL_THUMBNAIL': 'http://yourdomain.org/img/logo.jpg', # (optional) local path or url to image file
         # 'CHANNEL_DESCRIPTION': 'What is this channel about?',      # (optional) description of the channel (optional)
     }
@@ -99,9 +148,9 @@ class TestSushiChef(SushiChef):
         # Create topics to add to your channel
         ########################################################################
         # Here we are creating a topic named 'Example Topic'
-        exampletopic = TopicNode(source_id="storyweaver_publisher_World_ Konkani_Centre", title="World Konkani Centre")
+        publisher = "The Rosetta Foundation"
+        exampletopic = TopicNode(source_id=publisher.replace(" ", "_"), title=publisher)
 
-        # Now we are adding 'Example Topic' to our channel
         channel.add_child(exampletopic)
 
         # You can also add subtopics to topics
@@ -115,20 +164,39 @@ class TestSushiChef(SushiChef):
         # # TODO: Add your subtopic to your topic here
         # mytopic.add_child(mysubsubtopic)
 
-        # list = books_for_each_publisher("World Konkani Centre")
-        # for item in list:
-        #     document_file = DocumentFile(path=item)
-        #     book = DocumentNode(title="book"+item, source_id="pdf"+item, files=[document_file], license=get_license(licenses.CC_BY))
-        # # Content
-        # You can add pdfs, videos, and audio files to your channel
-        ########################################################################
-        # let's create a document file called 'Example PDF'
-        document_file = DocumentFile(path="http://www.pdf995.com/samples/pdf.pdf")
-        examplepdf = DocumentNode(title="Example PDF", source_id="example-pdf", files=[document_file], license=get_license(licenses.CC_BY_SA))
-        # # TODO: Create your pdf file here (use any url to a .pdf file)
-        # my_document_file = DocumentFile(path="/Users/lingyiwang/Documents/Learning Equality/sushi-chef/Homework1.pdf")
-        # mypdf = DocumentNode(title="My PDF", source_id="my-pdf", files=[my_document_file], license=get_license(licenses.CC_BY_SA))
+        book_list = books_for_each_publisher(publisher)
+        sorted_language_list = group_books_by_language(book_list)
+        langs = sorted_language_list.keys()
+        for lang in langs:
+            lang_id = TEMPLATE_LANGUAGE_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang)
+            langsubtopic = TopicNode(source_id=lang_id, title=lang)
+            exampletopic.add_child(langsubtopic)
+            sorted_level_list = group_books_by_level(sorted_language_list[lang])
+            levels = sorted_level_list.keys()
+            for level in levels:
+                level_id = TEMPLATE_LEVEL_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang, level=level)
+                levelsubtopic = TopicNode(source_id=level_id, title=TEMPLATE_LEVEL_TITLE.format(num=level))
+                langsubtopic.add_child(levelsubtopic)
+                for item in sorted_level_list[level]:
+                    r = session.get(item['link'], stream=True)
+                    name = TEMPLATE_NAME.format(id=item['source_id'])
+                    with open(name, 'wb') as f:
+                        f.write(r.content)
+                        document_file = DocumentFile(path=name)
+                        examplepdf = DocumentNode(
+                            title=item['title'], 
+                            source_id=str(item['source_id']), 
+                            author = item['author'],
+                            files=[document_file], 
+                            license=get_license(licenses.CC_BY),
+                            thumbnail = item['thumbnail'],
+                            description = item['description']
+                        )
+                        levelsubtopic.add_child(examplepdf)
+                        
 
+        ########################################################################
+        
         # # We are also going to add a video file called 'Example Video'
         # video_file = VideoFile(path="https://ia600209.us.archive.org/27/items/RiceChef/Rice Chef.mp4")
         # fancy_license = get_license(licenses.SPECIAL_PERMISSIONS, description='Special license for ricecooker fans only.', copyright_holder='The chef video makers')
@@ -141,14 +209,9 @@ class TestSushiChef(SushiChef):
         # # TODO: Create your audio file here (use any url to a .mp3 file)
 
         # Now that we have our files, let's add them to our channel
-            #exampletopic.add_child(book) # Adding 'Example PDF' to your channel
+        # exampletopic.add_child(book) # Adding 'Example PDF' to your channel
         # exampletopic.add_child(examplevideo) # Adding 'Example Video' to 'Example Topic'
         # examplesubtopic.add_child(exampleaudio) # Adding 'Example Audio' to 'Example Subtopic'
-
-        # TODO: Add your pdf file to your channel
-        channel.add_child(examplepdf)
-        # TODO: Add your video file to your topic
-        # TODO: Add your audio file to your subtopic
 
         # the `construct_channel` method returns a ChannelNode that will be
         # processed by the ricecooker framework
@@ -159,11 +222,11 @@ if __name__ == '__main__':
     """
     This code will run when the sushi chef is called from the command line.
     """
-    chef = TestSushiChef()
+    chef = PrathamBooksStoryWeaverSushiChef()
     chef.main()
-    
-    # publishers = get_all_publishers()
-    # list = get_publisher_url(publishers)
-    # print(get_publisher_page(list[0]))
-
-    # print(books_for_each_publisher("World Konkani Centre")['search_results'][0]['links'][0]['download']['epub'])
+    # book_list = books_for_each_publisher("World Konkani Centre")
+    # group_books = group_books_by_language(book_list)
+    # print (group_books)
+    # print (group_books.keys())
+    # print (book_list)
+    # print(groupby(book_list))
