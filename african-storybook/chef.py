@@ -145,7 +145,7 @@ def download_book(book_url):
                 "({setItem: function(){}, removeItem: function(){}})")
 
     # Download all static assets.
-    # TODO(david): Also download fonts referenced in http://www.africanstorybook.org/css/app.css
+    # TODO(davidhu): Also download fonts referenced in http://www.africanstorybook.org/css/app.css
     download_assets("img[src]", "src")  # Images
     download_assets("link[href]", "href")  # CSS
     download_assets("script[src]", "src", middleware=js_middleware) # JS
@@ -180,7 +180,7 @@ def download_book(book_url):
     title = raw_title.replace('African Storybook -', '').strip()
 
     # Extract the description from the "Share to Facebook" text.
-    # TODO(david): Find a more robust way to get the book description -- the
+    # TODO(davidhu): Find a more robust way to get the book description -- the
     # description doesn't seem to exist in another way in the page source.
     send_facebook_node = doc.select_one("a[onclick*=\"sendFacebook\"]")
     send_facebook_text = send_facebook_node["onclick"]
