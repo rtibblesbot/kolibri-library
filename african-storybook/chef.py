@@ -13,9 +13,8 @@ from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
 
-from le_utils.constants import content_kinds, file_formats, licenses
 from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files
+from ricecooker.classes import nodes, files, licenses
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
 from ricecooker.utils.browser import preview_in_browser
 from ricecooker.utils.html import download_file
@@ -178,6 +177,12 @@ def download_book(book_url):
     source_id = parse_qs(urlparse(book_url).query)['id'][0]
     raw_title = doc.select_one("head title").text
     title = raw_title.replace('African Storybook -', '').strip()
+    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
+
+    author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
+    # Remove Language and Level description texts from the author text
+    author_text = "; ".join(
+            filter(lambda l: not l.startswith(("Language", "Level")), author_text_lines))
 
     # Extract the description from the "Share to Facebook" text.
     # TODO(davidhu): Find a more robust way to get the book description -- the
@@ -190,13 +195,28 @@ def download_book(book_url):
     else:
         raise Exception("Could not extract book description from Share to Facebook text: %s" % send_facebook_text)
 
+    print("Processing %s\t(from %s)" % (title, book_url))
+
     return nodes.HTML5AppNode(
         source_id=source_id,
         title=title,
-        license=licenses.CC_BY,
+        license=licenses.CC_BYLicense(copyright_holder=copyright_holder, description=author_text),
         description=description,
+        author=author_text,
         files=[files.HTMLZipFile(zip_path)],
     )
+
+
+def replace_br_with_newlines(element):
+    text = ''
+    for elem in element.recursiveChildGenerator():
+        if isinstance(elem, str):
+            text += elem
+        elif elem.name == 'br':
+            text += '\n'
+
+    # Merge consecutive spaces
+    return re.sub(" +", " ", text.strip())
 
 
 def make_request(url, *args, **kwargs):
