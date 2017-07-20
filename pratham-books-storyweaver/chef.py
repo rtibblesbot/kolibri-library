@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import requests
+import argparse
+from cairosvg import svg2png
 from lxml import html
 from bs4 import BeautifulSoup
 from itertools import groupby
@@ -13,37 +15,56 @@ from ricecooker.classes.licenses import get_license
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.config import LOGGER, DOWNLOAD_SESSION
 
+# Variables
+BASE_URL = 'https://storyweaver.org.in'
+SIGNIN_URL = 'https://storyweaver.org.in/users/sign_in'
+SEARCH_URL = 'https://storyweaver.org.in/search'
+STORYWEAVER_THUMBNAIL = 'https://storyweaver.org.in/assets/Storyweaver-Beta-094e9dc433c9b2ed7a8ad010921cabeb.svg'
+TEMPLATE_URL = 'https://storyweaver.org.in/search?page={page_num}\u0026search%5Bpublishers%5D%5B%5D={publisher_name}'
+TEMPLATE_LANGUAGE_NODE_ID = '{publisher}_{language}'
+TEMPLATE_LEVEL_NODE_ID = '{publisher}_{language}_{level}'
+TEMPLATE_LEVEL_TITLE = 'Level {num}'
 
-BASE_URL = "https://storyweaver.org.in"
-SIGNIN_URL = "https://storyweaver.org.in/users/sign_in"
-SEARCH_URL = "https://storyweaver.org.in/search"
-TEMPLATE_URL = "https://storyweaver.org.in/search?page={page_num}\u0026search%5Bpublishers%5D%5B%5D={publisher_name}"
-TEMPLATE_LANGUAGE_NODE_ID = "{publisher}_{language}"
-TEMPLATE_LEVEL_NODE_ID = "{publisher}_{language}_{level}"
-TEMPLATE_LEVEL_TITLE = "Level {num}"
-
-
+# Cache
 session = requests.Session()
+cache = FileCache('.webcache')
+forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
+session.mount('https://storyweaver.org.in/', forever_adapter)
+session.mount(' https://storage.googleapis.com', forever_adapter)
 
-# Get login csrf token
-result = DOWNLOAD_SESSION.get(SIGNIN_URL)
-tree = html.fromstring(result.text)
-authenticity_token = list(set(tree.xpath("//input[@name='authenticity_token']/@value")))[0]
-
-headers = {
+_headers = {
     'X-CSRF-Token': 'ySOG84hNCKNit9G7arli4bSFzH00BeS9vVnRNnBY+hA=',
     'Accept': 'application/json, text/javascript, */*; q=0.01',
     'X-Requested-With': 'XMLHttpRequest'
 }
-payload = {
-    'authenticity_token': authenticity_token,
-    'user[email]': 'lywang07@gmail.com',
-    'user[password]': '1234567890',
-}
 
-# Login to StoryWeaver website
-DOWNLOAD_SESSION.post(SIGNIN_URL, data=payload)
+"""
+Helper method. Cut off invalid part of image url.
+"""
+def edit_img_ext(url):
+    result = ''
+    base = url.split('.')
+    if base[-1] not in ('jpg', 'jepg', 'png'):
+        tmp_ext = base.pop(-1)
+        ext = tmp_ext.split('?')[0]
+        result = '.'.join(base) + '.' + ext
+    else:
+        result = url
+    return  result
+
+"""
+Helper method. Convert an svg image to a png image.
+"""
+def convert_svg_to_png(url):
+    ext = url.split('.')
+    path = 'channel_thumbnail.png'
+    if ext[-1] != 'svg':
+        print ("The image is not an svg.\n")
+        path = url
+    else:  
+        svg2png(url=url, write_to=path, parent_width=130, parent_height=130, dpi=100)
+    return path
 
 """
 Get all the publishers from the website.
@@ -75,16 +96,6 @@ def get_all_publishers():
     LOGGER.info('\t====================\n')
     return publishers
 
-def edit_img_ext(url):
-    result = ''
-    base = url.split('.')
-    if base[-1] not in ('jpg', 'jepg', 'png'):
-        tmp_ext = base.pop(-1)
-        ext = tmp_ext.split('?')[0]
-        result = '.'.join(base) + '.' + ext
-    else:
-        result = url
-    return  result
 
 """
 Get all the information about the books from the json file of each page 
@@ -129,7 +140,7 @@ def books_for_each_publisher(pub):
     pub_first_page_url = TEMPLATE_URL.format(page_num="1", publisher_name=name)
 
     # Get the json file of the page and parse it
-    response = session.get(pub_first_page_url, headers=headers)
+    response = session.get(pub_first_page_url, headers=_headers)
     data = response.json()
 
     # Get the total pages for the specific publisher
@@ -148,7 +159,7 @@ def books_for_each_publisher(pub):
         else:
             LOGGER.info('\tCrawling books from page %s of %s......\n' % (str(i+1), pub))
             page_url = TEMPLATE_URL.format(page_num=i+1, publisher_name=name)
-            response = session.get(page_url, headers=headers)
+            response = session.get(page_url, headers=_headers)
             data=response.json()
             search_results = data['search_results']
             list = get_books_from_results(search_results, list)
@@ -184,98 +195,133 @@ def group_books_by_level(book_list):
         grouped_books[level] = list(item)
     return grouped_books
 
+"""
+Add topics about publishers in the channel.
+"""
+def add_topic_pub(channel):
+    # Get all the publishers and loop through them
+    all_pubs = get_all_publishers()
+    for publisher in all_pubs:
+        if publisher == 'storyweaver':
+            pub_title = 'StoryWeaver Community'
+        else:
+            pub_title = publisher
 
-class PrathamBooksStoryWeaverSushiChef(SushiChef):
-    """
-    The chef class that takes care of uploading channel to the content curation server.
-
-    We'll call its `main()` method from the command line script.
-    """
-
-    # 1. PROVIDE CHANNEL INFO  (replace <placeholders> with your own values)
-    ############################################################################
-    channel_info = {    #
-        'CHANNEL_SOURCE_DOMAIN': 'storyweaver.org.in',       # who is providing the content (e.g. learningequality.org)
-        'CHANNEL_SOURCE_ID': 'pratham_books_storyweaver',                   # channel's unique id
-        'CHANNEL_TITLE': 'Pratham Books\' StoryWeaver',
-        # 'CHANNEL_THUMBNAIL': 'http://yourdomain.org/img/logo.jpg', # (optional) local path or url to image file
-        # 'CHANNEL_DESCRIPTION': '''Welcome to StoryWeaver from Pratham Books, 
-        #                         a whole new world of children’s stories, where 
-        #                         all barriers fall away. It is a platform that 
-        #                         hosts stories in languages from all across India 
-        #                         and beyond. So that every child can have an endless 
-        #                         stream of stories in her mother tongue to read and enjoy''',
-    }
-    
-    # 2. CONSTRUCT CHANNEL
-    ############################################################################
-    def construct_channel(self, *args, **kwargs):
-        """
-        This method is reponsible for creating a `ChannelNode` object from the info
-        in `channel_info` and populating it with TopicNode and ContentNode children.
-        """
-        # Create channel
-        ########################################################################
-        channel_info = self.channel_info
-        channel = ChannelNode(
-            source_domain = channel_info['CHANNEL_SOURCE_DOMAIN'],
-            source_id = channel_info['CHANNEL_SOURCE_ID'],
-            title = channel_info['CHANNEL_TITLE'],
-            thumbnail = channel_info.get('CHANNEL_THUMBNAIL'),
-            description = channel_info.get('CHANNEL_DESCRIPTION'),
+        # Add a topic for each publisher
+        pubtopic = TopicNode(
+            source_id = publisher.replace(" ", "_"), 
+            title = pub_title,
+            description = "Books from the publisher " + publisher
         )
 
-        # Get all the publishers and loop through them
-        all_pubs = get_all_publishers()
-        for publisher in all_pubs:
-            if publisher == 'storyweaver':
-                pub_title = 'StoryWeaver Community'
-            else:
-                pub_title = publisher
+        channel.add_child(pubtopic)
+        add_sub_topic_lang(publisher, pubtopic)
 
-            # Add a topic for each publisher
-            exampletopic = TopicNode(source_id=publisher.replace(" ", "_"), title=pub_title)
+"""
+Add subtopics about languages under a specific publisher topic.
+"""
+def add_sub_topic_lang(publisher, pubtopic):
+    # Get all the books info for each
+    book_list = books_for_each_publisher(publisher)
+    sorted_language_list = group_books_by_language(book_list)
+    langs = sorted_language_list.keys()
 
-            channel.add_child(exampletopic)
+    # Distribute books into subtopics according to languages
+    for lang in langs:
+        lang_id = TEMPLATE_LANGUAGE_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang)
+        langsubtopic = TopicNode(
+            source_id = lang_id, 
+            title = lang,
+            description = "Books from the publisher " + publisher + " in " + lang
+        )
+        pubtopic.add_child(langsubtopic)
+        add_sub_topic_level(publisher, lang, langsubtopic, sorted_language_list)
 
-            # Get all the books info for each
-            book_list = books_for_each_publisher(publisher)
-            sorted_language_list = group_books_by_language(book_list)
-            langs = sorted_language_list.keys()
+"""
+Add subtopics about levels of reading under a specific language subtopic.
+"""
+def add_sub_topic_level(publisher, lang, langsubtopic, sorted_language_list):
+    sorted_level_list = group_books_by_level(sorted_language_list[lang])
+    levels = sorted_level_list.keys()
 
-            # Distribute books into subtopics according to languages
-            for lang in langs:
-                lang_id = TEMPLATE_LANGUAGE_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang)
-                langsubtopic = TopicNode(source_id=lang_id, title=lang)
-                exampletopic.add_child(langsubtopic)
-                sorted_level_list = group_books_by_level(sorted_language_list[lang])
-                levels = sorted_level_list.keys()
+    # Distribute books into subtopics according to levels
+    for level in levels:
+        level_id = TEMPLATE_LEVEL_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang, level=level)
+        levelsubtopic = TopicNode(
+            source_id = level_id, 
+            title = TEMPLATE_LEVEL_TITLE.format(num=level),
+            description = "Books from the publisher " + publisher + " in " + lang + " of level " + level 
+        )
+        langsubtopic.add_child(levelsubtopic)
+        add_node_document(level, levelsubtopic, sorted_level_list)
 
-                # Distribute books into subtopics according to levels
-                for level in levels:
-                    level_id = TEMPLATE_LEVEL_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang, level=level)
-                    levelsubtopic = TopicNode(source_id=level_id, title=TEMPLATE_LEVEL_TITLE.format(num=level))
-                    langsubtopic.add_child(levelsubtopic)
+"""
+Add books under a specific level of reading.
+"""
+def add_node_document(level, levelsubtopic, sorted_level_list):
+    # Add books according to level, language and publisher
+    for item in sorted_level_list[level]:
+        document_file = DocumentFile(path=item['link'])
+        bookpdf = DocumentNode(
+            title=item['title'], 
+            source_id=str(item['source_id']), 
+            author = item['author'],
+            files=[document_file], 
+            license=get_license(licenses.CC_BY),
+            thumbnail = item.get('thumbnail'),
+            description = item['description'],
+        )
+        levelsubtopic.add_child(bookpdf)
 
-                    for item in sorted_level_list[level]:
-                        document_file = DocumentFile(path=item['link'])
-                        examplepdf = DocumentNode(
-                            title=item['title'], 
-                            source_id=str(item['source_id']), 
-                            author = item['author'],
-                            files=[document_file], 
-                            license=get_license(licenses.CC_BY),
-                            thumbnail = item.get('thumbnail'),
-                            description = item['description'],
-                        )
-                        levelsubtopic.add_child(examplepdf)
+
+class PrathamBooksStoryWeaverSushiChef(SushiChef):
+    # Add two additional arguments about login information.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.arg_parser = argparse.ArgumentParser(parents=[self.arg_parser], description='Sushi Chef for Pratham Books\' StoryWeaver.')
+        self.arg_parser.add_argument('--login_email', default='lywang07@gmail.com', help='Login email for Pratham Books\' StoryWeaver website.')
+        self.arg_parser.add_argument('--login_password', default='1234567890', help='Login password for Pratham Books\' StoryWeaver website.')
+
+
+    # Get the login information and log into the website with download_session.
+    def pre_run(self, *args, **kwargs):
+        arguments, options = self.parse_args_and_options()
+        # Get login csrf token
+        result = DOWNLOAD_SESSION.get(SIGNIN_URL)
+        tree = html.fromstring(result.text)
+        _authenticity_token = list(set(tree.xpath("//input[@name='authenticity_token']/@value")))[0]
+        payload = {
+            'authenticity_token': _authenticity_token,
+            'user[email]': arguments['login_email'],
+            'user[password]': arguments['login_password'],
+        }
+
+        # Login to StoryWeaver website
+        DOWNLOAD_SESSION.post(SIGNIN_URL, data=payload)
+
+    def get_channel(self, **kwargs):
+        # Create a channel
+        channel = ChannelNode(
+            source_domain = 'storyweaver.org.in',
+            source_id = 'Pratham_Books_StoryWeaver',
+            title = 'Pratham Books\' StoryWeaver',
+            thumbnail = convert_svg_to_png(STORYWEAVER_THUMBNAIL),
+            description = '',
+        )
+
+        return channel
+
+    def construct_channel(self, *args, **kwargs):
+        channel = self.get_channel(**kwargs)
+
+        # add topics and corresponding books to the channel
+        add_topic_pub(channel)
 
         return channel
 
 
 if __name__ == '__main__':
-    """
-    This code will run when the sushi chef is called from the command line.
-    """
+
+    # This code will run when the sushi chef is called from the command line.
     chef = PrathamBooksStoryWeaverSushiChef()
     chef.main()
