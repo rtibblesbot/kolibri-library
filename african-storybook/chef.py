@@ -152,6 +152,7 @@ def download_book(book_url):
     # Download all background images, e.g. <div style="background-image:url()">
     # (africanstorybook.org uses these for the main picture found on each page
     # of the storybook.)
+    thumbnail = None
     bg_img_nodes = doc.select("div[style*=\"background-image:url(\"]")
     for i, node in enumerate(bg_img_nodes):
         style = node["style"]
@@ -163,6 +164,9 @@ def download_book(book_url):
         filename = "%s_%s" % (i, os.path.basename(url))
         node["style"] = BG_IMG_RE.sub("background-image:url(%s)" % filename, style)
         download_file(url, destination, request_fn=make_request, filename=filename)
+
+        if node.has_attr("class") and "cover-image" in node.get("class"):
+            thumbnail = os.path.join(destination, filename)
 
     # Hide the African Storybook header nav bar.
     header = doc.select_one("#headerBar")
@@ -203,6 +207,7 @@ def download_book(book_url):
         license=licenses.CC_BYLicense(copyright_holder=copyright_holder, description=author_text),
         description=description,
         author=author_text,
+        thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
     )
 
