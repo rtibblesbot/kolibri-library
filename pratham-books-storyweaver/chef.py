@@ -2,7 +2,7 @@
 
 import requests
 import argparse
-from lxml import html
+import cairosvg
 from bs4 import BeautifulSoup
 from itertools import groupby
 
@@ -24,23 +24,22 @@ TEMPLATE_LANGUAGE_NODE_ID = '{publisher}_{language}'
 TEMPLATE_LEVEL_NODE_ID = '{publisher}_{language}_{level}'
 TEMPLATE_LEVEL_TITLE = 'Level {num}'
 
+
 # Cache
 session = requests.Session()
 cache = FileCache('.webcache')
-# Use basic_adapter since StoryWeaver updates stories often
-basic_adapter = CacheControlAdapter()
-# Use forever_adapter for testing purpose
+basic_adapter = CacheControlAdapter(cache=cache)
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
-session.mount('https://storyweaver.org.in/', basic_adapter)
-session.mount(' https://storage.googleapis.com', basic_adapter)
+session.mount('https://storyweaver.org.in', forever_adapter)
+session.mount(' https://storage.googleapis.com', forever_adapter)
 
 _headers = {
-    'X-CSRF-Token': 'ySOG84hNCKNit9G7arli4bSFzH00BeS9vVnRNnBY+hA=',
     'Accept': 'application/json, text/javascript, */*; q=0.01',
     'X-Requested-With': 'XMLHttpRequest',
     'Connection': 'keep-alive'
 }
+
 
 """
 Helper method. Cut off invalid part of image url.
@@ -72,9 +71,6 @@ def get_all_publishers():
         # Change the name of StoryWeaver Community to match with the link provided by the website
         if li.find('label').text.strip() == 'StoryWeaver Community':
             publishers.append("storyweaver")
-        # Created by Children publisher is redundant
-        elif li.find('label').text.strip() == 'Created by Children':
-            continue
         else:
             publishers.append(li.find('label').text.strip())
 
@@ -111,48 +107,38 @@ Get all the information about books for every publisher
 """
 def books_for_each_publisher(pub):
     list = []
-    if pub == 'storyweaver':
-        pub_title = 'StoryWeaver Community'
-    else:
-        pub_title = pub
-    LOGGER.info('\tCrawling books for %s......\n' % (pub_title))
+    LOGGER.info('\tCrawling books for %s......\n' % (pub))
 
-    # Change the comma in the name string into %2C
-    publisher = pub.replace(',', '%2C')
     # Parse the name of the publisher to put into url
-    chars = publisher.split()
-    name = ""
-    for i in range(len(chars)-1):
-        name = name + chars[i] + "+"
-    name = name + chars[-1]
+    publisher = pub.replace(',', '%2C')
+    name = publisher.replace(' ', '+')
 
     # Get the first page of the publisher
-    pub_first_page_url = TEMPLATE_URL.format(page_num="1", publisher_name=name)
-
+    if (pub == 'Created by Children'):
+        pub_first_page_url = TEMPLATE_CREATED_BY_CHILDREN_URL.format(page_num="1")
+    else:
+        pub_first_page_url = TEMPLATE_URL.format(page_num="1", publisher_name=name)
+    
     # Get the json file of the page and parse it
     response = session.get(pub_first_page_url, headers=_headers)
     data = response.json()
-
-    # Get the total pages for the specific publisher
     total_pages = data['metadata']['total_pages']
-    LOGGER.info('\tThere is(are) in total %s page(s) for %s......\n' % (str(total_pages), pub_title))
+    LOGGER.info('\tThere is(are) in total %s page(s) for %s......\n' % (str(total_pages), pub))
 
     # List of books for the first page
-    LOGGER.info('\tCrawling books from page %s of %s......\n' % (str(1), pub_title))
     list = get_books_from_results(data['search_results'], list)
 
     # get the rest of the pages' books
-    for i in range(total_pages):
-        if i == 0:
-            continue
+    for i in range(1, total_pages):
+        if (pub == 'Created by Children'):
+            page_url = TEMPLATE_CREATED_BY_CHILDREN_URL .format(page_num=i+1)
         else:
-            LOGGER.info('\tCrawling books from page %s of %s......\n' % (str(i+1), pub_title))
             page_url = TEMPLATE_URL.format(page_num=i+1, publisher_name=name)
-            response = session.get(page_url, headers=_headers)
-            data=response.json() 
-            list = get_books_from_results(data['search_results'], list)
+        response = session.get(page_url, headers=_headers)
+        data = response.json() 
+        list = get_books_from_results(data['search_results'], list)
 
-    LOGGER.info('\tFinished crawling all the books for %s\n\t====================\n' % (pub_title))
+    LOGGER.info('\tFinished getting all the books for %s\n\t====================\n' % (pub))
     return list
 
 
@@ -189,11 +175,11 @@ def add_topic_pub(channel):
         pubtopic = TopicNode(
             source_id = publisher.replace(" ", "_"), 
             title = pub_title,
-            description = "Books from the publisher " + publisher
         )
 
         channel.add_child(pubtopic)
         add_sub_topic_lang(publisher, pubtopic)
+
 
 """
 Add subtopics about languages under a specific publisher topic.
@@ -210,10 +196,10 @@ def add_sub_topic_lang(publisher, pubtopic):
         langsubtopic = TopicNode(
             source_id = lang_id, 
             title = lang,
-            description = "Books from the publisher " + publisher + " in " + lang
         )
         pubtopic.add_child(langsubtopic)
         add_sub_topic_level(publisher, lang, langsubtopic, sorted_language_list)
+
 
 """
 Add subtopics about levels of reading under a specific language subtopic.
@@ -228,10 +214,10 @@ def add_sub_topic_level(publisher, lang, langsubtopic, list):
         levelsubtopic = TopicNode(
             source_id = level_id, 
             title = TEMPLATE_LEVEL_TITLE.format(num=level),
-            description = "Books from the publisher " + publisher + " in " + lang + " of level " + level 
         )
         langsubtopic.add_child(levelsubtopic)
         add_node_document(level, levelsubtopic, sorted_level_list)
+
 
 """
 Add books under a specific level of reading.
@@ -240,7 +226,7 @@ def add_node_document(level, levelsubtopic, list):
     # Add books according to level, language and publisher
     for item in list[level]:
         document_file = DocumentFile(path=item['link'])
-        bookpdf = DocumentNode(
+        book = DocumentNode(
             title=item['title'], 
             source_id=str(item['source_id']), 
             author = item['author'],
@@ -249,7 +235,7 @@ def add_node_document(level, levelsubtopic, list):
             thumbnail = item.get('thumbnail'),
             description = item['description'],
         )
-        levelsubtopic.add_child(bookpdf)
+        levelsubtopic.add_child(book)
 
 
 class PrathamBooksStoryWeaverSushiChef(SushiChef):
@@ -259,14 +245,14 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         self.arg_parser = argparse.ArgumentParser(parents=[self.arg_parser], description='Sushi Chef for Pratham Books\' StoryWeaver.')
         self.arg_parser.add_argument('--login_email', default='lywang07@gmail.com', help='Login email for Pratham Books\' StoryWeaver website.')
         self.arg_parser.add_argument('--login_password', default='1234567890', help='Login password for Pratham Books\' StoryWeaver website.')
-    
+
+
     # Get the login information and log into the website with download_session.
     def pre_run(self, args, options):
-        # arguments, options = chef.parse_args_and_options()
         # Get login csrf token
         result = DOWNLOAD_SESSION.get(SIGNIN_URL)
-        tree = html.fromstring(result.text)
-        _authenticity_token = list(set(tree.xpath("//input[@name='authenticity_token']/@value")))[0]
+        html_doc = BeautifulSoup(result.content, 'html.parser')
+        _authenticity_token = html_doc.find('input', {'name': 'authenticity_token'})['value']
         payload = {
             'authenticity_token': _authenticity_token,
             'user[email]': args['login_email'],
@@ -275,6 +261,10 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         # Login to StoryWeaver website
         DOWNLOAD_SESSION.post(SIGNIN_URL, data=payload)
 
+        # Get the thumbnail
+        thumbnail = html_doc.find('img', {'alt': 'Storyweaver beta'})['src']
+        cairosvg.svg2png(url=thumbnail, scale=0.2, write_to="thumbnail.png")
+
 
     def get_channel(self, **kwargs):
         # Create a channel
@@ -282,18 +272,17 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
             source_domain = 'storyweaver.org.in',
             source_id = 'Pratham_Books_StoryWeaver',
             title = 'Pratham Books\' StoryWeaver',
-            thumbnail = None,
+            thumbnail = 'thumbnail.png',
             description = '',
         )
-
         return channel
+
 
     def construct_channel(self, **kwargs):
         channel = self.get_channel(**kwargs)
 
         # add topics and corresponding books to the channel
         add_topic_pub(channel)
-
         return channel
 
 
@@ -302,4 +291,3 @@ if __name__ == '__main__':
     #This code will run when the sushi chef is called from the command line.
     chef = PrathamBooksStoryWeaverSushiChef()
     chef.main()
-    # print (books_for_each_publisher('storyweaver'))
