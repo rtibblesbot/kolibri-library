@@ -28,7 +28,7 @@ TEMPLATE_LEVEL_TITLE = 'Level {num}'
 # Cache
 session = requests.Session()
 cache = FileCache('.webcache')
-basic_adapter = CacheControlAdapter(cache=cache)
+basic_adapter = CacheControlAdapter()
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
 session.mount('https://storyweaver.org.in', basic_adapter)
