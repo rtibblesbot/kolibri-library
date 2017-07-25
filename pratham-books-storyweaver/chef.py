@@ -31,8 +31,8 @@ cache = FileCache('.webcache')
 basic_adapter = CacheControlAdapter(cache=cache)
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
-session.mount('https://storyweaver.org.in', forever_adapter)
-session.mount(' https://storage.googleapis.com', forever_adapter)
+session.mount('https://storyweaver.org.in', basic_adapter)
+session.mount(' https://storage.googleapis.com', basic_adapter)
 
 _headers = {
     'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -249,7 +249,7 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
 
     # Get the login information and log into the website with download_session.
     def pre_run(self, args, options):
-        # Get login csrf token
+        # Get login authenticity token
         result = DOWNLOAD_SESSION.get(SIGNIN_URL)
         html_doc = BeautifulSoup(result.content, 'html.parser')
         _authenticity_token = html_doc.find('input', {'name': 'authenticity_token'})['value']
