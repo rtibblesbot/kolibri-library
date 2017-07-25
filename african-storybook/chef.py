@@ -5,6 +5,7 @@ Sushi Chef for African Storybook: http://www.africanstorybook.org/
 We make an HTML5 app out of each interactive reader.
 """
 
+from collections import defaultdict
 import os
 import re
 import requests
@@ -112,22 +113,70 @@ class AfricanStorybookChef(SushiChef):
             description = channel_info.get('CHANNEL_DESCRIPTION'),
         )
 
-        # build tree
-        for url in SELECTION_OF_POPULAR_TITLES:
-            channel.add_child(download_book(url))
+        # Download the books into a dict {language: [list of books]}
+        books_by_language = download_books_and_all_related(SELECTION_OF_POPULAR_TITLES)
 
-        # ... and just for test purposes, add a book in the Zulu language
-        channel.add_child(download_book("http://www.africanstorybook.org/reader.php?id=16511"))
+        # ... now add them to the ricecooker channel tree!
+        for language, books in books_by_language.items():
+            language_node = nodes.TopicNode(source_id=language, title=language)
+
+            for book in books:
+                language_node.add_child(book)
+
+            channel.add_child(language_node)
 
         return channel
 
 
+def download_books_and_all_related(book_urls):
+    """Given an initial list of URLs of books, downloads all of those books,
+    along with all the related books (translations and adaptations), via
+    a stack-implemented DFS.
+
+    Return a dict of {language: [list of books of that lanugage]}.
+    """
+    to_download = list(book_urls)
+    book_ids_downloaded = set()
+    books_by_language = defaultdict(list)
+
+    while to_download:
+        book_url = to_download.pop()
+        book_id = get_id_from_url(book_url)
+        if book_id in book_ids_downloaded:
+            continue
+
+        book_ids_downloaded.add(book_id)
+
+        book, language, related = download_book(book_url)
+
+        if not book:
+            continue
+
+        books_by_language[language].append(book)
+        to_download.extend(related)
+
+    return books_by_language
+
+
 BG_IMG_RE = re.compile("background-image:url\((.*)\)")
-SEND_FACEBOOK_RE = re.compile("sendFacebook\([^,]*,[^,]*,(.*)\)")
+SEND_FACEBOOK_RE = re.compile("sendFacebook\([^,]*,[^,]*,(.*)\)", re.DOTALL)  # Match across newlines
 
 
 def download_book(book_url):
+    """
+    Downloads a single book from the African Storybook website given its URL.
+
+    Returns a tuple of
+        (book itself as an HTML5AppNode,
+        language of the book as a string,
+        and list of related books (i.e. adaptations and translations)).
+    """
+    print("Downloading book with url %s" % book_url)
     doc = get_parsed_html_from_url(book_url)
+
+    if "The storybook you wanted is not part of the African Storybook website" in doc.body.text:
+        return None, None, []
+
     destination = tempfile.mkdtemp()
 
     def download_assets(selector, attr, middleware=None):
@@ -176,9 +225,7 @@ def download_book(book_url):
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
 
-    zip_path = create_predictable_zip(destination)
-
-    source_id = parse_qs(urlparse(book_url).query)['id'][0]
+    source_id = get_id_from_url(book_url)
     raw_title = doc.select_one("head title").text
     title = raw_title.replace('African Storybook -', '').strip()
     copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
@@ -189,8 +236,9 @@ def download_book(book_url):
             filter(lambda l: not l.startswith(("Language", "Level")), author_text_lines))
 
     # Extract the description from the "Share to Facebook" text.
-    # TODO(davidhu): Find a more robust way to get the book description -- the
-    # description doesn't seem to exist in another way in the page source.
+    # TODO(davidhu): Find a more robust way to get the book description.
+    # Perhaps use the search index, as powered by the JS API on
+    # http://www.africanstorybook.org/booklist.php
     send_facebook_node = doc.select_one("a[onclick*=\"sendFacebook\"]")
     send_facebook_text = send_facebook_node["onclick"]
     match = SEND_FACEBOOK_RE.search(send_facebook_text)
@@ -199,8 +247,17 @@ def download_book(book_url):
     else:
         raise Exception("Could not extract book description from Share to Facebook text: %s" % send_facebook_text)
 
-    print("Processing %s\t(from %s)" % (title, book_url))
+    # Extract language text
+    language_raw = next(l for l in author_text_lines if l.startswith("Language"))
+    language = language_raw.strip("Language -").strip()
 
+    # Find related
+    related_nodes = doc.select("#accordianRelatedStories .accordion-item-content .item-link")
+    related = [make_fully_qualified_url(node["href"]) for node in related_nodes]
+
+    print("... downloaded %s book: %s" % (language, title))
+
+    zip_path = create_predictable_zip(destination)
     return nodes.HTML5AppNode(
         source_id=source_id,
         title=title,
@@ -209,7 +266,7 @@ def download_book(book_url):
         author=author_text,
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
-    )
+    ), language, related
 
 
 def replace_br_with_newlines(element):
@@ -246,6 +303,10 @@ def make_fully_qualified_url(url):
     if not url.startswith("http"):
         return "http://www.africanstorybook.org/" + url
     return url
+
+
+def get_id_from_url(book_url):
+    return parse_qs(urlparse(book_url).query)['id'][0]
 
 
 if __name__ == '__main__':
