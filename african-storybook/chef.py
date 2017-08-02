@@ -6,10 +6,12 @@ We make an HTML5 app out of each interactive reader.
 """
 
 from collections import defaultdict
+import html
 import os
 import re
 import requests
 import tempfile
+import time
 from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
@@ -18,7 +20,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
 from ricecooker.utils.browser import preview_in_browser
-from ricecooker.utils.html import download_file
+from ricecooker.utils.html import download_file, WebDriver
 from ricecooker.utils.zip import create_predictable_zip
 
 
@@ -30,60 +32,11 @@ sess.mount('http://www.africanstorybook.org/', forever_adapter)
 sess.mount('https://fonts.googleapis.com/', forever_adapter)
 
 
-# A selection of 50 popular titles, from doc referenced in the sushi chef spec sheet:
-# https://docs.google.com/document/d/1EcYjHApp2ghJ4Yfs67kN8nCfi98xdXDFwzepimH7oR8/edit
-SELECTION_OF_POPULAR_TITLES = [
-    "http://www.africanstorybook.org/reader.php?id=918&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19760&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19762&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9879&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19763&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19764&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19765&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19767&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=13626&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=13263&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19761&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9097&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19876&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9748&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=12083&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=1881&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=17197&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9296&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=6380&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=11990&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=8491&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=5266&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19292&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=12155&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=14771&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=18420&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=18773&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=16988&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=15055&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=13539&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=18769&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=14497&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19467&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9787&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=14792&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=13623&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=12084&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=13548&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9526&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=14415&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=15291&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9243&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19074&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=19421&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=9796&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=10210&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=13213&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=16510&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=6895&d=0&a=1",
-    "http://www.africanstorybook.org/reader.php?id=17115&d=0&a=1",
-]
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "keep-alive"
+}
 
 
 class AfricanStorybookChef(SushiChef):
@@ -94,7 +47,7 @@ class AfricanStorybookChef(SushiChef):
     """
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
-        'CHANNEL_SOURCE_ID': "african-storybook",
+        'CHANNEL_SOURCE_ID': "african-storybook-test",
         'CHANNEL_TITLE': "African Storybook",
         'CHANNEL_THUMBNAIL': "http://www.africanstorybook.org/img/asb120.png",
     }
@@ -114,89 +67,140 @@ class AfricanStorybookChef(SushiChef):
         )
 
         # Download the books into a dict {language: [list of books]}
-        books_by_language = download_books_and_all_related(SELECTION_OF_POPULAR_TITLES)
+        channel_tree = download_all()
 
         # ... now add them to the ricecooker channel tree!
-        for language, books in books_by_language.items():
+        for language, levels in channel_tree.items():
             language_node = nodes.TopicNode(source_id=language, title=language)
-
-            for book in books:
-                language_node.add_child(book)
-
             channel.add_child(language_node)
+
+            for level, books in sorted(levels.items(), key=lambda t: t[0]):
+                # TODO(davidhu): Translate this topic title "Level #" into the
+                # topic's language.
+                level_node = nodes.TopicNode(source_id=level, title="Level %s" % level)
+                language_node.add_child(level_node)
+
+                for book in books:
+                    level_node.add_child(book)
 
         return channel
 
 
-def download_books_and_all_related(book_urls):
-    """Given an initial list of URLs of books, downloads all of those books,
-    along with all the related books (translations and adaptations), via
-    a stack-implemented DFS.
+def download_all():
+    with WebDriver("http://www.africanstorybook.org/", delay=20000) as driver:
+        books = driver.execute_script("return bookItems;")
+        total_books = len(books)
 
-    Return a dict of {language: [list of books of that lanugage]}.
+        # Build a dict of {African Storybook language ID: language name}
+        languages_html = driver.execute_script("return languages;")
+        language_id_map = {}
+        for node in BeautifulSoup(languages_html, "html.parser"):
+            language_id_map[node["value"]] = node.text.strip()
+
+        channel_tree = defaultdict(lambda: defaultdict(list))
+        for i, book in enumerate(books):
+            book_id = book["id"]
+            book_url = "http://www.africanstorybook.org/reader.php?id=%s" % book_id
+            print("Downloading book %s of %s with url %s" % (i + 1, total_books, book_url))
+
+            level = book["level"]
+            language_ids = book["lang"].split(",")
+            languages = [language_id_map[code.strip()] for code in language_ids if code]
+            author = "%s; Others: %s" % (book["author"], book["people"])
+            title = html.unescape(book["title"])
+            description = html.unescape(book["summary"])
+
+            book, languages = download_book(book_url, book_id, title, author, description, languages)
+
+            if book:
+                print("... downloaded a Level %s %s book titled %s" % (
+                    level, "/".join(languages), title))
+                for language in languages:
+                    channel_tree[language][level].append(book)
+            else:
+                print("... WARNING: book not found")
+
+    return channel_tree
+
+
+def download_book(book_url, book_id, title, author, description, languages):
+    """Downloads a single book from the African Storybook website given its URL.
+
+    Return a tuple of (
+        the downloaded book as an HTML5AppNode,
+        the language of the book as a string).
     """
-    to_download = list(book_urls)
-    book_ids_downloaded = set()
-    books_by_language = defaultdict(list)
-
-    while to_download:
-        book_url = to_download.pop()
-        book_id = get_id_from_url(book_url)
-        if book_id in book_ids_downloaded:
-            continue
-
-        book_ids_downloaded.add(book_id)
-
-        book, language, related = download_book(book_url)
-
-        if not book:
-            continue
-
-        books_by_language[language].append(book)
-        to_download.extend(related)
-
-    return books_by_language
-
-
-BG_IMG_RE = re.compile("background-image:url\((.*)\)")
-SEND_FACEBOOK_RE = re.compile("sendFacebook\([^,]*,[^,]*,(.*)\)", re.DOTALL)  # Match across newlines
-
-
-def download_book(book_url):
-    """
-    Downloads a single book from the African Storybook website given its URL.
-
-    Returns a tuple of
-        (book itself as an HTML5AppNode,
-        language of the book as a string,
-        and list of related books (i.e. adaptations and translations)).
-    """
-    print("Downloading book with url %s" % book_url)
     doc = get_parsed_html_from_url(book_url)
 
     if "The storybook you wanted is not part of the African Storybook website" in doc.body.text:
         return None, None, []
 
     destination = tempfile.mkdtemp()
+    thumbnail = download_static_assets(doc, destination)
 
-    def download_assets(selector, attr, middleware=None):
+    # Hide the African Storybook header nav bar.
+    header = doc.select_one("#headerBar")
+    if header:
+        header["style"] = "display: none;"
+
+    with open(os.path.join(destination, "index.html"), "w") as f:
+        f.write(str(doc))
+
+    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
+
+    # Extract the language if we didn't get it already.
+    if not languages:
+        author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
+        language_raw = next(l for l in author_text_lines if l.startswith("Language"))
+        languages = [language_raw.strip("Language").strip(" -")]
+
+    zip_path = create_predictable_zip(destination)
+    return nodes.HTML5AppNode(
+        source_id=book_id,
+        title=title[:200],
+        license=licenses.CC_BYLicense(
+            copyright_holder=copyright_holder[:200], description=author),
+        description=description,
+        author=author[:200],
+        thumbnail=thumbnail,
+        files=[files.HTMLZipFile(zip_path)],
+    ), languages
+
+
+BG_IMG_RE = re.compile("background-image:url\((.*)\)")
+
+
+def download_static_assets(doc, destination):
+    """Download all the static assets for a given book's HTML soup.
+
+    Return the downloaded filename of an image to use for the book's thumbnail.
+    """
+    def download_assets(selector, attr, url_middleware=None, content_middleware=None):
         nodes = doc.select(selector)
         for i, node in enumerate(nodes):
             url = make_fully_qualified_url(node[attr])
+            if url_middleware:
+                url = url_middleware(url)
             filename = "%s_%s" % (i, os.path.basename(url))
             node[attr] = filename
-            download_file(url, destination, request_fn=make_request, filename=filename, middleware_callbacks=middleware)
+            download_file(url, destination, request_fn=make_request,
+                    filename=filename, middleware_callbacks=content_middleware)
 
     def js_middleware(content, url, **kwargs):
         # Polyfill window.localStorage as iframes can't access localStorage.
         return content.replace("window.localStorage",
                 "({setItem: function(){}, removeItem: function(){}})")
 
+    def css_middleware(url):
+        # Somehow the minified app CSS doesn't render images. Download the
+        # original.
+        return url.replace("app.min.css", "app.css")
+
     # Download all static assets.
     # TODO(davidhu): Also download fonts referenced in http://www.africanstorybook.org/css/app.css
     download_assets("img[src]", "src")  # Images
-    download_assets("link[href]", "href")  # CSS
-    download_assets("script[src]", "src", middleware=js_middleware) # JS
+    download_assets("link[href]", "href", url_middleware=css_middleware)  # CSS
+    download_assets("script[src]", "src", content_middleware=js_middleware) # JS
 
     # Download all background images, e.g. <div style="background-image:url()">
     # (africanstorybook.org uses these for the main picture found on each page
@@ -217,56 +221,7 @@ def download_book(book_url):
         if node.has_attr("class") and "cover-image" in node.get("class"):
             thumbnail = os.path.join(destination, filename)
 
-    # Hide the African Storybook header nav bar.
-    header = doc.select_one("#headerBar")
-    if header:
-        header["style"] = "display: none;"
-
-    with open(os.path.join(destination, "index.html"), "w") as f:
-        f.write(str(doc))
-
-    source_id = get_id_from_url(book_url)
-    raw_title = doc.select_one("head title").text
-    title = raw_title.replace('African Storybook -', '').strip()
-    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
-
-    author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
-    # Remove Language and Level description texts from the author text
-    author_text = "; ".join(
-            filter(lambda l: not l.startswith(("Language", "Level")), author_text_lines))
-
-    # Extract the description from the "Share to Facebook" text.
-    # TODO(davidhu): Find a more robust way to get the book description.
-    # Perhaps use the search index, as powered by the JS API on
-    # http://www.africanstorybook.org/booklist.php
-    send_facebook_node = doc.select_one("a[onclick*=\"sendFacebook\"]")
-    send_facebook_text = send_facebook_node["onclick"]
-    match = SEND_FACEBOOK_RE.search(send_facebook_text)
-    if match:
-        description = match.group(1).strip("'\" ")
-    else:
-        raise Exception("Could not extract book description from Share to Facebook text: %s" % send_facebook_text)
-
-    # Extract language text
-    language_raw = next(l for l in author_text_lines if l.startswith("Language"))
-    language = language_raw.strip("Language -").strip()
-
-    # Find related
-    related_nodes = doc.select("#accordianRelatedStories .accordion-item-content .item-link")
-    related = [make_fully_qualified_url(node["href"]) for node in related_nodes]
-
-    print("... downloaded %s book: %s" % (language, title))
-
-    zip_path = create_predictable_zip(destination)
-    return nodes.HTML5AppNode(
-        source_id=source_id,
-        title=title,
-        license=licenses.CC_BYLicense(copyright_holder=copyright_holder, description=author_text),
-        description=description,
-        author=author_text,
-        thumbnail=thumbnail,
-        files=[files.HTMLZipFile(zip_path)],
-    ), language, related
+    return thumbnail
 
 
 def replace_br_with_newlines(element):
@@ -281,12 +236,29 @@ def replace_br_with_newlines(element):
     return re.sub(" +", " ", text.strip())
 
 
-def make_request(url, *args, **kwargs):
-    response = sess.get(url, *args, **kwargs)
+def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
+    if clear_cookies:
+        sess.cookies.clear()
+
+    retry_count = 0
+    max_retries = 5
+    while True:
+        try:
+            response = sess.get(url, headers=headers, timeout=timeout, *args, **kwargs)
+            break
+        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
+            retry_count += 1
+            print("Error with connection ('{msg}'); about to perform retry {count} of {trymax}."
+                  .format(msg=str(e), count=retry_count, trymax=max_retries))
+            time.sleep(retry_count * 1)
+            if retry_count >= max_retries:
+                return Dummy404ResponseObject(url=url)
+
     if response.status_code != 200:
         print("NOT FOUND:", url)
     elif not response.from_cache:
         print("NOT CACHED:", url)
+
     return response
 
 
@@ -303,10 +275,6 @@ def make_fully_qualified_url(url):
     if not url.startswith("http"):
         return "http://www.africanstorybook.org/" + url
     return url
-
-
-def get_id_from_url(book_url):
-    return parse_qs(urlparse(book_url).query)['id'][0]
 
 
 if __name__ == '__main__':
