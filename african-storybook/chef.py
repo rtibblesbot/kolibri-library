@@ -47,7 +47,7 @@ class AfricanStorybookChef(SushiChef):
     """
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
-        'CHANNEL_SOURCE_ID': "african-storybook-test",
+        'CHANNEL_SOURCE_ID': "african-storybook",
         'CHANNEL_TITLE': "African Storybook",
         'CHANNEL_THUMBNAIL': "http://www.africanstorybook.org/img/asb120.png",
     }
