@@ -130,10 +130,25 @@ def download_book(book_url, book_id, title, author, description, languages):
         the downloaded book as an HTML5AppNode,
         the language of the book as a string).
     """
+    # -- 0. Parse --
+
     doc = get_parsed_html_from_url(book_url)
 
     if "The storybook you wanted is not part of the African Storybook website" in doc.body.text:
         return None, None, []
+
+    # -- 1. Extract --
+
+    # Extract copyright holder.
+    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
+
+    # Extract the language if we didn't get it already.
+    if not languages:
+        author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
+        language_raw = next(l for l in author_text_lines if l.startswith("Language"))
+        languages = [language_raw.strip("Language").strip(" -")]
+
+    # -- 2. Modify and write files --
 
     destination = tempfile.mkdtemp()
     thumbnail = download_static_assets(doc, destination)
@@ -143,16 +158,15 @@ def download_book(book_url, book_id, title, author, description, languages):
     if header:
         header["style"] = "display: none;"
 
+    # Add page flipper buttons
+    left_png, response = download_file("http://www.africanstorybook.org/img/left.png",
+            destination, request_fn=make_request)
+    right_png, response = download_file("http://www.africanstorybook.org/img/right.png",
+            destination, request_fn=make_request)
+    add_page_flipper_buttons(doc, left_png, right_png)
+
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
-
-    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
-
-    # Extract the language if we didn't get it already.
-    if not languages:
-        author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
-        language_raw = next(l for l in author_text_lines if l.startswith("Language"))
-        languages = [language_raw.strip("Language").strip(" -")]
 
     zip_path = create_predictable_zip(destination)
     return nodes.HTML5AppNode(
@@ -222,6 +236,41 @@ def download_static_assets(doc, destination):
             thumbnail = os.path.join(destination, filename)
 
     return thumbnail
+
+
+def add_page_flipper_buttons(doc, left_png, right_png):
+    width = "6%"
+    base_flipper_html = """
+    <div id="%(id)s"
+            style="display: block; position: absolute; top: 0; bottom: 0; width: %(width)s; z-index: 9001; background: #757575; %(style)s"
+            onclick="%(onclick)s">
+        <img style="display: block; position: absolute; top: 50%%; margin-top: -16px; left: 50%%; margin-left: -16px;"
+                src="%(src)s" />
+    </div>"""
+
+    left_flipper_html = base_flipper_html % {
+        "id": "left-flipper",
+        "width": width,
+        "style": "left: 0; cursor: w-resize;",
+        "onclick": "$$('#go-back').click();",
+        "src": left_png,
+    }
+
+    right_flipper_html = base_flipper_html % {
+        "id": "right-flipper",
+        "width": width,
+        "style": "right: 0; cursor: e-resize;",
+        "onclick": "$$('#go-next').click();",
+        "src": right_png,
+    }
+
+    flippers = BeautifulSoup("<div>%s%s</div>" % (left_flipper_html, right_flipper_html),
+            "html.parser")
+
+    root_node = doc.select_one(".views")
+    root_node["style"] = "padding-left: %(width)s; padding-right: %(width)s; box-sizing: border-box;" % {"width": width}
+    root_node.append(flippers.find(id="left-flipper"))
+    root_node.append(flippers.find(id="right-flipper"))
 
 
 def replace_br_with_newlines(element):
