@@ -50,6 +50,7 @@ class AfricanStorybookChef(SushiChef):
         'CHANNEL_SOURCE_ID': "african-storybook",
         'CHANNEL_TITLE': "African Storybook",
         'CHANNEL_THUMBNAIL': "http://www.africanstorybook.org/img/asb120.png",
+        'CHANNEL_DESCRIPTION': "Open access to picture storybooks in the languages of Africa. For children's literacy, enjoyment and imagination.",
     }
 
     def construct_channel(self, **kwargs):
@@ -70,7 +71,10 @@ class AfricanStorybookChef(SushiChef):
         channel_tree = download_all()
 
         # ... now add them to the ricecooker channel tree!
-        for language, levels in channel_tree.items():
+        for language, levels in sorted(channel_tree.items(), key=lambda t: t[0]):
+            if language == "0":
+                continue
+
             language_node = nodes.TopicNode(source_id=language, title=language)
             channel.add_child(language_node)
 
@@ -171,14 +175,21 @@ def download_book(book_url, book_id, title, author, description, languages):
     zip_path = create_predictable_zip(destination)
     return nodes.HTML5AppNode(
         source_id=book_id,
-        title=title[:200],
+        title=truncate_metadata(title),
         license=licenses.CC_BYLicense(
-            copyright_holder=copyright_holder[:200], description=author),
+            copyright_holder=truncate_metadata(copyright_holder)),
         description=description,
-        author=author[:200],
+        author=truncate_metadata(author),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
     ), languages
+
+
+def truncate_metadata(data_string):
+    MAX_CHARS = 190
+    if len(data_string) > MAX_CHARS:
+        data_string = data_string[:190] + " ..."
+    return data_string
 
 
 BG_IMG_RE = re.compile("background-image:url\((.*)\)")
