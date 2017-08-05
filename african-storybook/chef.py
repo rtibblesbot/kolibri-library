@@ -72,6 +72,9 @@ class AfricanStorybookChef(SushiChef):
 
         # ... now add them to the ricecooker channel tree!
         for language, levels in sorted(channel_tree.items(), key=lambda t: t[0]):
+            # Skip creating topic node with the language called "0" -- a bug
+            # from the ASB website itself. There's two books here, though, but
+            # I can't tell in which language those two books are.
             if language == "0":
                 continue
 
