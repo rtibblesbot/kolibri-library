@@ -148,7 +148,7 @@ def download_book(book_url, book_id, title, author, description, languages):
 
     Return a tuple of (
         the downloaded book as an HTML5AppNode,
-        the language of the book as a string).
+        the languages of the book as a list of strings).
     """
     # -- 0. Parse --
 
@@ -185,8 +185,13 @@ def download_book(book_url, book_id, title, author, description, languages):
             destination, request_fn=make_request)
     add_page_flipper_buttons(doc, left_png, right_png)
 
+    # Remove calls to third-party sources before writing out the index.html
     with open(os.path.join(destination, "index.html"), "w") as f:
-        f.write(str(doc))
+        index_html = str(doc)
+        index_html = index_html.replace("//www.google-analytics.com/analytics.js", "")
+        index_html = index_html.replace("js-agent.newrelic.com/nr-1044.min.js", "")
+        index_html = index_html.replace("//connect.facebook.net/en_US/sdk.js", "")
+        f.write(index_html)
 
     #preview_in_browser(destination)
 
