@@ -16,6 +16,7 @@ from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
 
+import le_utils.constants
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
@@ -39,6 +40,15 @@ headers = {
 }
 
 
+_LANGUAGE_NAME_LOOKUP = {l.name: l for l in le_utils.constants.languages.LANGUAGELIST}
+
+def getlang_by_name(name):
+    # TODO(davidhu): Change to the following once
+    # https://github.com/learningequality/le-utils/pull/28/files gets merged:
+    # return le_utils.constants.languages.getlang_by_name(name)
+    return _LANGUAGE_NAME_LOOKUP.get(name)
+
+
 class AfricanStorybookChef(SushiChef):
     """
     The chef class that takes care of uploading channel to the content curation server.
@@ -49,7 +59,7 @@ class AfricanStorybookChef(SushiChef):
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
         'CHANNEL_SOURCE_ID': "african-storybook",
         'CHANNEL_TITLE': "African Storybook",
-        'CHANNEL_THUMBNAIL': "http://www.africanstorybook.org/img/asb120.png",
+        'CHANNEL_THUMBNAIL': "thumbnail.png",
         'CHANNEL_DESCRIPTION': "Open access to picture storybooks in the languages of Africa. For children's literacy, enjoyment and imagination.",
     }
 
@@ -78,7 +88,8 @@ class AfricanStorybookChef(SushiChef):
             if language == "0":
                 continue
 
-            language_node = nodes.TopicNode(source_id=language, title=language)
+            language_node = nodes.TopicNode(source_id=language, title=language,
+                    language=getlang_by_name(language))
             channel.add_child(language_node)
 
             for level, books in sorted(levels.items(), key=lambda t: t[0]):
@@ -185,6 +196,7 @@ def download_book(book_url, book_id, title, author, description, languages):
         author=truncate_metadata(author),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
+        language=getlang_by_name(languages[0]),
     ), languages
 
 
