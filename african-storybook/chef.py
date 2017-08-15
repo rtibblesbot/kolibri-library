@@ -125,7 +125,7 @@ def download_all():
             language_ids = book["lang"].split(",")
             languages = [language_id_map[code.strip()] for code in language_ids if code]
             author = "%s; Others: %s" % (book["author"], book["people"])
-            title = html.unescape(book["title"])
+            title = strip_level_from_title(html.unescape(book["title"]))
             description = html.unescape(book["summary"])
 
             book, languages = download_book(book_url, book_id, title, author, description, languages)
@@ -198,6 +198,10 @@ def download_book(book_url, book_id, title, author, description, languages):
         files=[files.HTMLZipFile(zip_path)],
         language=getlang_by_name(languages[0]),
     ), languages
+
+
+def strip_level_from_title(title):
+    return re.sub("\(Level .\)", "", title).strip()
 
 
 def truncate_metadata(data_string):
