@@ -1,30 +1,61 @@
 
 [
   {
-    "match": {"__class__": "TopicNode", "source_id": "node-7647"},
+    "match": {"kind": "TopicNode", "source_id": "node-7647"},
     "update": {"author": "Assoc. Prof. Dzurllkanian Daud, Dr. Abdul Rahim b Hj Salam, Dr. Abdul Rahman Tamuri, Faizal Yamimi Mustaffa, Ghazali bin Bunari, Wan Ibrisam Fikry bin Wan Ismail, Mustafa bin Omar, Dr. Johari Surif, Assoc. Prof. Dr. Norhaya Kamarudin"}
   },
   {
-    "match": {"__class__": "VideoNode", "source_id": "node-7647:.*" },
+    "match": {"kind": "VideoNode", "source_id": "node-7647:.*" },
     "update": {"author": "Assoc. Prof. Dzurllkanian Daud, Dr. Abdul Rahim b Hj Salam, Dr. Abdul Rahman Tamuri, Faizal Yamimi Mustaffa, Ghazali bin Bunari, Wan Ibrisam Fikry bin Wan Ismail, Mustafa bin Omar, Dr. Johari Surif, Assoc. Prof. Dr. Norhaya Kamarudin"}
   },
 
 
   {
-    "match": {"__class__": "TopicNode", "source_id": "node-7650"},
+    "match": {"kind": "TopicNode", "source_id": "node-7650"},
     "update": {"author": "Arshad Saleem Bhatti"}
   },
   {
-    "match": {"__class__": "VideoNode", "source_id": "node-7650:.*" },
+    "match": {"kind": "VideoNode", "source_id": "node-7650:.*" },
     "update": {"author": "Arshad Saleem Bhatti"}
   },
 
-  mitblossoms Couldn't find teacher names for node-7576 https://blossoms.mit.edu/videos/lessons/there_connection_between_computer_network_topologies_and_malaysian_wedding
-  mitblossoms Couldn't find teacher names for node-7576 https://blossoms.mit.edu/videos/lessons/there_connection_between_computer_network_topologies_and_malaysian_wedding
-  mitblossoms Couldn't find teacher names for node-7655 https://blossoms.mit.edu/videos/lessons/art_making_layer_cakes_proper_construction_bituminous_roads_and_highways
-  mitblossoms Couldn't find teacher names for node-7663 https://blossoms.mit.edu/videos/lessons/thermodynamics_energy_conversion_generating_electricity
-  mitblossoms Couldn't find teacher names for node-7500 https://blossoms.mit.edu/videos/lessons/gravity_assist_or_stealing_planets_angular_momentum_and_getting_away_it
+  {
+    "match": {"kind": "TopicNode", "source_id": "node-7576"},
+    "update": {"author": "Dr. Zaleha Abdullah, Juhazreen Junaidi, Norah Md. Noor, Dr. Noor Azean Atan, Dr. Mohd Nihra Haruzuan Mohamad Said, Dr. Shaharuddin Md Salleh"}
+  },
+  {
+    "match": {"kind": "VideoNode", "source_id": "node-7576:.*" },
+    "update": {"author": "Dr. Zaleha Abdullah, Juhazreen Junaidi, Norah Md. Noor, Dr. Noor Azean Atan, Dr. Mohd Nihra Haruzuan Mohamad Said, Dr. Shaharuddin Md Salleh"}
+  },
 
+
+  {
+    "match": {"kind": "TopicNode", "source_id": "node-7655"},
+    "update": {"author": "Dr Norhidayah Abdul Hassan, Dr Mariyana Aida Ab. Kadir, Dr Sarimah Shamsudin"}
+  },
+  {
+    "match": {"kind": "VideoNode", "source_id": "node-7655:.*" },
+    "update": {"author": "Dr Norhidayah Abdul Hassan, Dr Mariyana Aida Ab. Kadir, Dr Sarimah Shamsudin"}
+  },
+
+
+  {
+    "match": {"kind": "TopicNode", "source_id": "node-7663"},
+    "update": {"author": "Assoc. Prof Ir. Hayati Abdullah, Dr. Syed Ahmad Helmi Syed Hassan, Ir. Latifah Malek, Assoc. Prof Dr Normah Mulop, Assoc. Prof Dr Khairiyah Mohd Yusof"}
+  },
+  {
+    "match": {"kind": "VideoNode", "source_id": "node-7663:.*" },
+    "update": {"author": "Assoc. Prof Ir. Hayati Abdullah, Dr. Syed Ahmad Helmi Syed Hassan, Ir. Latifah Malek, Assoc. Prof Dr Normah Mulop, Assoc. Prof Dr Khairiyah Mohd Yusof"}
+  },
+
+  {
+    "match": {"kind": "TopicNode", "source_id": "node-7500"},
+    "update": {"author": "Dr. Bassem Sabra"}
+  },
+  {
+    "match": {"kind": "VideoNode", "source_id": "node-7500:.*" },
+    "update": {"author": "Dr. Bassem Sabra"}
+  }
 
 ]
 

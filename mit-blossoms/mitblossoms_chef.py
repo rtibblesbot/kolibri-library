@@ -22,14 +22,16 @@ from ricecooker.utils.zip import create_predictable_zip
 
 # LOGGING SETTINGS
 ################################################################################
-import coloredlogs, logging
+import logging
 # logging.basicConfig(filename='logs/mitblossoms.log')
+compact_fmt = '%(name)s\t%(message)s'
+logging.basicConfig(level=logging.INFO, format=compact_fmt)
 logging.getLogger("cachecontrol.controller").setLevel(logging.WARNING)
 logging.getLogger("requests.packages").setLevel(logging.WARNING)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+# detaild_fmt = '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
 logger = logging.getLogger('mitblossoms')
-detaild_fmt = '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
-compact_fmt = '%(name)s\t%(message)s'
-coloredlogs.install(level='INFO', fmt=compact_fmt, logger=logger)
+
 
 
 # MIT BLOSSOMS CHANNEL SETTINGS
@@ -44,9 +46,9 @@ ZIP_FILES_TMP_DIR = os.path.join(DATA_DIR, 'zipfiles')
 CONTENT_DIR = 'content'
 BASE_URL = 'https://blossoms.mit.edu'
 VIDEOS_BY_LANGUAGE_PATH = '/videos/by_language'
-SELECTED_LANGUAGES = ['Arabic', 'English']      # currently using only EN and AR
 ALL_LANGUAGES = ['Arabic', 'English','Farsi', 'Hindi', 'Japanese', 'Kannada',
                  'Korean', 'Malay', 'Mandarin', 'Portuguese', 'Spanish', 'Urdu']
+SELECTED_LANGUAGES = ALL_LANGUAGES   # download all languages
 
 
 # SOURCE_ID and TITLE CONVENTIONS
@@ -275,7 +277,7 @@ def add_topic_cluster_membership(web_resource_tree):
     """
     for lang_node in web_resource_tree['children']:
         for topic_node in lang_node['children']:
-            logger.debug('Processing topic ' + topic_node['title'])
+            logger.info('Processing topic ' + topic_node['title'])
 
             old_children = topic_node['children']
             topic_node['children'] = []
@@ -284,7 +286,7 @@ def add_topic_cluster_membership(web_resource_tree):
 
                 if 'title' not in lesson_node:
                     continue
-                logger.debug("Processing lesson " + lesson_node['title'])
+                logger.info("Processing lesson " + lesson_node['title'])
                 topic_clusters = retrieve_topic_clusters(lesson_node['url'])
                 if topic_clusters is None:
                     topic_node['children'].append(lesson_node)
@@ -623,7 +625,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     children=[],
                 )
                 parent_node['children'].append(child_node)
-                logger.debug('Created new topic node titled ' + child_node['title'])
+                logger.info('Created new topic node titled ' + child_node['title'])
             source_tree_children = source_node.get("children", [])
             _build_json_tree(child_node, source_tree_children, languages=languages)
 
@@ -640,7 +642,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     children=[],
                 )
                 parent_node['children'].append(child_node)
-                logger.debug('Created new cluster node titled ' + child_node['title'])
+                logger.info('Created new cluster node titled ' + child_node['title'])
             source_tree_children = source_node.get("children", [])
             _build_json_tree(child_node, source_tree_children, languages=languages)
 
@@ -782,7 +784,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                         # language=lang, # TODO   Ask how to use le_util.languages ???
                     )
                     document_node['files']=[document_file]
-
+            logger.info('Created new lesson node ' + lesson.title)
         else:
             logger.critical("Encountered an unknown content node format.")
             continue
@@ -828,8 +830,8 @@ def scraping_part(args, options):
 
     # Prune the content tree to leave only a few lessons (used for testing)
     if args['pruned']:
-        original_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
-        full_tree_path = os.path.join(DATA_DIR,'ricecooker_json_tree_full.json')
+        original_tree_path = os.path.join(DATA_DIR, 'ricecooker_json_tree.json')
+        full_tree_path = os.path.join(DATA_DIR, 'ricecooker_json_tree_full.json')
         pruned_tree_path = os.path.join(DATA_DIR, 'ricecooker_pruned_json_tree.json')
         shutil.copyfile(original_tree_path, full_tree_path)   # save a backup of the full tree
         prune_tree_for_testing()                              # produce pruned version
@@ -837,6 +839,57 @@ def scraping_part(args, options):
 
     logger.info('Intermediate result stored in ' + json_file_name)
     logger.info('Scraping part finished.\n')
+
+
+
+def _find_and_replace_in_node(node, match, update):
+    """
+    Update attributes of dict `node` from dict `update` if it matches the
+    criteria in `match`.
+    """
+    # check if node matches criteria in `match`
+    found = True
+    for attr, pattern in match.items():
+        if attr in node:
+            m = re.search(pattern, node[attr])
+            if m is None:
+                found = False
+                break
+        else:
+            found = False
+            break
+
+    # apply fixes
+    if found:
+        for key, val in update.items():
+            logger.info('Replacing `{}` with `{}`'.format(node[key], val))
+            node[key] = val
+
+    # recurse on children if exist
+    if 'children' in node:
+        for child in node['children']:
+            _find_and_replace_in_node(child, match, update)
+
+def apply_json_tree_overrides():
+    """
+    Apply manual content fixes from `chefdata/json_tree_overrides.json`.
+    """
+    json_tree_filename = os.path.join(DATA_DIR, 'ricecooker_json_tree.json')
+    json_tree = None
+    with open(json_tree_filename) as json_file:
+        json_tree = json.load(json_file)
+
+    tree_overrides_filename = os.path.join(DATA_DIR, 'json_tree_overrides.json')
+    with open(tree_overrides_filename) as overrides_file:
+        tree_overrides = json.load(overrides_file)
+        for fix in tree_overrides:
+            match_criteria = fix['match']
+            update_data = fix['update']
+            _find_and_replace_in_node(json_tree, match_criteria, update_data)
+
+    # Write out ricecooker_json_tree.json
+    with open(json_tree_filename, 'w') as json_file:
+        json.dump(json_tree, json_file, indent=2)
 
 
 
@@ -1028,6 +1081,7 @@ class MitBlossomsSushiChef(SushiChef):
         Call function for PART 2: SCRAPING.
         """
         scraping_part(args, options)
+        apply_json_tree_overrides()
 
     def pre_run(self, args, options):
         """
@@ -1040,7 +1094,6 @@ class MitBlossomsSushiChef(SushiChef):
         """
         self.crawl(args, options)
         self.scrape(args, options)
-        # self.content_fixes(args, options)  TODO
 
     def get_channel(self, **kwargs):
         """
