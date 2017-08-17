@@ -9,7 +9,6 @@ import sys
 import tempfile
 
 from bs4 import BeautifulSoup
-from html2text import html2text
 import requests
 
 # from le_utils.constants import content_kinds
@@ -18,7 +17,6 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
 from ricecooker.exceptions import UnknownFileTypeError, raise_for_invalid_channel
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
-# from ricecooker.utils.html import download_file
 from ricecooker.utils.zip import create_predictable_zip
 
 
@@ -383,7 +381,7 @@ class MitBlossomsVideoLessonResource(object):
     def get_video_summary(self):
         summary_div = self.doc.find('div', {'class':"lesson-summary-block"})
         if summary_div:
-            return html2text(str(summary_div))
+            return summary_div.get_text().strip()
         else:
             return None
 
