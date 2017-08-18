@@ -13,6 +13,7 @@ import requests
 
 # from le_utils.constants import content_kinds
 from le_utils.constants import licenses
+from le_utils import constants
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
 from ricecooker.exceptions import UnknownFileTypeError, raise_for_invalid_channel
@@ -49,6 +50,20 @@ VIDEOS_BY_LANGUAGE_PATH = '/videos/by_language'
 ALL_LANGUAGES = ['Arabic', 'English','Farsi', 'Hindi', 'Japanese', 'Kannada',
                  'Korean', 'Malay', 'Mandarin', 'Portuguese', 'Spanish', 'Urdu']
 SELECTED_LANGUAGES = ALL_LANGUAGES   # download all languages
+LANGUAGE_LOOKUP = {
+    'Arabic': 'ar',
+    'English': 'en',
+    'Farsi': 'fa',
+    'Hindi': 'hi',
+    'Japanese': 'ja',
+    'Kannada': 'kn',
+    'Korean': 'ko',
+    'Malay': 'ms',
+    'Mandarin': 'zh',
+    'Portuguese': 'pt',
+    'Spanish': 'es',
+    'Urdu': 'ur',
+ }
 
 
 # SOURCE_ID and TITLE CONVENTIONS
@@ -390,8 +405,7 @@ class MitBlossomsVideoLessonResource(object):
     def get_teachers(self):
         teachers_div = self.doc.find('div', {'class':"lesson-teacher-info"})
         # in 98% of all videos, the author names appear in <strong> or <b>
-        # in  2% this fails, so we'll fix this in post-processing  TODO
-        # Test case: https://blossoms.mit.edu/videos/lessons/why_pay_more
+        # in  2% this fails, so we'll fix this issue in the post-processing step
         name_strongs = teachers_div.find_all(['strong','b'])
         teachers_names = []
         for strong in name_strongs:
@@ -683,6 +697,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     ),
                     author=lesson_authors_joined,
                     description=lesson.get_video_summary(),
+                    language=constants.languages.getlang(LANGUAGE_LOOKUP[lang]), # test path with Language object
                     derive_thumbnail=True, # TODO: what happens if this is False?
                     thumbnail=lesson.get_thumbnail_url(),
                 )
@@ -691,6 +706,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     file_type='VideoFile',
                     path=video_url,
                     ffmpeg_settings={"crf": 24},
+                    language=LANGUAGE_LOOKUP[lang],  # test path with str code
                 )
                 video_grandchild['files'] = [video_file]
 
@@ -824,7 +840,7 @@ def scraping_part(args, options):
     _build_json_tree(ricecooker_json_tree, web_resource_tree['children'], languages=args['languages'])
 
     # Write out ricecooker_json_tree.json
-    json_file_name = os.path.join(DATA_DIR,'ricecooker_json_tree.json')
+    json_file_name = os.path.join(DATA_DIR, 'ricecooker_json_tree.json')
     with open(json_file_name, 'w') as json_file:
         json.dump(ricecooker_json_tree, json_file, indent=2)
 
@@ -933,7 +949,7 @@ def prune_tree_for_testing():
     ]
     pruned_tree['children']=[pruned_first_topic]
 
-    with open(os.path.join(DATA_DIR,'ricecooker_pruned_json_tree.json'), 'w') as outfile:
+    with open(os.path.join(DATA_DIR, 'ricecooker_pruned_json_tree.json'), 'w') as outfile:
         json.dump(pruned_tree, outfile, indent=2)
 
 
@@ -1100,7 +1116,7 @@ class MitBlossomsSushiChef(SushiChef):
         Load json tree data just to read channel info.
         """
         json_tree = None
-        with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
+        with open(os.path.join(DATA_DIR, 'ricecooker_json_tree.json')) as infile:
             json_tree = json.load(infile)
         assert json_tree['kind'] == 'ChannelNode'
         channel = nodes.ChannelNode(
@@ -1115,7 +1131,7 @@ class MitBlossomsSushiChef(SushiChef):
         channel = self.get_channel(**kwargs)
         # Load json tree data
         json_tree = None
-        with open(os.path.join(DATA_DIR,'ricecooker_json_tree.json')) as infile:
+        with open(os.path.join(DATA_DIR, 'ricecooker_json_tree.json')) as infile:
             json_tree = json.load(infile)
         _build_tree(channel, json_tree['children'])
         raise_for_invalid_channel(channel)
