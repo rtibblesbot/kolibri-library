@@ -9,8 +9,6 @@ TODOs
 * Make HTMLZipFile paths names repeatable (so won't re-upload every time)
 * Add manual override steps: \[3h\]
   * Fix videos with multiple languages in "Video Summary" (manual override) e.g. [https://blossoms.mit.edu/videos/lessons/flu\_math\_games](https://blossoms.mit.edu/videos/lessons/flu_math_games)
-* Remove links from Additional Resources
-  * remove href
 * Style sheet for Additional Resources?
 * Stretch goal: extract text from transcript and add as VideoNode description \[?\]
   * Not fasible because transcript not available in all languages
@@ -33,14 +31,14 @@ Running locally for testing
     source venv/bin/activate
     export CONTENTWORKSHOP_URL="http://127.0.0.1:9003"
     export CONTENT_CURATION_TOKEN="a92a8ff947c8423ed0cd11c6ce33ad6b95b6564e"
-    ./mitblossoms_chef.py --steps all   --pruned
+    ./mitblossoms_chef.py --thumbnails --pruned
 
 
 Running for real
 ----------------
 
     source venv/bin/activate
-    ./mitblossoms_chef.py  --steps all   --token=<your_ccserver_token>
+    ./mitblossoms_chef.py  --thumbnails --token=<your_ccserver_token>  
 
 
 Sushi Bar integration

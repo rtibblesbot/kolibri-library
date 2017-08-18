@@ -704,7 +704,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     author=lesson_authors_joined,
                     description=lesson.get_video_summary(),
                     language=constants.languages.getlang(LANGUAGE_LOOKUP[lang]), # test path with Language object
-                    derive_thumbnail=True, # TODO: what happens if this is False?
+                    derive_thumbnail=True,
                     thumbnail=lesson.get_thumbnail_url(),
                 )
                 lesson_folder['children'].append(video_grandchild)
