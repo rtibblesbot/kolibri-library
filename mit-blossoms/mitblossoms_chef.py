@@ -453,6 +453,12 @@ class MitBlossomsVideoLessonResource(object):
             logger.warn('No Additional Resources for ' + self.url)
             return None
 
+        # replace blue links with regular text
+        all_links = inner_block_div.find_all('a')
+        for link in all_links:
+            anchor_text = link.get_text().strip()
+            link.replaceWith(anchor_text)
+
         # create a temp directory to house the index.html and other files
         destpath = tempfile.mkdtemp(dir=ZIP_FILES_TMP_DIR)
 
