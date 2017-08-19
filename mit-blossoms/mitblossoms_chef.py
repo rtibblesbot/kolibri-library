@@ -41,6 +41,7 @@ CHANNEL_SOURCE_DOMAIN = 'blossoms.mit.edu'
 CHANNEL_SOURCE_ID = 'mit_blossoms_v1.0b'
 CHANNEL_TITLE = 'MIT Blossoms'
 CHANNEL_THUMBNAIL = 'https://pk12.mit.edu/files/2016/02/MIT-Blossoms.png'
+CHANNEL_LANGUAGE='en'
 MIT_BLOSSOMS_LICENSE = licenses.CC_BY_NC_SA
 DATA_DIR = 'chefdata'
 ZIP_FILES_TMP_DIR = os.path.join(DATA_DIR, 'zipfiles')
@@ -217,6 +218,7 @@ def build_preliminary_tree(languages=None):
         source_id=CHANNEL_SOURCE_ID,
         title=CHANNEL_TITLE,
         thumbnail=CHANNEL_THUMBNAIL,
+        language=CHANNEL_LANGUAGE,
         children=[],
     )
 
@@ -703,7 +705,7 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     ),
                     author=lesson_authors_joined,
                     description=lesson.get_video_summary(),
-                    language=constants.languages.getlang(LANGUAGE_LOOKUP[lang]), # test path with Language object
+                    language=constants.languages.getlang(LANGUAGE_LOOKUP[lang]).code, # test path with Language object's code
                     derive_thumbnail=True,
                     thumbnail=lesson.get_thumbnail_url(),
                 )
@@ -841,6 +843,7 @@ def scraping_part(args, options):
         source_id=web_resource_tree['source_id'] + source_id_suffix,
         title=web_resource_tree['title'] + source_id_suffix,
         thumbnail=web_resource_tree['thumbnail'],
+        language=web_resource_tree.get('language'),
         children=[],
     )
     _build_json_tree(ricecooker_json_tree, web_resource_tree['children'], languages=args['languages'])
@@ -981,6 +984,7 @@ def _build_tree(parent_node, sourcetree):
                 title=source_node["title"],
                 author=source_node.get("author"),
                 description=source_node.get("description"),
+                language=source_node.get("language"),
                 thumbnail=source_node.get("thumbnail"),
             )
             parent_node.add_child(child_node)
@@ -994,6 +998,7 @@ def _build_tree(parent_node, sourcetree):
                 license=MIT_BLOSSOMS_LICENSE,
                 author=source_node.get("author"),
                 description=source_node.get("description"),
+                language=source_node.get("language"),
                 derive_thumbnail=True,                     # video-specific data
                 thumbnail=source_node.get('thumbnail'),
             )
@@ -1007,6 +1012,7 @@ def _build_tree(parent_node, sourcetree):
                 license=MIT_BLOSSOMS_LICENSE,
                 author=source_node.get("author"),
                 description=source_node.get("description"),
+                language=source_node.get("language"),
                 thumbnail=source_node.get("thumbnail"),
             )
             add_files(child_node, source_node.get("files") or [])
@@ -1019,6 +1025,7 @@ def _build_tree(parent_node, sourcetree):
                 license=MIT_BLOSSOMS_LICENSE,
                 author=source_node.get("author"),
                 description=source_node.get("description"),
+                language=source_node.get("language"),
                 thumbnail=source_node.get("thumbnail"),
             )
             add_files(child_node, source_node.get("files") or [])
@@ -1130,6 +1137,7 @@ class MitBlossomsSushiChef(SushiChef):
             source_id=json_tree['source_id'],
             title=json_tree['title'],
             thumbnail=json_tree['thumbnail'],
+            # language=json_tree.get('language'),  # TODO: re-enable when CCServer fix deployed
         )
         return channel
 
