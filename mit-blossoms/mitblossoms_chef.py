@@ -1137,7 +1137,7 @@ class MitBlossomsSushiChef(SushiChef):
             source_id=json_tree['source_id'],
             title=json_tree['title'],
             thumbnail=json_tree['thumbnail'],
-            # language=json_tree.get('language'),  # TODO: re-enable when CCServer fix deployed
+            language=json_tree.get('language'),
         )
         return channel
 
