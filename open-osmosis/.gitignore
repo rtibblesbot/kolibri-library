@@ -1,3 +1,11 @@
+# requests cache dir
+.webcache
+
+# ricecooker caches
+storage
+restore
+.ricecookerfilecache
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
