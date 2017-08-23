@@ -3,6 +3,14 @@
 Technical notes about content source
 ====================================
 
+New observations
+
+  - Some videos have two parts, e.g.,
+    http://blossoms.mit.edu/videos/lessons/amount_substance_and_its_unit_mole_connecting_invisible_micro_world_observable_macro_
+    
+
+
+
 Each video lesson main page [example](http://blossoms.mit.edu/videos/lessons/choosing_college_roommate_how_multi_criteria_decision_modeling_can_help) contains:
 
   - Video title
