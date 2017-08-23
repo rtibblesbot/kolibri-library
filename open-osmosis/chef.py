@@ -71,8 +71,7 @@ class OpenOsmosisChef(SushiChef):
             language = "en",
         )
 
-        youtube_channel_url = 'https://www.youtube.com/user/eaterbc/playlists'
-        #youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
+        youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
 
         print("Fetching YouTube channel and videos metadata --"
                 " this may take 10-20+ minutes (%s)" % youtube_channel_url)
