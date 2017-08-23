@@ -90,7 +90,13 @@ class OpenOsmosisChef(SushiChef):
         return channel
 
 
-# XXX now in ricecooker
+# TODO(davidhu): Remove this when
+# https://github.com/learningequality/le-utils/pull/28 lands
+_LANGUAGE_NAME_LOOKUP = {l.name: l for l in languages.LANGUAGELIST}
+
+
+# TODO(davidhu): Remove this when
+# https://github.com/learningequality/le-utils/pull/28 lands
 def getlang_patched(language):
     """A patched version of languages.getlang that tries to fallback to
     a closest match if not found."""
@@ -112,6 +118,8 @@ def getlang_patched(language):
     return None
 
 
+# TODO(davidhu): Remove this when
+# https://github.com/learningequality/le-utils/pull/28 lands
 class LanguagePatchedYouTubeSubtitleFile(files.YouTubeSubtitleFile):
     """Patches ricecooker's YouTubeSubtitleFile to account for inconsistencies
     between YouTube's language codes and those in `le-utils`:
