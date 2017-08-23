@@ -52,7 +52,7 @@ class OpenOsmosisChef(SushiChef):
         'CHANNEL_SOURCE_DOMAIN': "open.osmosis.org",
         'CHANNEL_SOURCE_ID': "open-osmosis",
         'CHANNEL_TITLE': "Open Osmosis",
-        'CHANNEL_THUMBNAIL': "https://open.osmosis.org/assets/images/logo/osmosis-logo-flat.png",
+        'CHANNEL_THUMBNAIL': "https://yt3.ggpht.com/-Hte1SseOlEM/AAAAAAAAAAI/AAAAAAAAAAA/vli0lmZ-5Iw/s900-c-k-no-mo-rj-c0xffffff/photo.jpg",
         'CHANNEL_DESCRIPTION': "A study tool built for tomorrow's doctors and health workers.",
     }
 
