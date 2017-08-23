@@ -74,7 +74,7 @@ class OpenOsmosisChef(SushiChef):
         youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
 
         print("Fetching YouTube channel and videos metadata --"
-                " this may take 10-20+ minutes (%s)" % youtube_channel_url)
+                " this may take a few minutes (%s)" % youtube_channel_url)
         info = ydl.extract_info(youtube_channel_url, download=False)
 
         for playlist in info['entries']:
@@ -102,8 +102,9 @@ def fetch_video(video):
     video_node = nodes.VideoNode(
         source_id=youtube_id,
         title=truncate_metadata(title),
-        license=licenses.CC_BY_SALicense(copyright_holder='Osmosis'),
-        description=description,
+        license=licenses.CC_BY_SALicense(
+            copyright_holder='Open Osmosis (open.osmosis.org)'),
+        description=truncate_description(description),
         derive_thumbnail=True,
         language="en",
         files=[files.YouTubeVideoFile(youtube_id=youtube_id)],
@@ -115,6 +116,10 @@ def fetch_video(video):
             youtube_id=youtube_id, language=language))
 
     return video_node
+
+
+def truncate_description(description):
+    return description.splitlines()[0]
 
 
 def truncate_metadata(data_string):
