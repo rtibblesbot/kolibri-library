@@ -118,8 +118,11 @@ def fetch_video(video):
     return video_node
 
 
+DESCRIPTION_RE = re.compile('Subscribe - .*$')
+
 def truncate_description(description):
-    return description.splitlines()[0]
+    first_line = description.splitlines()[0]
+    return DESCRIPTION_RE.sub('', first_line)
 
 
 def truncate_metadata(data_string):
