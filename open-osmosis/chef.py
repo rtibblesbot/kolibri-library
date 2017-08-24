@@ -9,6 +9,7 @@ Assessment items from https://open.osmosis.org/topics
 from collections import defaultdict
 import html
 import os
+import pycountry
 import re
 import requests
 import tempfile
