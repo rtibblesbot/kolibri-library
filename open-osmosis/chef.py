@@ -112,7 +112,11 @@ def getlang_patched(language):
     # See if pycountry can find this language and if so, match by language name
     # to resolve other inconsistencies.  e.g. YouTube might use "zu" while
     # le_utils uses "zul".
-    pyc_lang = pycountry.languages.get(alpha_2=first_part)
+    try:
+        pyc_lang = pycountry.languages.get(alpha_2=first_part)
+    except KeyError:
+        pyc_lang = None
+
     if pyc_lang:
         return _LANGUAGE_NAME_LOOKUP.get(pyc_lang.name)
 
