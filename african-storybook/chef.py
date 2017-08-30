@@ -77,6 +77,8 @@ class AfricanStorybookChef(SushiChef):
             description = channel_info.get('CHANNEL_DESCRIPTION'),
         )
 
+        #download_book("http://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", ["en"])
+
         # Download the books into a dict {language: [list of books]}
         channel_tree = download_all()
 
@@ -186,6 +188,8 @@ def download_book(book_url, book_id, title, author, description, languages):
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
 
+    #preview_in_browser(destination)
+
     zip_path = create_predictable_zip(destination)
     return nodes.HTML5AppNode(
         source_id=book_id,
@@ -211,7 +215,11 @@ def truncate_metadata(data_string):
     return data_string
 
 
+FONT_SRC_RE = re.compile(r"src:\W?url\(.*?fonts/(.*?)['\"]?\)")
 BG_IMG_RE = re.compile("background-image:url\((.*)\)")
+
+with open("resources/font_sizing.css") as f:
+    FONT_SIZING_CSS = f.read()
 
 
 def download_static_assets(doc, destination):
@@ -235,15 +243,34 @@ def download_static_assets(doc, destination):
         return content.replace("window.localStorage",
                 "({setItem: function(){}, removeItem: function(){}})")
 
-    def css_middleware(url):
+    def css_url_middleware(url):
         # Somehow the minified app CSS doesn't render images. Download the
         # original.
         return url.replace("app.min.css", "app.css")
 
+    def css_content_middleware(content, url, **kwargs):
+        if "app.css" in url:
+            # Download linked fonts
+            for match in FONT_SRC_RE.finditer(content):
+                filename = match.groups()[0]
+                url = make_fully_qualified_url("fonts/%s" % filename)
+                download_file(url, destination, request_fn=make_request)
+
+            processed_css = FONT_SRC_RE.sub(r"src: url('\1')", content)
+
+            # ... and then append additional CSS to reduce font sizing to fit
+            # better on shorter screens (for previewing in Kolibri's iframe
+            # when not full-screen).
+            return processed_css + FONT_SIZING_CSS
+
+        else:
+            return content
+
     # Download all static assets.
     # TODO(davidhu): Also download fonts referenced in http://www.africanstorybook.org/css/app.css
     download_assets("img[src]", "src")  # Images
-    download_assets("link[href]", "href", url_middleware=css_middleware)  # CSS
+    download_assets("link[href]", "href", url_middleware=css_url_middleware,
+            content_middleware=css_content_middleware)  # CSS
     download_assets("script[src]", "src", content_middleware=js_middleware) # JS
 
     # Download all background images, e.g. <div style="background-image:url()">
