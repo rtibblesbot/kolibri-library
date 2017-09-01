@@ -1,0 +1,4 @@
+le-utils>=0.0.9rc23
+ricecooker>=0.6.3
+youtube-dl>=2017.09.02
+pycountry>=17.5.14
