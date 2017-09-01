@@ -91,11 +91,6 @@ class TahrirAcademyChef(SushiChef):
             channel.add_child(playlist_topic)
             for j, video in enumerate(playlist['entries']):
                 playlist_topic.add_child(fetch_video(video))
-                if j > 5:
-                    break
-
-            if i > 5:
-                break
 
         return channel
 
