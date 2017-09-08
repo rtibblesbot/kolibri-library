@@ -1,3 +1,10 @@
+
+# specific to this chef
+content/aflatoun_tree
+
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
