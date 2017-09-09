@@ -1,6 +1,12 @@
 
 # specific to this chef
 content/aflatoun_tree
+storage
+ricecookerfilecache
+restore
+.ricecookerfilecache
+
+
 
 
 
