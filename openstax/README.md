@@ -2,6 +2,29 @@
 
 Chef for OpenStax
 
+
+## Running
+
+Run souschef
+
+    python souschef.py
+
+Move intermediary content into place
+
+    mkdir content
+    mv Example\ Open\ Stax.zip content/
+    cd content
+    unzip Example\ Open\ Stax.zip
+    rm Example\ Open\ Stax.zip
+    cd ..
+
+Run sushichef
+
+    mkdir -p chefdata/trees/
+    ./sushichef.py  -v --reset --channeldir='content/Example Open Stax/Example Open Stax/' --token=<yourtokenhere>
+
+
+
 ## Installation
 
 * [Install pip](https://pypi.python.org/pypi/pip) if you don't have it already.
