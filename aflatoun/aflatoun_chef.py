@@ -5,19 +5,21 @@ import logging
 import os
 
 from le_utils.constants import content_kinds, licenses
-from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes
-from ricecooker.classes import files
+from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes.licenses import get_license
-from ricecooker.classes.nodes import ChannelNode
 from ricecooker.config import LOGGER
-from ricecooker.exceptions import UnknownFileTypeError, raise_for_invalid_channel
+from ricecooker.utils.jsontrees import write_tree_to_json_tree
 
 
 
 # Aflatoun settings
 ################################################################################
 AFLATOUN_LICENSE = get_license(licenses.ALL_RIGHTS_RESERVED, copyright_holder='Aflatoun', description='Materials © 2015 Aflatoun')
+AFLATOUN_LICENSE_DICT = dict(
+    license_id=licenses.ALL_RIGHTS_RESERVED,
+    copyright_holder='Aflatoun',
+    description='Materials © 2015 Aflatoun'
+)
 AFLATOUN_AUTHOR = 'Aflatoun'
 AFLATOUN_CONTENT_BASE_DIR = 'content/aflatoun_tree/aflatoun'
 AFLATOUN_CONTENT_DIR_DEPTH = 4
@@ -131,7 +133,7 @@ def process_folder(channel, raw_path, subfolders, filenames, lang):
 
     # create topic
     topic = dict(
-        kind='TopicNode',
+        kind=content_kinds.TOPIC,
         dirname=dirname,
         source_id=source_id_from_path(raw_path),
         title=folder_metadata.get('title', dirname),
@@ -164,19 +166,27 @@ def filter_subfolders(subfolders):
             subfolders_cleaned.append(subfolder)
     return subfolders_cleaned
 
-def build_ricecooker_json_tree(args, options):
+def build_ricecooker_json_tree(args, options, json_tree_path):
     """
     Download all categories, subpages, modules, and resources from open.edu.
     """
     LOGGER.info('Starting to build the ricecooker_json_tree')
+    if 'lang' not in options:
+        raise ValueError('Must specify lang=?? on the command line. Supported languages are `en` and `fr`')
     lang = options['lang']
     lang_dir = LANGUAGE_FOLDER_LOOKUP[lang]
 
     # Ricecooker tree
     ricecooker_json_tree = dict(
-        kind='ChannelNode',
-        title='NOT USED',
-        language='NOT USED',
+        source_domain = 'aflatoun.org',
+        source_id = 'aflatoun-{}'.format(lang),
+        title = 'Aflatoun Academy ({})'.format(lang.upper()),
+        thumbnail = './content/images/aflatoun_logo.jpg',
+        description = 'Aflatoun International offers social and financial'
+                      ' education to millions of children and young people'
+                      ' worldwide, empowering them to make a positive change'
+                      ' for a more equitable world.',
+        language = lang,
         children=[],
     )
     channel_base_dir = os.path.join(AFLATOUN_CONTENT_BASE_DIR, lang_dir)
@@ -190,11 +200,8 @@ def build_ricecooker_json_tree(args, options):
         LOGGER.info('processing folder ' + str(raw_path))
         process_folder(ricecooker_json_tree, raw_path, subfolders_cleaned, filenames, lang)
 
-    # Write out ricecooker_json_tree.json
-    json_file_name = os.path.join(TREES_DATA_DIR, RICECOOKER_JSON_TREE_TPL.format(lang))
-    with open(json_file_name, 'w') as json_file:
-        json.dump(ricecooker_json_tree, json_file, indent=2)
-        LOGGER.info('Folder hierarchy walk result stored in ' + json_file_name)
+    # Write out ricecooker_json_tree_{en/fr}.json
+    write_tree_to_json_tree(json_tree_path, ricecooker_json_tree)
 
 
 def make_content_node(raw_path, filename, metadata, lang):
@@ -219,36 +226,39 @@ def make_content_node(raw_path, filename, metadata, lang):
 
     if kind == content_kinds.VIDEO:
         content_node = dict(
-            kind='VideoNode',
+            kind=content_kinds.VIDEO,
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
             description=description,
             language=lang,
+            license = AFLATOUN_LICENSE_DICT,
             derive_thumbnail=True,  # video-specific option
-            files=[{'file_type':'VideoFile', 'path':filepath, 'language':lang}], # ffmpeg_settings={"crf": 24},
+            files=[{'file_type':content_kinds.VIDEO, 'path':filepath, 'language':lang}], # ffmpeg_settings={"crf": 24},
         )
 
     elif kind == content_kinds.AUDIO:
         content_node = dict(
-            kind='AudioNode',
+            kind=content_kinds.AUDIO,
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
             description=description,
             language=lang,
-            files=[{'file_type':'AudioFile', 'path':filepath, 'language':lang}],
+            license = AFLATOUN_LICENSE_DICT,
+            files=[{'file_type':content_kinds.AUDIO, 'path':filepath, 'language':lang}],
         )
 
     elif kind == content_kinds.DOCUMENT:
         content_node = dict(
-            kind='DocumentNode',
+            kind=content_kinds.DOCUMENT,
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
             description=description,
             language=lang,
-            files=[{'file_type':'DocumentFile', 'path':filepath, 'language':lang}],
+            license = AFLATOUN_LICENSE_DICT,
+            files=[{'file_type':content_kinds.DOCUMENT, 'path':filepath, 'language':lang}],
         )
 
     else:
@@ -260,185 +270,36 @@ def make_content_node(raw_path, filename, metadata, lang):
 
 
 
-
-# CONSTRUCT CHANNEL FROM RICECOOKER JSON TREE
-################################################################################
-# Note: the functions below are used in several chefs so might become part of `ricecooker`
-
-def build_tree(parent_node, sourcetree):
-    """
-    Parse nodes given in `sourcetree` list and add as children of `parent_node`.
-    """
-    EXPECTED_NODE_TYPES = ['TopicNode', 'AudioNode', 'DocumentNode', 'VideoNode', 'HTML5AppNode']
-
-    for source_node in sourcetree:
-        kind = source_node['kind']
-        if kind not in EXPECTED_NODE_TYPES:
-            LOGGER.critical('Unexpected Node type found: ' + kind)
-            raise NotImplementedError('Unexpected Node type found in channel json.')
-
-        if kind == 'TopicNode':
-            child_node = nodes.TopicNode(
-                source_id=source_node["source_id"],
-                title=source_node["title"],
-                author=source_node.get("author"),
-                description=source_node.get("description"),
-                thumbnail=source_node.get("thumbnail"),
-            )
-            parent_node.add_child(child_node)
-            source_tree_children = source_node.get("children", [])
-            build_tree(child_node, source_tree_children)
-
-        elif kind == 'AudioNode':
-            child_node = nodes.AudioNode(
-                source_id=source_node["source_id"],
-                title=source_node["title"],
-                license=AFLATOUN_LICENSE,
-                author=source_node.get("author"),
-                description=source_node.get("description"),
-                thumbnail=source_node.get('thumbnail'),
-            )
-            add_files(child_node, source_node.get("files") or [])
-            parent_node.add_child(child_node)
-
-        elif kind == 'VideoNode':
-            child_node = nodes.VideoNode(
-                source_id=source_node["source_id"],
-                title=source_node["title"],
-                license=AFLATOUN_LICENSE,
-                author=source_node.get("author"),
-                description=source_node.get("description"),
-                derive_thumbnail=True,                   # video-specific option
-                thumbnail=source_node.get('thumbnail'),
-            )
-            add_files(child_node, source_node.get("files") or [])
-            parent_node.add_child(child_node)
-
-        elif kind == 'DocumentNode':
-            child_node = nodes.DocumentNode(
-                source_id=source_node["source_id"],
-                title=source_node["title"],
-                license=AFLATOUN_LICENSE,
-                author=source_node.get("author"),
-                description=source_node.get("description"),
-                thumbnail=source_node.get("thumbnail"),
-            )
-            add_files(child_node, source_node.get("files") or [])
-            parent_node.add_child(child_node)
-
-        elif kind == 'HTML5AppNode':
-            child_node = nodes.HTML5AppNode(
-                source_id=source_node["source_id"],
-                title=source_node["title"],
-                license=AFLATOUN_LICENSE,
-                author=source_node.get("author"),
-                description=source_node.get("description"),
-                thumbnail=source_node.get("thumbnail"),
-            )
-            add_files(child_node, source_node.get("files") or [])
-            parent_node.add_child(child_node)
-
-        else:
-            LOGGER.critical("Encountered an unknown kind: " + str(source_node))
-            continue
-
-    return parent_node
-
-
-def add_files(node, file_list):
-    EXPECTED_FILE_TYPES = ['AudioFile', 'VideoFile', 'ThumbnailFile', 'HTMLZipFile', 'DocumentFile']
-    for f in file_list:
-        file_type = f.get('file_type')
-        if file_type not in EXPECTED_FILE_TYPES:
-            LOGGER.critical(file_type)
-            raise NotImplementedError('Unexpected File type found in channel json.')
-        path = f.get('path')  # usually a URL, not a local path
-        # handle different types of files
-        if file_type == 'AudioFile':
-            node.add_file(files.AudioFile(
-                path=f['path'],
-                language=f.get('language'))
-            )
-        elif file_type == 'VideoFile':
-            node.add_file(files.VideoFile(
-                path=f['path'],
-                language=f.get('language'),
-                ffmpeg_settings=f.get('ffmpeg_settings'))
-            )
-        elif file_type == 'ThumbnailFile':
-            node.add_file(files.ThumbnailFile(
-                path=path)
-            )
-        elif file_type == 'HTMLZipFile':
-            node.add_file(files.HTMLZipFile(
-                path=path,
-                language=f.get('language'))
-            )
-        elif file_type == 'DocumentFile':
-            node.add_file(files.DocumentFile(
-                path=path,
-                language=f.get('language'))
-            )
-        else:
-            raise UnknownFileTypeError("Unrecognized file type '{0}'".format(f['path']))
-
-
-
 # CHEF
 ################################################################################
 
-class AflatounChef(SushiChef):
+class AflatounChef(JsonTreeChef):
     """
     This sushi chef uses os.walk to import the content in `afaltoun_tree` folder:
       - (directory structure + json metadata files) --> `TopicNode`s
       - (files + json metadata files) --> `ContentNode`s and `File`s
     """
 
-    def get_channel(self, **kwargs):
-        """
-        Returns a ChannelNode that contains all required channel metadata.
-        """
-        if 'lang' not in kwargs:
-            raise ValueError('Must specify lang=?? on the command line. Supported languages are `en` and `fr`')
-        lang = kwargs['lang']
-        channel = ChannelNode(
-            source_domain = 'aflatoun.org',
-            source_id = 'aflatoun-{}'.format(lang),
-            title = 'Aflatoun Academy ({})'.format(lang.upper()),
-            thumbnail = './content/images/aflatoun_logo.jpg',
-            description = 'Aflatoun International offers social and financial'
-                          ' education to millions of children and young people'
-                          ' worldwide, empowering them to make a positive change'
-                          ' for a more equitable world.',
-            language = lang,
-        )
-        return channel
-
     def pre_run(self, args, options):
         """
         This function is called before `run` in order to build the json tree.
         """
-        build_ricecooker_json_tree(args, options)
+        kwargs = {}   # combined dictionary of argparse args and extra options
+        kwargs.update(args)
+        kwargs.update(options)
+        json_tree_path = self.get_json_tree_path(**kwargs)
+        build_ricecooker_json_tree(args, options, json_tree_path)
 
-    def construct_channel(self, **kwargs):
+    def get_json_tree_path(self, **kwargs):
         """
-        Build the channel tree by adding TopicNodes and ContentNode children.
+        Return path to ricecooker json tree file for language in kwargs['lang'].
         """
         if 'lang' not in kwargs:
             raise ValueError('Must specify lang=?? on the command line. Supported languages are `en` and `fr`')
         lang = kwargs['lang']
+        json_tree_path = os.path.join(TREES_DATA_DIR, RICECOOKER_JSON_TREE_TPL.format(lang))
+        return json_tree_path
 
-        channel = self.get_channel(**kwargs)
-
-        # Load ricecooker json tree data for language `lang`
-        with open(os.path.join(TREES_DATA_DIR, RICECOOKER_JSON_TREE_TPL.format(lang))) as infile:
-            json_tree = json.load(infile)
-            if json_tree is None:
-                raise ValueError('Could not find ricecooker json tree')
-            build_tree(channel, json_tree['children'])
-
-        raise_for_invalid_channel(channel)
-        return channel
 
 
 # CLI

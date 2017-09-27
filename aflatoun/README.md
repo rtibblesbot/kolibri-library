@@ -3,11 +3,17 @@ Script to create a Kolibri channel from the folder structure in aflatoun_tree
 
 
 
+Running
+-------
+
+    ./aflatoun_chef.py -v --reset --token=<yourtoken>  lang=en
+    ./aflatoun_chef.py -v --reset --token=<yourtoken>  lang=fr
+
+
 
 Second pass TODOs
 -----------------
 
-  - Ask Richard for context
   - understand exercise.json
   - understand perseus questions format
 
