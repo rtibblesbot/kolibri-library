@@ -166,8 +166,11 @@ def process_folder(channel, raw_path, filenames, lang):
     for filename in filenames_cleaned:
         file_metadata = get_metadata(os.path.join(raw_path, filename))
         node = make_content_node(raw_path, filename, file_metadata, lang)
-        # attach content node to containing topic
-        topic['children'].append(node)
+        if node:
+            # attach content node to containing topic
+            topic['children'].append(node)
+        else:
+            print('Skipping None node', filename)
 
 
 def build_ricecooker_json_tree(args, options, json_tree_path):
@@ -268,21 +271,26 @@ def make_content_node(raw_path, filename, metadata, lang):
 
     elif kind == 'exercise_zip':
         exercice_dict = exercise_zip_to_dict(filepath)
-        content_node = dict(
-            kind=content_kinds.EXERCISE,
-            source_id=source_id,
-            title=title,
-            author=AFLATOUN_AUTHOR,
-            description=exercice_dict['description'] + '  <zip||metadata> ' + str(description),
-            language=lang,
-            license=AFLATOUN_LICENSE_DICT,
-            # exercise_data ({mastery_model:str, randomize:bool, m:int, n:int}): data on mastery requirements (optional)
-            # thumbnail (str): local path or url to thumbnail image (optional)
-            # extra_fields (dict): any additional data needed for node (optional)
-            # domain_ns (str): who is providing the content (e.g. learningequality.org) (optional)
-            # questions ([<Question>]): list of question objects for node (optional)
-            questions=exercice_dict['questions'],
-        )
+        # skip exercise with no questions
+        if len(exercice_dict['questions']) == 0:
+            return None
+
+        else:
+            content_node = dict(
+                kind=content_kinds.EXERCISE,
+                source_id=source_id,
+                title=title,
+                author=AFLATOUN_AUTHOR,
+                description=exercice_dict['description'] + '  <zip||metadata> ' + str(description),
+                language=lang,
+                license=AFLATOUN_LICENSE_DICT,
+                # exercise_data ({mastery_model:str, randomize:bool, m:int, n:int}): data on mastery requirements (optional)
+                # thumbnail (str): local path or url to thumbnail image (optional)
+                # extra_fields (dict): any additional data needed for node (optional)
+                # domain_ns (str): who is providing the content (e.g. learningequality.org) (optional)
+                # questions ([<Question>]): list of question objects for node (optional)
+                questions=exercice_dict['questions'],
+            )
 
     else:
         raise ValueError('Not implemented case for kind ' + str(kind))
@@ -319,6 +327,9 @@ def exercise_zip_to_dict(ex_path):
         raw_content = question['question']['content']
         raw_content = re.sub('\[\[.*?\]\]', '', raw_content)
         question_text = raw_content.strip()
+
+        if '60b6c0cd92ca746a6f71e5f7c9d34b1c384021ab' in question_text:
+            continue  # skip question with missing image reference web+local://.
 
         # hints
         hints = question['hints']
