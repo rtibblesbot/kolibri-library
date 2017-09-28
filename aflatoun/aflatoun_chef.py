@@ -13,6 +13,7 @@ from ricecooker.classes.questions import SingleSelectQuestion
 from ricecooker.config import LOGGER
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
 
+from le_utils.constants import exercises
 
 
 # Aflatoun settings
@@ -63,7 +64,7 @@ LOGGER.setLevel(logging.DEBUG)
 
 def get_metadata_file_path(path):
     if path.endswith('exercise.zip'):
-        return path.repalce('exercise.zip', 'exercise.json')
+        return path.replace('exercise.zip', 'exercise.json')
     else:
         return path + '.json'
 
@@ -163,8 +164,6 @@ def process_folder(channel, raw_path, filenames, lang):
 
     # B. PROCESS FILES
     for filename in filenames_cleaned:
-        if filename.endswith('exercise.zip'):
-            continue
         file_metadata = get_metadata(os.path.join(raw_path, filename))
         node = make_content_node(raw_path, filename, file_metadata, lang)
         # attach content node to containing topic
@@ -274,7 +273,7 @@ def make_content_node(raw_path, filename, metadata, lang):
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
-            description=exercice_dict['description'] + '  <zip||metadata> ' + description,
+            description=exercice_dict['description'] + '  <zip||metadata> ' + str(description),
             language=lang,
             license=AFLATOUN_LICENSE_DICT,
             # exercise_data ({mastery_model:str, randomize:bool, m:int, n:int}): data on mastery requirements (optional)
@@ -300,7 +299,6 @@ def exercise_zip_to_dict(ex_path):
     #
     json_bytes = archive.read('exercise.json')
     exercise_json = json.loads(json_bytes)
-    print(exercise_json)
     json_bytes2 = archive.read('assessment_items.json')
     asssesment_items = json.loads(json_bytes2)
 
@@ -317,45 +315,83 @@ def exercise_zip_to_dict(ex_path):
         # consistcy check
         assert question['itemDataVersion']['major'] == 0, 'Wrong major verison'
         assert question['itemDataVersion']['minor'] == 1, 'Wrong minor verison'
-        #
+        # question text
         raw_content = question['question']['content']
         raw_content = re.sub('\[\[.*?\]\]', '', raw_content)
         question_text = raw_content.strip()
-        widgets = question['question']['widgets']
-        assert len(widgets.keys())==1, 'multiple widgets question found'
-        multipleSelect = list(widgets.values())[0]['options']['multipleSelect']
-        assert multipleSelect == False, 'unexpected multiple select option'
-        correct_answer = None
-        all_answers = []
-        for _wid, wdata in widgets.items():
-            choices = wdata['options']['choices']
-            for choice in choices:
-                choice_text = choice['content'].strip()
-                if choice['correct']:
-                    correct_answer = choice_text
-                all_answers.append(choice_text)
-            assert correct_answer, 'no choice for correct_answer selected'
 
+        # hints
         hints = question['hints']
         if hints:
-            print(hints)
+            print('>>>>', hints)
+
+        # images???
         images = question['question']['images']
         if images:
-            print(images)
+            print('&&&&', images)
 
-        #     id (str): question's unique id
-        #     question=question
-        #     correct_answer (str): correct answer
-        #     all_answers ([str]): list of all possible answers
-        #     hint (str): optional hint on how to answer question
-        q = SingleSelectQuestion(
-            id=str(qid),
-            question=question_text,
-            correct_answer=correct_answer,
-            all_answers=all_answers,
-            hints=hints,
-        )
-        exercise_dict['questions'].append(q)
+        # answer widget (ASSUMPTION: every question has a single answer widget)
+        widgets = question['question']['widgets']
+        assert len(widgets.keys())==1, 'multiple widgets question found'
+        widget = list(widgets.values())[0]
+
+        # A: select-type question
+        if widget['type'] == 'radio':
+            multipleSelect = widget['options']['multipleSelect']
+
+            # A.1: MultipleSelectQuestion
+            if multipleSelect:
+                correct_answers = []
+                all_answers = []
+                for _wid, wdata in widgets.items():
+                    choices = wdata['options']['choices']
+                    for choice in choices:
+                        choice_text = choice['content'].strip()
+                        if choice['correct']:
+                            correct_answers.append(choice_text)
+                        all_answers.append(choice_text)
+                if len(correct_answers) == 0:
+                    print('Skipping question because no correct_answers provided', ex_path)
+                    continue
+                q = dict(
+                    question_type=exercises.MULTIPLE_SELECTION,
+                    id=str(qid),
+                    question=question_text,
+                    correct_answers=correct_answers,
+                    all_answers=all_answers,
+                    hints=hints,
+                )
+                exercise_dict['questions'].append(q)
+
+            # A.2: SingleSelectQuestion
+            else:
+                correct_answer = None
+                all_answers = []
+                for _wid, wdata in widgets.items():
+                    choices = wdata['options']['choices']
+                    for choice in choices:
+                        choice_text = choice['content'].strip()
+                        if choice['correct']:
+                            correct_answer = choice_text
+                        all_answers.append(choice_text)
+                if correct_answer is None:
+                    print('Skipping question because correct_answer is None', ex_path)
+                    continue
+                assert correct_answer, 'no choice for correct_answer selected'
+                q = dict(
+                    question_type=exercises.SINGLE_SELECTION,
+                    id=str(qid),
+                    question=question_text,
+                    correct_answer=correct_answer,
+                    all_answers=all_answers,
+                    hints=hints,
+                )
+                exercise_dict['questions'].append(q)
+
+        else:
+            print('Skipping unknown question type', widget['type'], ex_path)
+            continue
+
 
     return exercise_dict
 
