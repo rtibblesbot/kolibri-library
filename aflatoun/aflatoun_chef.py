@@ -3,10 +3,13 @@
 import json
 import logging
 import os
+import re
+import zipfile
 
 from le_utils.constants import content_kinds, licenses
 from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes.licenses import get_license
+from ricecooker.classes.questions import SingleSelectQuestion
 from ricecooker.config import LOGGER
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
 
@@ -37,7 +40,7 @@ CONTENT_FOLDERS_FOR_LANG = dict(
 )
 DIR_EXCLUDE_PATTERNS = ['Unzipped Files']
 FILE_EXCLUDE_EXTENTIONS = ['.DS_Store', '.json']
-FILE_SKIP_PATTENRS = ['exercise.zip']
+FILE_SKIP_PATTENRS = []
 
 
 # Chef settings
@@ -117,13 +120,24 @@ def filter_filenames(filenames):
             filenames_cleaned.append(filename)
     return filenames_cleaned
 
-def process_folder(channel, raw_path, subfolders, filenames, lang):
+def keep_folder(raw_path):
+    keep = True
+    for pattern in DIR_EXCLUDE_PATTERNS:
+        if pattern in raw_path:
+            LOGGER.debug('rejecting', raw_path)
+            keep = False
+    return keep
+
+
+def process_folder(channel, raw_path, filenames, lang):
     """
     Create `ContentNode`s from each file in this folder and the node to `channel`
     under the path `raw_path`.
     """
+    if not keep_folder(raw_path):
+        return
+    #
     path_as_list = get_path_as_list(raw_path)
-
     # A. TOPIC
     dirname = path_as_list.pop()
     parent_node = get_node_for_path(channel, path_as_list)
@@ -149,22 +163,13 @@ def process_folder(channel, raw_path, subfolders, filenames, lang):
 
     # B. PROCESS FILES
     for filename in filenames_cleaned:
+        if filename.endswith('exercise.zip'):
+            continue
         file_metadata = get_metadata(os.path.join(raw_path, filename))
         node = make_content_node(raw_path, filename, file_metadata, lang)
         # attach content node to containing topic
         topic['children'].append(node)
 
-
-def filter_subfolders(subfolders):
-    subfolders_cleaned = []
-    for subfolder in subfolders:
-        keep = True
-        for pattern in DIR_EXCLUDE_PATTERNS:
-            if pattern in subfolder:
-                keep = False
-        if keep:
-            subfolders_cleaned.append(subfolder)
-    return subfolders_cleaned
 
 def build_ricecooker_json_tree(args, options, json_tree_path):
     """
@@ -195,10 +200,9 @@ def build_ricecooker_json_tree(args, options, json_tree_path):
     # MAIN PROCESSING OF os.walk OUTPUT
     ############################################################################
     _ = content_folders.pop(0)  # Skip over channel folder because handled above
-    for raw_path, subfolders, filenames in content_folders:
-        subfolders_cleaned = filter_subfolders(subfolders)
+    for raw_path, _subfolders, filenames in content_folders:
         LOGGER.info('processing folder ' + str(raw_path))
-        process_folder(ricecooker_json_tree, raw_path, subfolders_cleaned, filenames, lang)
+        process_folder(ricecooker_json_tree, raw_path, filenames, lang)
 
     # Write out ricecooker_json_tree_{en/fr}.json
     write_tree_to_json_tree(json_tree_path, ricecooker_json_tree)
@@ -212,7 +216,9 @@ def make_content_node(raw_path, filename, metadata, lang):
     ext = file_ext[1:]
 
     kind = None
-    if ext in content_kinds.MAPPING:
+    if  filename.endswith('exercise.zip'):
+        kind = 'exercise_zip'
+    elif ext in content_kinds.MAPPING:
         kind = content_kinds.MAPPING[ext]
     else:
         raise ValueError('Could not find kind for extension ' + str(ext) + ' in content_kinds.MAPPING')
@@ -261,11 +267,97 @@ def make_content_node(raw_path, filename, metadata, lang):
             files=[{'file_type':content_kinds.DOCUMENT, 'path':filepath, 'language':lang}],
         )
 
+    elif kind == 'exercise_zip':
+        exercice_dict = exercise_zip_to_dict(filepath)
+        content_node = dict(
+            kind=content_kinds.EXERCISE,
+            source_id=source_id,
+            title=title,
+            author=AFLATOUN_AUTHOR,
+            description=exercice_dict['description'] + '  <zip||metadata> ' + description,
+            language=lang,
+            license=AFLATOUN_LICENSE_DICT,
+            # exercise_data ({mastery_model:str, randomize:bool, m:int, n:int}): data on mastery requirements (optional)
+            # thumbnail (str): local path or url to thumbnail image (optional)
+            # extra_fields (dict): any additional data needed for node (optional)
+            # domain_ns (str): who is providing the content (e.g. learningequality.org) (optional)
+            # questions ([<Question>]): list of question objects for node (optional)
+            questions=exercice_dict['questions'],
+        )
+
     else:
         raise ValueError('Not implemented case for kind ' + str(kind))
 
     return content_node
 
+
+
+
+
+
+def exercise_zip_to_dict(ex_path):
+    archive = zipfile.ZipFile(ex_path, 'r')
+    #
+    json_bytes = archive.read('exercise.json')
+    exercise_json = json.loads(json_bytes)
+    print(exercise_json)
+    json_bytes2 = archive.read('assessment_items.json')
+    asssesment_items = json.loads(json_bytes2)
+
+    # combine to form (numeric_id, quesion_dict) list
+    questions = zip(exercise_json['all_assessment_items'], asssesment_items)
+
+    exercise_dict = dict(
+        title=exercise_json['title'],
+        description=exercise_json['description'],
+        questions=[],
+    )
+
+    for qid, question in questions:
+        # consistcy check
+        assert question['itemDataVersion']['major'] == 0, 'Wrong major verison'
+        assert question['itemDataVersion']['minor'] == 1, 'Wrong minor verison'
+        #
+        raw_content = question['question']['content']
+        raw_content = re.sub('\[\[.*?\]\]', '', raw_content)
+        question_text = raw_content.strip()
+        widgets = question['question']['widgets']
+        assert len(widgets.keys())==1, 'multiple widgets question found'
+        multipleSelect = list(widgets.values())[0]['options']['multipleSelect']
+        assert multipleSelect == False, 'unexpected multiple select option'
+        correct_answer = None
+        all_answers = []
+        for _wid, wdata in widgets.items():
+            choices = wdata['options']['choices']
+            for choice in choices:
+                choice_text = choice['content'].strip()
+                if choice['correct']:
+                    correct_answer = choice_text
+                all_answers.append(choice_text)
+            assert correct_answer, 'no choice for correct_answer selected'
+
+        hints = question['hints']
+        if hints:
+            print(hints)
+        images = question['question']['images']
+        if images:
+            print(images)
+
+        #     id (str): question's unique id
+        #     question=question
+        #     correct_answer (str): correct answer
+        #     all_answers ([str]): list of all possible answers
+        #     hint (str): optional hint on how to answer question
+        q = SingleSelectQuestion(
+            id=str(qid),
+            question=question_text,
+            correct_answer=correct_answer,
+            all_answers=all_answers,
+            hints=hints,
+        )
+        exercise_dict['questions'].append(q)
+
+    return exercise_dict
 
 
 
@@ -299,7 +391,6 @@ class AflatounChef(JsonTreeChef):
         lang = kwargs['lang']
         json_tree_path = os.path.join(TREES_DATA_DIR, RICECOOKER_JSON_TREE_TPL.format(lang))
         return json_tree_path
-
 
 
 # CLI
