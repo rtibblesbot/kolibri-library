@@ -12,6 +12,7 @@ More from http://en.tahriracademy.net/
 
 from collections import defaultdict
 import html
+import json
 import os
 import re
 import requests
@@ -40,11 +41,62 @@ forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=c
 #sess.mount('https://', forever_adapter)
 
 ydl = youtube_dl.YoutubeDL({
-    'quiet': True,
+    'quiet': False, # True
     'no_warnings': True,
     'writesubtitles': True,
     'allsubtitles': True,
 })
+
+
+# SCRAPING YOUTUBE
+################################################################################
+
+# Chef settings
+################################################################################
+DATA_DIR = 'chefdata'
+JSON_YOUTUBE_IDS_FILENAME = 'all_video_ids_in_playlists.json'
+json_filename = os.path.join(DATA_DIR, JSON_YOUTUBE_IDS_FILENAME)
+
+def download_all_video_infos_from_youtube():
+    """
+    Returns a list of (youtube_id, title, playlist_id) for all TahrirAcademy videos on youtube.
+    """
+    if os.path.exists(json_filename):
+        with open(json_filename, 'r') as json_file:
+            all_video_infos = json.load(json_file)
+            return all_video_infos
+
+    youtube_channel_url = 'https://www.youtube.com/user/tahriracademy/playlists?shelf_id=0&view=1&sort=dd'
+    print("Fetching YouTube channel and videos metadata --"
+            " this may take a few minutes (%s)" % youtube_channel_url)
+    info = ydl.extract_info(youtube_channel_url, download=False)
+
+    all_video_infos = []
+    for i, playlist in enumerate(info['entries']):
+        title = playlist['title']
+        youtube_url = playlist['webpage_url']
+        print("  Downloading playlist %s (%s)" % (title, youtube_url))
+        # playlist_topic = nodes.TopicNode(source_id=playlist['id'], title=title)
+        for j, video in enumerate(playlist['entries']):
+            # print('found video  youtube_id=', j, video['id'])
+            all_video_infos.append( (video['id'], title, playlist['id']) )
+    # print('all_video_infos=', all_video_infos)
+
+    # save json cache
+    data_out = []
+    for youtube_id, title, playlist_id in all_video_infos:
+        data_out.append(
+            dict(
+                youtube_id=youtube_id,
+                title=title,
+                playlist_id=playlist_id,
+            )
+        )
+    with open(json_filename, 'wb') as json_file:
+        json_string = json.dumps(data_out, ensure_ascii=False, indent=4).encode('utf8')
+        json_file.write(json_string)
+
+    return all_video_infos
 
 
 class TahrirAcademyChef(SushiChef):
@@ -75,23 +127,6 @@ class TahrirAcademyChef(SushiChef):
             description = channel_info.get('CHANNEL_DESCRIPTION'),
             language = "ar",
         )
-
-        youtube_channel_url = 'https://www.youtube.com/user/tahriracademy/playlists?shelf_id=0&view=1&sort=dd'
-
-        print("Fetching YouTube channel and videos metadata --"
-                " this may take a few minutes (%s)" % youtube_channel_url)
-        info = ydl.extract_info(youtube_channel_url, download=False)
-
-        for i, playlist in enumerate(info['entries']):
-            title = playlist['title']
-            youtube_url = playlist['webpage_url']
-            print("  Downloading playlist %s (%s)" % (title, youtube_url))
-            playlist_topic = nodes.TopicNode(
-                    source_id=playlist['id'], title=playlist['title'])
-            channel.add_child(playlist_topic)
-            for j, video in enumerate(playlist['entries']):
-                playlist_topic.add_child(fetch_video(video))
-
         return channel
 
 

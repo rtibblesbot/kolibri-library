@@ -2,6 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.ricecookerfilecache
+restore/
+storage/
+
 
 # C extensions
 *.so
