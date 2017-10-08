@@ -5,6 +5,7 @@ __pycache__/
 .ricecookerfilecache
 restore/
 storage/
+.webcache/
 
 
 # C extensions
