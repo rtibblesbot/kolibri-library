@@ -1,5 +1,18 @@
 # Tahrir Academy Sushi Chef
 
+
+
+## TODO
+
+  - Extract titles for categories / subcategories
+  - Process course descr
+  - Process content descr from youtube descr
+  - Updatre riceooker json to handle Youtube Video Files
+  - Run on Vader
+
+
+
+
 ### Step 0: Installation
 
 * [Install pip](https://pypi.python.org/pypi/pip) if you don't have it already.
@@ -20,3 +33,7 @@ You will need an authorization token to create a channel on Kolibri Studio. In o
 
 ### Step 2: Running the chef ###
 Run `./chef.py -v --reset --token=<token> --stage --thumbnails`, replacing `<token>` with the token you copied earlier
+
+
+
+

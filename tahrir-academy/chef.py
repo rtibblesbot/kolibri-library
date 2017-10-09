@@ -110,13 +110,43 @@ def download_all_video_infos_from_youtube():
 # SCRAPING WEBSITE
 ################################################################################
 
-get_text = lambda x: "" if x is None else x.get_text().replace('\r', '').replace('\n', ' ').strip()
+def get_text(x):
+    """
+    Extract text contents of `x`, normalizing newlines to spaces and stripping.
+    """
+    return "" if x is None else x.get_text().replace('\r', '').replace('\n', ' ').strip()
 
 
+def path_to_page_type_and_id(url_or_path):
+    """
+    Extracts the `page_type` and `id` from a given URL or path, e.g.
+    '/category/196/blahabala'  -->  ('category', '196')
+    """
+    #
+    CATEGORY_URL_RE = re.compile('/category/(\d*?)/')
+    match = CATEGORY_URL_RE.match(url_or_path)
+    if match:
+        return 'category', match[1]
+    #
+    COURSE_URL_RE = re.compile('/course/(\d*?)/')
+    match = COURSE_URL_RE.match(url_or_path)
+    if match:
+        return 'course', match[1]
+    #
+    CONTENT_URL_RE = re.compile('/content/(\d*?)/')
+    match = CONTENT_URL_RE.match(url_or_path)
+    if match:
+        return 'content', match[1]
 
-CATEGORY_URL_RE = re.compile('^/category/')
-COURSE_URL_RE = re.compile('^/course/')
-CONTENT_URL_RE = re.compile('^/content/')
+    return None
+
+def make_self_href_re(page_type, id):
+    """
+    Build a regular expression that will href to current page.
+    Used to extract section/subsection titles from nav lis.
+    """
+    return re.compile('/' + page_type + '/' + str(id) + '/')
+
 
 youtube_ids_from_site = []
 
@@ -145,7 +175,17 @@ def scrape_root(url, page):
         children=[],
     )
 
-    # three top-level tracks
+    # extract titles for the three top-level tracks
+    tracks_wrapper_uls = page.find('div', class_="tracks-wrapper").find_all('ul', recusive=False)
+    track_titles = {}
+    for tracks_wrapper_ul in tracks_wrapper_uls:
+        track_li = tracks_wrapper_ul.find('li', recusive=False)
+        track_link = track_li.find('a')
+        track_id = track_link['data-target']
+        track_title = get_text(track_link)
+        track_titles[track_id] = track_title
+
+    # extract categories for each track
     tracks_menu_div = page.find('div', id="subjects-menu")
     track_uls = tracks_menu_div.find_all('ul', recusive=False)
     for track_ul in track_uls:
@@ -153,7 +193,7 @@ def scrape_root(url, page):
         track_dict = dict(
             kind=content_kinds.TOPIC,
             source_id='tahriracademy:'+track_id,
-            title='Track' + url,
+            title=track_titles[track_id],
             description='',
             children=[],
         )
@@ -172,25 +212,27 @@ def scrape_root(url, page):
 
 def scrape_category(parent, url, page):
     print('Scraping category', url)
+    category_title = page.find('head').find('meta', attrs={'property': "og:title"})['content']
+
     category_dict = dict(
         kind=content_kinds.TOPIC,
-        title='Category' + url,
+        title=category_title,
         description='',
         children=[],
     )
+    print(category_dict)
 
     # scrape courses
     links = page.find_all('a')
     for link in links:
-        if link.has_attr('data-remote'):
+        if link.has_attr('data-course-id'):
             data_course_id = link['data-course-id'] # e.g "49"
-            data_remote = link['data-remote'] # e.g. "/course/show-info/49?isInCourse=0"
-            # print('       >>>> data-remote=', data_remote)
+            # data_remote = link['data-remote'] # e.g. "/course/show-info/49?isInCourse=0"
             course_path = '/course/' + str(data_course_id)
             course_url, course_page = download_path(course_path)
             scrape_course(category_dict, course_url, course_page)
 
-    # check for subcategories, e.g. secondary -> First secondary -> Biology
+    # check for subcategories, e.g. Secondary -> First secondary -> Biology
     container_div = page.find('div', class_="cat-listing")
     if container_div:
         # scrape subcategories:
@@ -217,10 +259,9 @@ def scrape_subcategory(parent, url, page):
     # scrape courses
     links = page.find_all('a')
     for link in links:
-        if link.has_attr('data-remote'):
+        if link.has_attr('data-course-id'):
             data_course_id = link['data-course-id'] # e.g "49"
-            data_remote = link['data-remote'] # e.g. "/course/show-info/49?isInCourse=0"
-            # print('       >>>> data-remote=', data_remote)
+            # data_remote = link['data-remote'] # e.g. "/course/show-info/49?isInCourse=0"
             course_path = '/course/' + str(data_course_id)
             course_url, course_page = download_path(course_path)
             scrape_course(subcategory_dict, course_url, course_page)
