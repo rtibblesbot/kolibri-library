@@ -25,7 +25,7 @@ import youtube_dl
 import pycountry
 
 from le_utils.constants import content_kinds, file_formats, languages
-from ricecooker.chefs import SushiChef
+from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes import nodes, files, licenses
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
 from ricecooker.utils.browser import preview_in_browser
@@ -42,6 +42,7 @@ TREES_DATA_DIR = os.path.join(DATA_DIR, 'trees')
 SCRAPING_STAGE_OUTPUT = 'ricecooker_json_tree.json'
 JSON_YOUTUBE_IDS_FILENAME = 'all_video_ids_in_playlists.json'
 json_filename = os.path.join(DATA_DIR, JSON_YOUTUBE_IDS_FILENAME)
+TAHRIR_ACADEMY_LICENSE = licenses.CC_BY_NC_NDLicense(copyright_holder='Tahrir Academy (tahriracademy.org)')
 
 
 # CACHE LOGIC
@@ -123,21 +124,18 @@ def path_to_page_type_and_id(url_or_path):
     '/category/196/blahabala'  -->  ('category', '196')
     """
     #
-    CATEGORY_URL_RE = re.compile('/category/(\d*?)/')
-    match = CATEGORY_URL_RE.match(url_or_path)
+    match = re.match('.*/category/(?P<id>\d+)/.*', url_or_path)
     if match:
-        return 'category', match[1]
+        return 'category', match.groupdict()['id']
     #
-    COURSE_URL_RE = re.compile('/course/(\d*?)/')
-    match = COURSE_URL_RE.match(url_or_path)
+    match = re.match('.*/course/(?P<id>\d+)/.*', url_or_path)
     if match:
-        return 'course', match[1]
+        return 'course', match.groupdict()['id']
     #
-    CONTENT_URL_RE = re.compile('/content/(\d*?)/')
-    match = CONTENT_URL_RE.match(url_or_path)
+    match = re.match('.*/content/(?P<id>\d+)/.*', url_or_path)
     if match:
-        return 'content', match[1]
-
+        return 'content', match.groupdict()['id']
+    #
     return None
 
 def make_self_href_re(page_type, id):
@@ -145,7 +143,7 @@ def make_self_href_re(page_type, id):
     Build a regular expression that will href to current page.
     Used to extract section/subsection titles from nav lis.
     """
-    return re.compile('/' + page_type + '/' + str(id) + '/')
+    return re.compile('.*/' + page_type + '/' + str(id) + '/.*')
 
 
 youtube_ids_from_site = []
@@ -212,7 +210,10 @@ def scrape_root(url, page):
 
 def scrape_category(parent, url, page):
     print('Scraping category', url)
-    category_title = page.find('head').find('meta', attrs={'property': "og:title"})['content']
+    page_type, page_id = path_to_page_type_and_id(url)
+    self_re = make_self_href_re(page_type, page_id)
+    self_link = page.find('a', attrs={'href': self_re})
+    category_title = get_text(self_link)
 
     category_dict = dict(
         kind=content_kinds.TOPIC,
@@ -241,7 +242,7 @@ def scrape_category(parent, url, page):
         for subcat_li in subcategories_lis:
             subcat_link = subcat_li.find('a')
             subcat_path = subcat_link['href']
-            subcat_title = get_text(subcat_link.find('h4', class_="subject-title"))
+            # subcat_title = get_text(subcat_link.find('h4', class_="subject-title"))
             subcat_url, subcat_page = download_path(subcat_path)
             scrape_subcategory(category_dict, subcat_url, subcat_page)
 
@@ -249,9 +250,13 @@ def scrape_category(parent, url, page):
 
 def scrape_subcategory(parent, url, page):
     print('Scraping subcategory', url)
+    page_type, page_id = path_to_page_type_and_id(url)
+    self_re = make_self_href_re(page_type, page_id)
+    self_link = page.find('a', attrs={'href': self_re})
+    subcat_title = get_text(self_link)
     subcategory_dict = dict(
         kind=content_kinds.TOPIC,
-        title='Subcategory' + url,
+        title=subcat_title,
         description='',
         children=[],
     )
@@ -314,41 +319,36 @@ def scrape_content(parent, url, page):
         src = iframe['src']
         m = re.match('.*embed/(.*)\?.*', src)
         youtube_id = m[1]
-        # print('                   youtube_id found', youtube_id)
         youtube_ids_from_site.append(youtube_id)
-        video_node = dict(
-            kind=content_kinds.VIDEO,
-            youtube_id=youtube_id,
-        )
+        video_node = fetch_video(youtube_id)
         parent['children'].append(video_node)
 
     else:
         print('ZZZ did not find iframe for', url)
-        parent['children'].append({'kind':'Uknownn/no iframe', 'url':url})
+        pass  # TODO fix this
+        # parent['children'].append({'kind':'Uknownn/no iframe', 'url':url})
 
 
-
-
-
-def fetch_video(video):
-    youtube_id = video['id']
+def fetch_video(youtube_id):
+    video = ydl.extract_info('2xycMieJSQ4', download=False)
     title = video['title']
     description = video['description']
     youtube_url = video['webpage_url']
-
-    print("    Fetching video data: %s (%s)" % (title, youtube_url))
-
-    video_node = nodes.VideoNode(
+    # print("    Fetching video data: %s (%s)" % (title, youtube_url))
+    video_file = dict(
+        kind=content_kinds.VIDEO,
+        youtube_id=youtube_id,
+    )
+    video_node = dict(
+        kind=content_kinds.VIDEO,
         source_id=youtube_id,
         title=truncate_metadata(title),
-        license=licenses.CC_BY_NC_NDLicense(
-            copyright_holder='Tahrir Academy (tahriracademy.org)'),
+        license=TAHRIR_ACADEMY_LICENSE.as_dict(),
         description=truncate_description(description),
         derive_thumbnail=True,
         language="ar",
-        files=[files.YouTubeVideoFile(youtube_id=youtube_id)],
+        files=[video_file],
     )
-
     return video_node
 
 
@@ -376,36 +376,12 @@ def truncate_metadata(data_string):
 # CHEF
 ################################################################################
 
-class TahrirAcademyChef(SushiChef):
+class TahrirAcademyChef(JsonTreeChef):
     """
     The chef class that takes care of uploading channel to the content curation server.
 
     We'll call its `main()` method from the command line script.
     """
-    channel_info = {
-        'CHANNEL_SOURCE_DOMAIN': "http://tahriracademy.org/",
-        'CHANNEL_SOURCE_ID': "tahrir-academy",
-        'CHANNEL_TITLE': "Tahrir Academy",
-        'CHANNEL_THUMBNAIL': "https://yt3.ggpht.com/-t2RMfv5dBMM/AAAAAAAAAAI/AAAAAAAAAAA/DL3ELFokTGY/s288-c-k-no-mo-rj-c0xffffff/photo.jpg",
-        'CHANNEL_DESCRIPTION': "One of the largest Arabic language content sources of locally produced educational videos. Aligned to the Egyptian curriculum as well as that of various other countries across the Middle East and North African region on a case-by-case basis for individual sets of content.",
-    }
-
-    def construct_channel(self, **kwargs):
-        """
-        Create ChannelNode and build topic tree.
-        """
-        # create channel
-        channel_info = self.channel_info
-        channel = nodes.ChannelNode(
-            source_domain = channel_info['CHANNEL_SOURCE_DOMAIN'],
-            source_id = channel_info['CHANNEL_SOURCE_ID'],
-            title = channel_info['CHANNEL_TITLE'],
-            thumbnail = channel_info.get('CHANNEL_THUMBNAIL'),
-            description = channel_info.get('CHANNEL_DESCRIPTION'),
-            language = "ar",
-        )
-        return channel
-
 
     def scrape(self, args, options):
         """
@@ -415,7 +391,18 @@ class TahrirAcademyChef(SushiChef):
         channel_dict = scrape_root(root_url, root_page)
         # Write out ricecooker_json_tree.json
         write_tree_to_json_tree(os.path.join(TREES_DATA_DIR, SCRAPING_STAGE_OUTPUT), channel_dict)
-        print(channel_dict)
+
+        # counters = [1,1,1,1,1,1,1]
+        # def print_node(node, depth, indent=''):
+        #     if 'title' in node:
+        #         secion_num = '.'.join([str(n) for n in counters[0:depth]])
+        #         print(indent, secion_num, depth, node['title'], '('+node.get('kind', 'channel root node')+')')
+        #         counters[depth] += 1
+        #     if 'children' in node:
+        #         next_depth = depth+1
+        #         for child in node['children']:
+        #             print_node(child, next_depth, indent=indent+'   ')
+        # print_node(channel_dict, 0)
 
     def pre_run(self, args, options):
         """

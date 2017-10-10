@@ -3,10 +3,27 @@ Tahrir Academy Content
 ======================
 
 
+Tahrir academy consists of roughly 800 educational videos in Arabic.
+The website content hirararchy consists of the follwoing levels:
+
+    /track/  --- three top level tracks: primary / secondary / general
+    /category
+       /category (a subcategory)
+    /course/
+    /content/
+
+
+See [Spec doc](https://docs.google.com/document/d/1OB-z44bjXX_oXbzQ3S2B0ziZS7lBrLOP4ppYVF73D3Y/edit)
+for full listing of categories and courses.
+
+
+
+
+Notes
+-----
+
 Courses have simple exercises, but we can't currently scrape those
-
 ![](images/exercise-sidepanel.png)
-
 
 
 The following YouTube videos exist are not linked from website
@@ -59,3 +76,11 @@ The following YouTube videos exist are not linked from website
   - https://www.youtube.com/watch?v=qylYsPsPRZo&list=PLBei6dkcMlV9D-_PVB2t1zzIoLxFu8986 أكاديمية التحرير في الإعلام
   - https://www.youtube.com/watch?v=UQbUguzyQp0&list=PLBei6dkcMlV9D-_PVB2t1zzIoLxFu8986 أكاديمية التحرير في الإعلام
   - https://www.youtube.com/watch?v=rFy0gU-aFEs&list=PLBei6dkcMlV9D-_PVB2t1zzIoLxFu8986 أكاديمية التحرير في الإعلام
+
+
+Proposed Solution: add a special `Extra Videos` channel that contains all of the above,
+grouped by playlist.
+
+
+
+
