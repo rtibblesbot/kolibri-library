@@ -318,7 +318,7 @@ def scrape_content(parent, url, page):
     if iframe:
         src = iframe['src']
         m = re.match('.*embed/(.*)\?.*', src)
-        youtube_id = m[1]
+        youtube_id = m.groups(1)
         youtube_ids_from_site.append(youtube_id)
         video_node = fetch_video(youtube_id)
         parent['children'].append(video_node)
