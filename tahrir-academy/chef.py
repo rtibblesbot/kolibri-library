@@ -209,7 +209,7 @@ def scrape_category(parent, url, page):
 
     category_dict = dict(
         kind=content_kinds.TOPIC,
-        source_id='category:'+category_title,
+        source_id='category:'+page_id,
         title=category_title,
         description='',
         children=[],
@@ -249,7 +249,7 @@ def scrape_subcategory(parent, url, page):
     subcat_title = get_text(self_link)
     subcategory_dict = dict(
         kind=content_kinds.TOPIC,
-        source_id='subcategory:'+subcat_title,
+        source_id='subcategory:'+page_id,
         title=subcat_title,
         description='',
         children=[],
@@ -274,6 +274,7 @@ def scrape_course(parent, url, page):
     Parameters is `url` of page and parsed BeautifuSoup tree in `page`.
     """
     print('Scraping course', url)
+    page_type, page_id = path_to_page_type_and_id(url)
 
     # get title
     title_h2 = page.find('h2', class_="course-title")     #  id="myModalLabel">
@@ -285,7 +286,7 @@ def scrape_course(parent, url, page):
 
     course_dict = dict(
         kind=content_kinds.TOPIC,
-        source_id='course:'+title,
+        source_id='course:'+page_id,
         title=title,
         description=desc,
         children=[],
@@ -308,6 +309,7 @@ def scrape_course(parent, url, page):
 
 def scrape_content(parent, url, page):
     print('Scraping content', url)
+    page_type, page_id = path_to_page_type_and_id(url)
 
     iframe = page.find('iframe', id="youtubePlayer")
     if iframe:
@@ -320,9 +322,10 @@ def scrape_content(parent, url, page):
 
     else:
         print('ZZZ did not find iframe for', url)
+        # content_kinds.HTML5,
+        # source_id='content:'+page_id,
         pass  # TODO fix this
         # parent['children'].append({'kind':'Uknownn/no iframe', 'url':url})
-
 
 def fetch_video(youtube_id):
     video = ydl.extract_info('2xycMieJSQ4', download=False)
