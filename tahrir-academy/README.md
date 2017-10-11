@@ -1,15 +1,14 @@
 # Tahrir Academy Sushi Chef
 
+Sushi Chef for tahriracademy.org
 
 
 ## TODO
 
-  - Extract titles for categories / subcategories
-  - Process course descr
-  - Process content descr from youtube descr
-  - Updatre riceooker json to handle Youtube Video Files
-  - Run on Vader
-
+  - Cleanup descr from youtube --- rm links, rm redndancies
+    (any tagline that repeats in all videos + share/subscribe calls to action)
+  - Create HTML5app node from slideshow
+  - Add fourth topic for extra nodes, groupby playlist
 
 
 
