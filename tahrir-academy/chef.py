@@ -10,28 +10,19 @@ More from http://en.tahriracademy.net/
 # Abstract into a YouTube playlist scraper and make available in Ricecooker
 # utils.
 
-from collections import defaultdict
-import html
 import json
 import os
 import re
 import requests
-import tempfile
-import time
-from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
 import youtube_dl
-import pycountry
 
-from le_utils.constants import content_kinds, file_formats, languages
+from le_utils.constants import content_kinds
 from ricecooker.chefs import JsonTreeChef
-from ricecooker.classes import nodes, files, licenses
-from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
-from ricecooker.utils.browser import preview_in_browser
-from ricecooker.utils.html import download_file, WebDriver, minimize_html_css_js
+from ricecooker.classes import licenses
+from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
-from ricecooker.utils.zip import create_predictable_zip
 
 
 # Chef settings
@@ -200,7 +191,7 @@ def scrape_root(url, page):
         for category_li in track_categories:
             category_link = category_li.find('a')
             category_path = category_link['href']
-            category_title = get_text(category_li)
+            # category_title = get_text(category_li)
             category_url, category_page = download_path(category_path)
             scrape_category(track_dict, category_url, category_page)
 
@@ -305,7 +296,7 @@ def scrape_course(parent, url, page):
     content_lis = nav_ul.find_all('li')
     for content_li in content_lis:
         content_id = content_li['id']
-        content_link = content_li.find('a')
+        # content_link = content_li.find('a')
         #<img src="/files/content/image/image_برومو_سلسلة_&quot;_ريادة_الأعمال_&quot;_أكادي.jpeg">
         content_path = '/content/' + str(content_id)
         content_url, content_page = download_path(content_path)
@@ -337,10 +328,10 @@ def fetch_video(youtube_id):
     video = ydl.extract_info('2xycMieJSQ4', download=False)
     title = video['title']
     description = video['description']
-    youtube_url = video['webpage_url']
+    # youtube_url = video['webpage_url']
     # print("    Fetching video data: %s (%s)" % (title, youtube_url))
     video_file = dict(
-        kind=content_kinds.VIDEO,
+        file_type=content_kinds.VIDEO,
         youtube_id=youtube_id,
     )
     video_node = dict(
