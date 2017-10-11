@@ -115,19 +115,21 @@ def path_to_page_type_and_id(url_or_path):
     '/category/196/blahabala'  -->  ('category', '196')
     """
     #
-    match = re.match('.*/category/(?P<id>\d+)/.*', url_or_path)
+    match = re.match('.*/category/(?P<id>\d+).*', url_or_path)
     if match:
         return 'category', match.groupdict()['id']
     #
-    match = re.match('.*/course/(?P<id>\d+)/.*', url_or_path)
+    match = re.match('.*/course/(?P<id>\d+).*', url_or_path)
     if match:
         return 'course', match.groupdict()['id']
     #
-    match = re.match('.*/content/(?P<id>\d+)/.*', url_or_path)
+    match = re.match('.*/content/(?P<id>\d+).*', url_or_path)
     if match:
         return 'content', match.groupdict()['id']
     #
-    return None
+    else:
+        raise ValueError('Unexpected path ' + url_or_path)
+
 
 def make_self_href_re(page_type, id):
     """
