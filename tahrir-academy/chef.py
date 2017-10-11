@@ -421,10 +421,6 @@ class TahrirAcademyChef(JsonTreeChef):
         #         print('https://www.youtube.com/watch?v='+yid+'&list='+playlist_id, title)
 
 
-    def run(self, args, options):
-        self.pre_run(args, options)
-
-
 
 
 # CLI
