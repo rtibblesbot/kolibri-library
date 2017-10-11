@@ -170,6 +170,7 @@ def scrape_root(url, page):
         title='Tahrir Academy',
         thumbnail='https://yt3.ggpht.com/-t2RMfv5dBMM/AAAAAAAAAAI/AAAAAAAAAAA/DL3ELFokTGY/s288-c-k-no-mo-rj-c0xffffff/photo.jpg',
         description='One of the largest Arabic language content sources of locally produced educational videos. Aligned to the Egyptian curriculum as well as that of various other countries across the Middle East and North African region on a case-by-case basis for individual sets of content.',
+        language='ar',
         children=[],
     )
 
@@ -217,6 +218,7 @@ def scrape_category(parent, url, page):
 
     category_dict = dict(
         kind=content_kinds.TOPIC,
+        source_id='category:'+category_title,
         title=category_title,
         description='',
         children=[],
@@ -256,6 +258,7 @@ def scrape_subcategory(parent, url, page):
     subcat_title = get_text(self_link)
     subcategory_dict = dict(
         kind=content_kinds.TOPIC,
+        source_id='subcategory:'+subcat_title,
         title=subcat_title,
         description='',
         children=[],
@@ -291,6 +294,7 @@ def scrape_course(parent, url, page):
 
     course_dict = dict(
         kind=content_kinds.TOPIC,
+        source_id='course:'+title,
         title=title,
         description=desc,
         children=[],
@@ -318,7 +322,7 @@ def scrape_content(parent, url, page):
     if iframe:
         src = iframe['src']
         m = re.match('.*embed/(.*)\?.*', src)
-        youtube_id = m.groups(1)
+        youtube_id = m.groups(1)[0]
         youtube_ids_from_site.append(youtube_id)
         video_node = fetch_video(youtube_id)
         parent['children'].append(video_node)
