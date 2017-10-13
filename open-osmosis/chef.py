@@ -83,7 +83,8 @@ class OpenOsmosisChef(SushiChef):
             youtube_url = playlist['webpage_url']
             print("  Downloading playlist %s (%s)" % (title, youtube_url))
             playlist_topic = nodes.TopicNode(
-                    source_id=playlist['id'], title=playlist['title'])
+                    source_id=playlist['id'], title=playlist['title'],
+                    language="en")
             channel.add_child(playlist_topic)
             for video in playlist['entries']:
                 playlist_topic.add_child(fetch_video(video))
@@ -178,8 +179,9 @@ def fetch_video(video):
 
     # Add subtitles in whichever languages are available.
     for language in subtitle_languages:
-        video_node.add_file(LanguagePatchedYouTubeSubtitleFile(
-            youtube_id=youtube_id, youtube_language=language))
+        if getlang_patched(language):
+            video_node.add_file(LanguagePatchedYouTubeSubtitleFile(
+                youtube_id=youtube_id, youtube_language=language))
 
     return video_node
 
