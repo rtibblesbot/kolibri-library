@@ -1,6 +1,4 @@
-#le-utils>=0.0.9rc23
-git+https://github.com/ivanistheone/ricecooker@ab7fc8fcf0fe81cb9f9a5633e49fddd1a8a08a0d#egg=ricecooker
-git+https://github.com/ivanistheone/le-utils@8e660344915bd4aec2f7c759d1ce69b39a675156#egg=le-utils
-#ricecooker>=0.6.3
-#youtube-dl>=2017.6.25
+le-utils>=0.0.9rc23
+ricecooker>=0.6.3
+youtube-dl>=2017.10.12
 pycountry>=17.5.14
