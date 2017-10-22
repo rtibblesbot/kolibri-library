@@ -19,7 +19,7 @@ from urllib.parse import urlparse, parse_qs
 from bs4 import BeautifulSoup
 import youtube_dl
 
-from le_utils.constants import content_kinds, file_formats, languages
+from le_utils.constants import content_kinds, file_formats, languages, exercises
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses, questions
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
@@ -44,7 +44,7 @@ ydl = youtube_dl.YoutubeDL({
     'ignoreerrors': True,  # Skip over deleted videos in a playlist
 })
 
-LICENSE = licenses.CC_BYLicense(
+LICENSE = licenses.CC_BY_SALicense(
     copyright_holder='Open Osmosis (open.osmosis.org)')
 
 
@@ -119,10 +119,6 @@ def fetch_assessments(channel):
             fetch_assessment_item(driver, url, topic_node)
             channel.add_child(topic_node)
 
-            # XXX
-            if i > 1:
-                break
-
 
 def _process_text_into_markdown(container_node):
     markdown_text = ''
@@ -178,10 +174,6 @@ def fetch_assessment_item(driver, topic_url, topic_node,
         topic_node.add_child(exercise_node)
 
     exercise_node.add_question(question)
-
-    # XXX
-    if item_index > 7:
-        return
 
     next_link = doc.select_one('.ques-nav-right a')
     if next_link:
