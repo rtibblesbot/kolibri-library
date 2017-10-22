@@ -144,6 +144,7 @@ QUESTIONS_PER_EXERCISE = 5
 def fetch_assessment_item(driver, topic_url, topic_node,
         exercise_node=None, item_index=0):
     driver.get(topic_url)
+    time.sleep(1)
     item_url = driver.current_url
     item_id = driver.current_url.split('/')[-1]
 
@@ -166,6 +167,7 @@ def fetch_assessment_item(driver, topic_url, topic_node,
             question=question_markdown, all_answers=answers,
             correct_answer=correct)
 
+    # Create exercise node grouping together every 5 questions.
     if item_index % QUESTIONS_PER_EXERCISE == 0:
         total_questions = int(doc.select_one('#Content .ques-count').text.split()[-1])
         last_item = min(item_index + QUESTIONS_PER_EXERCISE, total_questions)
