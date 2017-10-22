@@ -144,7 +144,6 @@ QUESTIONS_PER_EXERCISE = 5
 def fetch_assessment_item(driver, topic_url, topic_node,
         exercise_node=None, item_index=0):
     driver.get(topic_url)
-    time.sleep(1)
     item_url = driver.current_url
     item_id = driver.current_url.split('/')[-1]
 
