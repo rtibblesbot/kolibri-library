@@ -114,6 +114,7 @@ def fetch_assessments(channel):
             text = link.text.strip()
             img = link.select_one('img')['src']
 
+            print('Fetching topic %s (%s)' % (text, url))
             topic_node = nodes.TopicNode(source_id=topic_id,
                     title=text, thumbnail=img)
             fetch_assessment_item(driver, url, topic_node)
@@ -146,6 +147,8 @@ def fetch_assessment_item(driver, topic_url, topic_node,
     time.sleep(1)
     item_url = driver.current_url
     item_id = driver.current_url.split('/')[-1]
+
+    print('  Fetching question %s (%s)' % (item_index + 1, item_url))
 
     page_html = get_generated_html_from_driver(driver)
     doc = BeautifulSoup(page_html, "html.parser")
