@@ -17,6 +17,7 @@ import time
 from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
+from retrying import retry
 import youtube_dl
 
 from le_utils.constants import content_kinds, file_formats, languages, exercises
@@ -141,6 +142,7 @@ def _process_text_into_markdown(container_node):
 
 QUESTIONS_PER_EXERCISE = 5
 
+@retry(stop_max_attempt_number=3)
 def fetch_assessment_item(driver, topic_url, topic_node,
         exercise_node=None, item_index=0):
     driver.get(topic_url)
