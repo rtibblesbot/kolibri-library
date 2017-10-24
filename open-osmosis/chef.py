@@ -122,9 +122,6 @@ def fetch_assessment_topics(channel):
             fetch_assessment_topic_items(driver, topic_node, url)
             channel.add_child(topic_node)
 
-            if i > 1:
-                break
-
 
 def _title_exercise(topic_title, first_item, last_item):
     return "%s %s-%s" % (topic_title, first_item, last_item)
@@ -161,14 +158,10 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
         exercise_node.add_question(question)
         item_count += 1
 
-        # XXX
-        if item_count > 7:
-            break
-
     # Re-title the exercise, given that this is the last exercise in the topic,
     # which may not contain up to 5 items. (e.g. re-title it "Genetics 10-12")
     exercise_node.title = _title_exercise(topic_node.title,
-            first_item_index_in_exercise, item_count)
+            first_item_index_in_exercise + 1, item_count)
 
 
 def _process_text_into_markdown(container_node):
