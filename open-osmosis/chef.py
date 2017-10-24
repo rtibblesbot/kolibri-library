@@ -153,7 +153,10 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
                     exercise_data={'randomize': False})
             topic_node.add_child(exercise_node)
 
-        for i in range(0, 5):
+        # Now try to convert the page HTML into an assessment item, retrying
+        # on error, and then skipping any missing images after a few failed
+        # retries.
+        for i in range(0, 4):
             try:
                 page_html = get_generated_html_from_driver(driver)
                 question, next_item_url = fetch_assessment_item(page_html, item_id)
@@ -164,9 +167,12 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
                         "Error was: %s" % (wait_time, str(e)))
                 driver.get(current_url)
                 time.sleep(wait_time)
+                exception = e
         else:
-            print("Giving up :(")
-            raise e
+            print("Going to try skipping any missing images")
+            page_html = get_generated_html_from_driver(driver)
+            question, next_item_url = fetch_assessment_item(page_html, item_id,
+                    skip_missing_images=True)
 
         exercise_node.add_question(question)
         item_count += 1
@@ -177,13 +183,19 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
             first_item_index_in_exercise + 1, item_count)
 
 
-def _process_text_into_markdown(container_node):
+def _process_text_into_markdown(container_node, skip_missing_images):
     markdown_text = ''
 
     for node in container_node.children:
         image = node.select_one('.models-media-Image')
         if image:
-            src = image.select_one('img')['src']
+            image_tag = image.select_one('img')
+            if not image_tag:
+                if skip_missing_images:
+                    continue
+                else:
+                    raise Exception("Cannot find img tag where we expect one")
+            src = image_tag['src']
             credit = image.text.strip()
             markdown_text += '![%s](%s)\n%s\n\n' % (credit, src, credit)
         else:
@@ -195,26 +207,24 @@ def _process_text_into_markdown(container_node):
     return markdown_text
 
 
-def fetch_assessment_item(page_html, item_id):
+def fetch_assessment_item(page_html, item_id, skip_missing_images=False):
     """Fetch an individual assessment item given its page HTML.
-
-    Retries a few times in the event of any error, with some backoff, in case
-    the page still has some JS to run (which can happen, for example, in the
-    case of there being some images that we expect in certain locations, but
-    haven't been placed there yet).
 
     Return a tuple (question object, next item url).
     """
     doc = BeautifulSoup(page_html, "html.parser")
 
-    question_markdown = _process_text_into_markdown(doc.select_one('#Content .stem'))
+    question_markdown = _process_text_into_markdown(doc.select_one('#Content .stem'),
+            skip_missing_images)
     answers = [ans.text.strip() for ans in doc.select('.answers .ans div')]
     correct = doc.select_one('.answers-explained .fwb').text.strip()
 
     # TODO(david): Get videos from hints, e.g. in https://open.osmosis.org/item/142641
     # TODO(david): Fine-tune line spacing for hints
-    hint_1 = _process_text_into_markdown(doc.select_one('.answers-explained .explain-ans'))
-    hint_2 = _process_text_into_markdown(doc.select_one('.answers-explained .explain'))
+    hint_1 = _process_text_into_markdown(doc.select_one('.answers-explained .explain-ans'),
+            skip_missing_images)
+    hint_2 = _process_text_into_markdown(doc.select_one('.answers-explained .explain'),
+            skip_missing_images)
     combined_hint = "%s\n\nMain Explanation\n---\n\n%s" % (hint_1, hint_2)
 
     question = questions.SingleSelectQuestion(id=item_id, hints=combined_hint,
