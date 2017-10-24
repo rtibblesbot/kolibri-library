@@ -33,7 +33,6 @@ sess = requests.Session()
 cache = FileCache('.webcache')
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
-# XXX how to cache cloudfront?
 sess.mount('http://', forever_adapter)
 sess.mount('https://', forever_adapter)
 
@@ -154,7 +153,21 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
                     exercise_data={'randomize': False})
             topic_node.add_child(exercise_node)
 
-        question, next_item_url = fetch_assessment_item(driver, item_id)
+        for i in range(0, 5):
+            try:
+                page_html = get_generated_html_from_driver(driver)
+                question, next_item_url = fetch_assessment_item(page_html, item_id)
+                break
+            except Exception as e:
+                wait_time = (2 ** i)
+                print("Got an error, retrying after a wait of %s seconds. "
+                        "Error was: %s" % (wait_time, str(e)))
+                driver.get(current_url)
+                time.sleep(wait_time)
+        else:
+            print("Giving up :(")
+            raise e
+
         exercise_node.add_question(question)
         item_count += 1
 
@@ -182,8 +195,7 @@ def _process_text_into_markdown(container_node):
     return markdown_text
 
 
-@retry(stop_max_attempt_number=3, wait_exponential_multiplier=1000)
-def fetch_assessment_item(driver, item_id):
+def fetch_assessment_item(page_html, item_id):
     """Fetch an individual assessment item given its page HTML.
 
     Retries a few times in the event of any error, with some backoff, in case
@@ -193,7 +205,6 @@ def fetch_assessment_item(driver, item_id):
 
     Return a tuple (question object, next item url).
     """
-    page_html = get_generated_html_from_driver(driver)
     doc = BeautifulSoup(page_html, "html.parser")
 
     question_markdown = _process_text_into_markdown(doc.select_one('#Content .stem'))
