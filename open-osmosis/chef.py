@@ -78,7 +78,7 @@ class OpenOsmosisChef(SushiChef):
             language = "en",
         )
 
-        fetch_assessments(channel)
+        fetch_assessment_topics(channel)
         return channel
 
         youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
@@ -102,7 +102,8 @@ class OpenOsmosisChef(SushiChef):
         return channel
 
 
-def fetch_assessments(channel):
+def fetch_assessment_topics(channel):
+    """Fetch all of the assessment topics listed in Open Osmosis."""
     with WebDriver("https://open.osmosis.org/topics", delay=1000) as driver:
         page_html = get_generated_html_from_driver(driver)
         doc = BeautifulSoup(page_html, "html.parser")
@@ -118,8 +119,57 @@ def fetch_assessments(channel):
             print('Fetching topic %s (%s)' % (text, url))
             topic_node = nodes.TopicNode(source_id=topic_id,
                     title=text, thumbnail=img)
-            fetch_assessment_item(driver, url, topic_node)
+            fetch_assessment_topic_items(driver, topic_node, url)
             channel.add_child(topic_node)
+
+            if i > 1:
+                break
+
+
+def _title_exercise(topic_title, first_item, last_item):
+    return "%s %s-%s" % (topic_title, first_item, last_item)
+
+
+QUESTIONS_PER_EXERCISE = 5
+
+def fetch_assessment_topic_items(driver, topic_node, topic_url):
+    """Fetch the individual assessment items for a given topic.
+
+    Groups every 5 assessments into an exercise node.
+    """
+    next_item_url = topic_url
+    item_count = 0
+
+    while next_item_url:
+        driver.get(next_item_url)
+        current_url = driver.current_url
+        item_id = current_url.split('/')[-1]
+
+        print('  Fetching question %s (%s)' % (item_count + 1, current_url))
+
+        # Create exercise node, grouping together every 5 questions.
+        if item_count % QUESTIONS_PER_EXERCISE == 0:
+            first_item_index_in_exercise = item_count
+            exercise_title = _title_exercise(topic_node.title, item_count + 1,
+                    item_count + QUESTIONS_PER_EXERCISE)
+            exercise_node = nodes.ExerciseNode(source_id=item_id,
+                    title=exercise_title, license=LICENSE,
+                    exercise_data={'randomize': False})
+            topic_node.add_child(exercise_node)
+
+        question, next_item_url = fetch_assessment_item(driver, exercise_node,
+                item_count)
+        exercise_node.add_question(question)
+        item_count += 1
+
+        # XXX
+        if item_count > 7:
+            break
+
+    # Re-title the exercise, given that this is the last exercise in the topic,
+    # which may not contain up to 5 items. (e.g. re-title it "Genetics 10-12")
+    exercise_node.title = _title_exercise(topic_node.title,
+            first_item_index_in_exercise, item_count)
 
 
 def _process_text_into_markdown(container_node):
@@ -140,17 +190,17 @@ def _process_text_into_markdown(container_node):
     return markdown_text
 
 
-QUESTIONS_PER_EXERCISE = 5
+@retry(stop_max_attempt_number=3, wait_exponential_multiplier=1000)
+def fetch_assessment_item(driver, item_id):
+    """Fetch an individual assessment item given its page HTML.
 
-@retry(stop_max_attempt_number=3)
-def fetch_assessment_item(driver, topic_url, topic_node,
-        exercise_node=None, item_index=0):
-    driver.get(topic_url)
-    item_url = driver.current_url
-    item_id = driver.current_url.split('/')[-1]
+    Retries a few times in the event of any error, with some backoff, in case
+    the page still has some JS to run (which can happen, for example, in the
+    case of there being some images that we expect in certain locations, but
+    haven't been placed there yet).
 
-    print('  Fetching question %s (%s)' % (item_index + 1, item_url))
-
+    Return a tuple (question object, next item url).
+    """
     page_html = get_generated_html_from_driver(driver)
     doc = BeautifulSoup(page_html, "html.parser")
 
@@ -168,25 +218,14 @@ def fetch_assessment_item(driver, topic_url, topic_node,
             question=question_markdown, all_answers=answers,
             correct_answer=correct)
 
-    # Create exercise node grouping together every 5 questions.
-    if item_index % QUESTIONS_PER_EXERCISE == 0:
-        total_questions = int(doc.select_one('#Content .ques-count').text.split()[-1])
-        last_item = min(item_index + QUESTIONS_PER_EXERCISE, total_questions)
-        exercise_title = "%s %s-%s" % (topic_node.title, item_index + 1, last_item)
-        exercise_node = nodes.ExerciseNode(source_id=item_id,
-                title=exercise_title, license=LICENSE,
-                exercise_data={'randomize': False})
-        topic_node.add_child(exercise_node)
-
-    exercise_node.add_question(question)
-
+    next_item_url = None
     next_link = doc.select_one('.ques-nav-right a')
     if next_link:
         next_href = doc.select_one('.ques-nav-right a')['href']
         if not next_href.endswith('null'):
-            next_url = make_fully_qualified_url(next_href)
-            fetch_assessment_item(driver, next_url, topic_node, exercise_node,
-                    item_index + 1)
+            next_item_url = make_fully_qualified_url(next_href)
+
+    return question, next_item_url
 
 
 # TODO(davidhu): Remove this when
