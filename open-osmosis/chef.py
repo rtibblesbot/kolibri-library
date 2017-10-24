@@ -157,8 +157,7 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
                     exercise_data={'randomize': False})
             topic_node.add_child(exercise_node)
 
-        question, next_item_url = fetch_assessment_item(driver, exercise_node,
-                item_count)
+        question, next_item_url = fetch_assessment_item(driver, item_id)
         exercise_node.add_question(question)
         item_count += 1
 
