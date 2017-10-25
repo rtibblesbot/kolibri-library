@@ -37,7 +37,6 @@ sess.mount('http://', forever_adapter)
 sess.mount('https://', forever_adapter)
 
 ydl = youtube_dl.YoutubeDL({
-    #'quiet': True,
     'no_warnings': True,
     'writesubtitles': True,
     'allsubtitles': True,
@@ -56,7 +55,7 @@ class OpenOsmosisChef(SushiChef):
     """
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "open.osmosis.org",
-        'CHANNEL_SOURCE_ID': "open-osmosis-assessments",
+        'CHANNEL_SOURCE_ID': "open-osmosis",
         'CHANNEL_TITLE': "Open Osmosis",
         'CHANNEL_THUMBNAIL': "https://d3cdo0emj8d2qc.cloudfront.net/assets/f78c3f1d2be258bd84c85cb1f342e9f7343c798b.png",
         'CHANNEL_DESCRIPTION': "A study tool built for tomorrow's doctors and health workers.",
@@ -77,32 +76,45 @@ class OpenOsmosisChef(SushiChef):
             language = "en",
         )
 
-        fetch_assessment_topics(channel)
-        return channel
+        questions_topic = nodes.TopicNode(source_id="questions",
+                title="Questions", language="en")
+        fetch_assessment_topics(questions_topic)
+        channel.add_child(questions_topic)
 
-        youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
-
-        print("Fetching YouTube channel and videos metadata --"
-                " this may take a few minutes (%s)" % youtube_channel_url)
-        info = ydl.extract_info(youtube_channel_url, download=False)
-
-        for playlist in info['entries']:
-            title = playlist['title']
-            youtube_url = playlist['webpage_url']
-            print("  Downloading playlist %s (%s)" % (title, youtube_url))
-            playlist_topic = nodes.TopicNode(
-                    source_id=playlist['id'], title=playlist['title'],
-                    language="en")
-            channel.add_child(playlist_topic)
-            for video in playlist['entries']:
-                if video:
-                    playlist_topic.add_child(fetch_video(video))
+        videos_topic = nodes.TopicNode(source_id="videos", title="Videos",
+                language="en")
+        fetch_youtube_playlists(videos_topic)
+        channel.add_child(videos_topic)
 
         return channel
 
 
-def fetch_assessment_topics(channel):
+def fetch_youtube_playlists(parent_node):
+    """Fetch all of the YouTube playlists from the YouTube channel."""
+    youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
+    print("--- Fetching videos from YouTube channel (%s) ---" % youtube_channel_url)
+    print()
+
+    info = ydl.extract_info(youtube_channel_url, download=False)
+    for playlist in info['entries']:
+        title = playlist['title']
+        youtube_url = playlist['webpage_url']
+        print("  Downloading playlist %s (%s)" % (title, youtube_url))
+        playlist_topic = nodes.TopicNode(
+                source_id=playlist['id'], title=playlist['title'],
+                language="en")
+        parent_node.add_child(playlist_topic)
+        for video in playlist['entries']:
+            if video:
+                playlist_topic.add_child(fetch_video(video))
+
+
+def fetch_assessment_topics(parent_node):
     """Fetch all of the assessment topics listed in Open Osmosis."""
+    assessment_topics_url = "https://open.osmosis.org/topics"
+    print("--- Fetching assessments from %s ---" % assessment_topics_url)
+    print()
+
     with WebDriver("https://open.osmosis.org/topics", delay=1000) as driver:
         page_html = get_generated_html_from_driver(driver)
         doc = BeautifulSoup(page_html, "html.parser")
@@ -119,7 +131,7 @@ def fetch_assessment_topics(channel):
             topic_node = nodes.TopicNode(source_id=topic_id,
                     title=text, thumbnail=img)
             fetch_assessment_topic_items(driver, topic_node, url)
-            channel.add_child(topic_node)
+            parent_node.add_child(topic_node)
 
 
 def _title_exercise(topic_title, first_item, last_item):
@@ -318,8 +330,7 @@ def fetch_video(video):
     video_node = nodes.VideoNode(
         source_id=youtube_id,
         title=truncate_metadata(title),
-        license=licenses.CC_BY_SALicense(
-            copyright_holder='Open Osmosis (open.osmosis.org)'),
+        license=LICENSE,
         description=truncate_description(description),
         derive_thumbnail=True,
         language="en",
