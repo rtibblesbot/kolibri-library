@@ -12,18 +12,18 @@ from ricecooker.classes.licenses import get_license
 from ricecooker.classes.questions import SingleSelectQuestion
 from ricecooker.config import LOGGER
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
+from ricecooker.utils.jsontrees import (TOPIC_NODE, VIDEO_NODE, AUDIO_NODE,
+                                        EXERCISE_NODE, DOCUMENT_NODE, HTML5_NODE)
+from ricecooker.utils.jsontrees import (VIDEO_FILE, AUDIO_FILE, DOCUMENT_FILE,
+                                        HTML5_FILE, THUMBNAIL_FILE, SUBTITLES_FILE)
 
 from le_utils.constants import exercises
 
 
+
 # Aflatoun settings
 ################################################################################
-AFLATOUN_LICENSE = get_license(licenses.ALL_RIGHTS_RESERVED, copyright_holder='Aflatoun', description='Materials © 2015 Aflatoun')
-AFLATOUN_LICENSE_DICT = dict(
-    license_id=licenses.ALL_RIGHTS_RESERVED,
-    copyright_holder='Aflatoun',
-    description='Materials © 2015 Aflatoun'
-)
+AFLATOUN_LICENSE = get_license(licenses.CC_BY, copyright_holder='Aflatoun International').as_dict()
 AFLATOUN_AUTHOR = 'Aflatoun'
 AFLATOUN_CONTENT_BASE_DIR = 'content/aflatoun_tree/aflatoun'
 AFLATOUN_CONTENT_DIR_DEPTH = 4
@@ -148,7 +148,7 @@ def process_folder(channel, raw_path, filenames, lang):
 
     # create topic
     topic = dict(
-        kind=content_kinds.TOPIC,
+        kind=TOPIC_NODE,
         dirname=dirname,
         source_id=source_id_from_path(raw_path),
         title=folder_metadata.get('title', dirname),
@@ -232,41 +232,41 @@ def make_content_node(raw_path, filename, metadata, lang):
     # tags = keywords_to_tags(metadata['keywords'])   # TODO
     # related_content = TODO
 
-    if kind == content_kinds.VIDEO:
+    if kind == VIDEO_NODE:
         content_node = dict(
-            kind=content_kinds.VIDEO,
+            kind=VIDEO_NODE,
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
             description=description,
             language=lang,
-            license = AFLATOUN_LICENSE_DICT,
+            license=AFLATOUN_LICENSE,
             derive_thumbnail=True,  # video-specific option
-            files=[{'file_type':content_kinds.VIDEO, 'path':filepath, 'language':lang}], # ffmpeg_settings={"crf": 24},
+            files=[{'file_type':VIDEO_FILE, 'path':filepath, 'language':lang}], # ffmpeg_settings={"crf": 24},
         )
 
-    elif kind == content_kinds.AUDIO:
+    elif kind == AUDIO_NODE:
         content_node = dict(
-            kind=content_kinds.AUDIO,
+            kind=AUDIO_NODE,
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
             description=description,
             language=lang,
-            license = AFLATOUN_LICENSE_DICT,
-            files=[{'file_type':content_kinds.AUDIO, 'path':filepath, 'language':lang}],
+            license=AFLATOUN_LICENSE,
+            files=[{'file_type':AUDIO_FILE, 'path':filepath, 'language':lang}],
         )
 
-    elif kind == content_kinds.DOCUMENT:
+    elif kind == DOCUMENT_NODE:
         content_node = dict(
-            kind=content_kinds.DOCUMENT,
+            kind=DOCUMENT_NODE,
             source_id=source_id,
             title=title,
             author=AFLATOUN_AUTHOR,
             description=description,
             language=lang,
-            license = AFLATOUN_LICENSE_DICT,
-            files=[{'file_type':content_kinds.DOCUMENT, 'path':filepath, 'language':lang}],
+            license=AFLATOUN_LICENSE,
+            files=[{'file_type':DOCUMENT_FILE, 'path':filepath, 'language':lang}],
         )
 
     elif kind == 'exercise_zip':
@@ -277,13 +277,13 @@ def make_content_node(raw_path, filename, metadata, lang):
 
         else:
             content_node = dict(
-                kind=content_kinds.EXERCISE,
+                kind=EXERCISE_NODE,
                 source_id=source_id,
                 title=title,
                 author=AFLATOUN_AUTHOR,
                 description=exercice_dict['description'] + '  <zip||metadata> ' + str(description),
                 language=lang,
-                license=AFLATOUN_LICENSE_DICT,
+                license=AFLATOUN_LICENSE,
                 # exercise_data ({mastery_model:str, randomize:bool, m:int, n:int}): data on mastery requirements (optional)
                 # thumbnail (str): local path or url to thumbnail image (optional)
                 # extra_fields (dict): any additional data needed for node (optional)

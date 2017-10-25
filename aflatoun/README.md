@@ -2,6 +2,10 @@
 Script to create a Kolibri channel from the folder structure in aflatoun_tree
 
 
+TODO
+----
+
+  - decide on which exercise description to use
 
 Running
 -------

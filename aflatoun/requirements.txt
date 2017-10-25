@@ -1,3 +1,2 @@
-# ricecooker>=0.6.4
-git+https://github.com/ivanistheone/ricecooker@jsonchef
+ricecooker>=0.6.7
 jupyter==1.0.0
