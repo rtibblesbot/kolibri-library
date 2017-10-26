@@ -17,7 +17,6 @@ import time
 from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
-from retrying import retry
 import youtube_dl
 
 from le_utils.constants import content_kinds, file_formats, languages, exercises
