@@ -230,8 +230,8 @@ def fetch_assessment_item(page_html, item_id, skip_missing_images=False):
     answers = [ans.text.strip() for ans in doc.select('.answers .ans div')]
     correct = doc.select_one('.answers-explained .fwb').text.strip()
 
-    # TODO(david): Get videos from hints, e.g. in https://open.osmosis.org/item/142641
-    # TODO(david): Fine-tune line spacing for hints
+    # TODO(davidhu): Get videos from hints, e.g. in https://open.osmosis.org/item/142641
+    # TODO(davidhu): Fine-tune line spacing for hints
     hint_1 = _process_text_into_markdown(doc.select_one('.answers-explained .explain-ans'),
             skip_missing_images)
     hint_2 = _process_text_into_markdown(doc.select_one('.answers-explained .explain'),
