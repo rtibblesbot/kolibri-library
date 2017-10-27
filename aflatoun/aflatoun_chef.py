@@ -187,7 +187,7 @@ def build_ricecooker_json_tree(args, options, json_tree_path):
     ricecooker_json_tree = dict(
         source_domain = 'aflatoun.org',
         source_id = 'aflatoun-{}'.format(lang),
-        title = 'Aflatoun Academy ({})'.format(lang.upper()),
+        title = 'Aflatoun Academy ({})'.format(lang),
         thumbnail = './content/images/aflatoun_logo.jpg',
         description = 'Aflatoun International offers social and financial'
                       ' education to millions of children and young people'
