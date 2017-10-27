@@ -276,12 +276,33 @@ def make_content_node(raw_path, filename, metadata, lang):
             return None
 
         else:
+            # Special logic to combine two descriptions
+            desc1 = exercice_dict['description'].strip()  # from inside zip file
+            if description:
+                desc2 = description.strip()               # from exericsezip metadata
+            else:
+                desc2 = ''
+
+            # skip desc2 if the same as desc1
+            if desc1 == desc2:
+                desc2 = ''
+
+            # append period to desc2 if it exists but doesn't have a period
+            if len(desc2) > 0:
+                if not desc2.endswith('.'):
+                    desc2 = desc2 + '. '
+                else:
+                    desc2 = desc2 + ' '
+
+            # combine the two
+            desc = desc2 + desc1
+
             content_node = dict(
                 kind=EXERCISE_NODE,
                 source_id=source_id,
                 title=title,
                 author=AFLATOUN_AUTHOR,
-                description=exercice_dict['description'] + '  <zip||metadata> ' + str(description),
+                description=desc,
                 language=lang,
                 license=AFLATOUN_LICENSE,
                 # exercise_data ({mastery_model:str, randomize:bool, m:int, n:int}): data on mastery requirements (optional)
