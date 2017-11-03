@@ -129,7 +129,7 @@ def fetch_assessment_topics(parent_node):
             print('Fetching topic %s (%s)' % (text, url))
             topic_node = nodes.TopicNode(source_id=topic_id,
                     title=text, thumbnail=img)
-            fetch_assessment_topic_items(driver, topic_node, url)
+            fetch_assessment_topic_items(driver, topic_node, url, thumbnail=img)
             parent_node.add_child(topic_node)
 
 
@@ -139,7 +139,7 @@ def _title_exercise(topic_title, first_item, last_item):
 
 QUESTIONS_PER_EXERCISE = 5
 
-def fetch_assessment_topic_items(driver, topic_node, topic_url):
+def fetch_assessment_topic_items(driver, topic_node, topic_url, thumbnail=None):
     """Fetch the individual assessment items for a given topic.
 
     Groups every 5 assessments into an exercise node.
@@ -160,7 +160,7 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url):
             exercise_title = _title_exercise(topic_node.title, item_count + 1,
                     item_count + QUESTIONS_PER_EXERCISE)
             exercise_node = nodes.ExerciseNode(source_id=item_id,
-                    title=exercise_title, license=LICENSE,
+                    title=exercise_title, license=LICENSE, thumbnail=thumbnail,
                     exercise_data={'randomize': False})
             topic_node.add_child(exercise_node)
 
@@ -208,7 +208,7 @@ def _process_text_into_markdown(container_node, skip_missing_images):
                     raise Exception("Cannot find img tag where we expect one")
             src = image_tag['src']
             credit = image.text.strip()
-            markdown_text += '![%s](%s)\n%s\n\n' % (credit, src, credit)
+            markdown_text += '![%s](%s)\n\n%s\n\n' % (credit, src, credit)
         else:
             text = node.get_text(separator="\n").strip()
             if 'fwb' in node.get('class', []):
