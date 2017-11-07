@@ -136,14 +136,6 @@ def fetch_youtube_playlists(parent_node):
             if video:
                 playlist_topic.add_child(fetch_video(video))
 
-            # XXX
-            if j > 1:
-                break
-
-        # XXX
-        if i > 1:
-            break
-
     return topics_map
 
 
@@ -183,10 +175,6 @@ def fetch_assessment_topics(parent_node, topics_map):
 
             fetch_assessment_topic_items(driver, topic_node, url, thumbnail=img)
             parent_node.add_child(topic_node)
-
-            # XXX
-            if i > 1:
-                break
 
 
 def _title_exercise(topic_title, first_item, last_item):
@@ -243,10 +231,6 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url, thumbnail=None):
 
         exercise_node.add_question(question)
         item_count += 1
-
-        # XXX
-        if item_count > 1:
-            break
 
     # Re-title the exercise, given that this is the last exercise in the topic,
     # which may not contain up to 5 items. (e.g. re-title it "Genetics 10-12")
