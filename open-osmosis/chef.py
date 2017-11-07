@@ -238,7 +238,7 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url,
 
     # Re-title the exercise, given that this is the last exercise in the topic,
     # which may not contain up to 5 items. (e.g. re-title it "Genetics 10-12")
-    exercise_node.title = _title_exercise(topic_node.title,
+    exercise_node.title = _title_exercise(topic_short_title,
             first_item_index_in_exercise + 1, item_count)
 
 
