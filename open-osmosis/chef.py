@@ -176,16 +176,18 @@ def fetch_assessment_topics(parent_node, topics_map):
                         title=text, thumbnail=img)
                 parent_node.add_child(topic_node)
 
-            fetch_assessment_topic_items(driver, topic_node, url, thumbnail=img)
+            fetch_assessment_topic_items(driver, topic_node, url,
+                    topic_short_title=text, thumbnail=img)
 
 
 def _title_exercise(topic_title, first_item, last_item):
-    return "%s %s-%s" % (topic_title, first_item, last_item)
+    return "%s Questions %s-%s" % (topic_title, first_item, last_item)
 
 
 QUESTIONS_PER_EXERCISE = 5
 
-def fetch_assessment_topic_items(driver, topic_node, topic_url, thumbnail=None):
+def fetch_assessment_topic_items(driver, topic_node, topic_url,
+        topic_short_title, thumbnail=None):
     """Fetch the individual assessment items for a given topic.
 
     Groups every 5 assessments into an exercise node.
@@ -203,7 +205,7 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url, thumbnail=None):
         # Create exercise node, grouping together every 5 questions.
         if item_count % QUESTIONS_PER_EXERCISE == 0:
             first_item_index_in_exercise = item_count
-            exercise_title = _title_exercise(topic_node.title, item_count + 1,
+            exercise_title = _title_exercise(topic_short_title, item_count + 1,
                     item_count + QUESTIONS_PER_EXERCISE)
             exercise_node = nodes.ExerciseNode(source_id=item_id,
                     title=exercise_title, license=LICENSE, thumbnail=thumbnail,
