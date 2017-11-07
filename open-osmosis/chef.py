@@ -86,7 +86,7 @@ class OpenOsmosisChef(SushiChef):
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "open.osmosis.org",
         'CHANNEL_SOURCE_ID': "open-osmosis",
-        'CHANNEL_TITLE': "Open Osmosis",
+        'CHANNEL_TITLE': "Osmosis.org",
         'CHANNEL_THUMBNAIL': "https://d3cdo0emj8d2qc.cloudfront.net/assets/f78c3f1d2be258bd84c85cb1f342e9f7343c798b.png",
         'CHANNEL_DESCRIPTION': "A study tool built for tomorrow's doctors and health workers.",
     }
