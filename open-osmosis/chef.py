@@ -45,6 +45,37 @@ ydl = youtube_dl.YoutubeDL({
 LICENSE = licenses.CC_BY_SALicense(
     copyright_holder='Open Osmosis (open.osmosis.org)')
 
+# Map between assessment topic name and YouTube playlist name
+QUESTION_VIDEO_MAP = {
+    "Genetics": "Genetics pathology",
+    "Dermatology": "Dermatology pathology",
+    "Heme/Onc": "Hematology pathology",
+    "Neurology": "Neurological pathology",
+    "Renal": "Renal pathology",
+    "Cardiology": "Cardiovascular pathology",
+    "GI": "Gastrointestinal pathology",
+    "Endocrine": "Endocrine pathology",
+    "Reproduction": "Reproductive pathology",
+    "MSK": "Musculoskeletal pathology",
+    "Pediatrics": "Pediatrics videos",
+    "Pulmonology": "Respiratory pathology",
+    "Psychiatry": "Mental health and disorders",
+    "Microbiology": "Infectious disease pathology",
+    "Anesthesiology": None,
+    "Emergency Medicine": None,
+    "Osteopathic Principles": None,
+    "Ophthalmology": None,
+    "Radiology": None,
+    "Surgery": None,
+    None: "Pathophysiology",
+    None: "The science of teaching and learning",
+    None: "Physiology",
+    None: "Ear, nose, and throat",
+    None: "Immune disorders",
+    None: "Fluid and Electrolyte Imbalances",
+    None: "Maternal pathology",
+}
+
 
 class OpenOsmosisChef(SushiChef):
     """
@@ -75,40 +106,48 @@ class OpenOsmosisChef(SushiChef):
             language = "en",
         )
 
-        questions_topic = nodes.TopicNode(source_id="questions",
-                title="Questions", language="en")
-        fetch_assessment_topics(questions_topic)
-        channel.add_child(questions_topic)
-
-        videos_topic = nodes.TopicNode(source_id="videos", title="Videos",
-                language="en")
-        fetch_youtube_playlists(videos_topic)
-        channel.add_child(videos_topic)
+        topics_map = fetch_youtube_playlists(channel)
+        fetch_assessment_topics(channel, topics_map)
 
         return channel
 
 
 def fetch_youtube_playlists(parent_node):
-    """Fetch all of the YouTube playlists from the YouTube channel."""
+    """Fetch all of the YouTube playlists from the YouTube channel.
+
+    Return a map of YouTube playlist title to the topic node.
+    """
     youtube_channel_url = 'https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ/playlists'
     print("--- Fetching videos from YouTube channel (%s) ---" % youtube_channel_url)
     print()
 
+    topics_map = {}
     info = ydl.extract_info(youtube_channel_url, download=False)
-    for playlist in info['entries']:
+    for i, playlist in enumerate(info['entries']):
         title = playlist['title']
         youtube_url = playlist['webpage_url']
         print("  Downloading playlist %s (%s)" % (title, youtube_url))
         playlist_topic = nodes.TopicNode(
                 source_id=playlist['id'], title=playlist['title'],
                 language="en")
+        topics_map[title] = playlist_topic
         parent_node.add_child(playlist_topic)
-        for video in playlist['entries']:
+        for j, video in enumerate(playlist['entries']):
             if video:
                 playlist_topic.add_child(fetch_video(video))
 
+            # XXX
+            if j > 1:
+                break
 
-def fetch_assessment_topics(parent_node):
+        # XXX
+        if i > 1:
+            break
+
+    return topics_map
+
+
+def fetch_assessment_topics(parent_node, topics_map):
     """Fetch all of the assessment topics listed in Open Osmosis."""
     assessment_topics_url = "https://open.osmosis.org/topics"
     print("--- Fetching assessments from %s ---" % assessment_topics_url)
@@ -127,10 +166,27 @@ def fetch_assessment_topics(parent_node):
             img = link.select_one('img')['src']
 
             print('Fetching topic %s (%s)' % (text, url))
-            topic_node = nodes.TopicNode(source_id=topic_id,
-                    title=text, thumbnail=img)
+
+            # Get the topic node, either by trying to finding the corresponding
+            # topic node that was created in the earlier videos scraping step,
+            # or creating a new one.
+            topic_node = None
+            video_topic_name = QUESTION_VIDEO_MAP.get(text)
+            if video_topic_name:
+                topic_node = topics_map.get(video_topic_name)
+                if topic_node:
+                    topic_node.title = "%s (%s)" % (text, video_topic_name)
+                    topic_node.set_thumbnail(img)
+            if not topic_node:
+                topic_node = nodes.TopicNode(source_id=topic_id,
+                        title=text, thumbnail=img)
+
             fetch_assessment_topic_items(driver, topic_node, url, thumbnail=img)
             parent_node.add_child(topic_node)
+
+            # XXX
+            if i > 1:
+                break
 
 
 def _title_exercise(topic_title, first_item, last_item):
@@ -187,6 +243,10 @@ def fetch_assessment_topic_items(driver, topic_node, topic_url, thumbnail=None):
 
         exercise_node.add_question(question)
         item_count += 1
+
+        # XXX
+        if item_count > 1:
+            break
 
     # Re-title the exercise, given that this is the last exercise in the topic,
     # which may not contain up to 5 items. (e.g. re-title it "Genetics 10-12")
