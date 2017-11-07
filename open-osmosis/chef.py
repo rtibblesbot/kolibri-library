@@ -248,6 +248,7 @@ def _process_text_into_markdown(container_node, skip_missing_images):
     for node in container_node.children:
         image = node.select_one('.models-media-Image')
         if image:
+            assert len(node.select('.models-media-Image')) == 1, 'multiple images found'
             image_tag = image.select_one('img')
             if not image_tag:
                 if skip_missing_images:
