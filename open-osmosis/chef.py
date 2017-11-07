@@ -164,17 +164,19 @@ def fetch_assessment_topics(parent_node, topics_map):
             # or creating a new one.
             topic_node = None
             video_topic_name = QUESTION_VIDEO_MAP.get(text)
+
             if video_topic_name:
                 topic_node = topics_map.get(video_topic_name)
                 if topic_node:
                     topic_node.title = "%s (%s)" % (text, video_topic_name)
                     topic_node.set_thumbnail(img)
+
             if not topic_node:
                 topic_node = nodes.TopicNode(source_id=topic_id,
                         title=text, thumbnail=img)
+                parent_node.add_child(topic_node)
 
             fetch_assessment_topic_items(driver, topic_node, url, thumbnail=img)
-            parent_node.add_child(topic_node)
 
 
 def _title_exercise(topic_title, first_item, last_item):
