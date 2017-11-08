@@ -20,7 +20,6 @@ Move intermediary content into place
 
 Run sushichef
 
-    mkdir -p chefdata/trees/
     ./sushichef.py  -v --reset --channeldir='content/Example Open Stax/Example Open Stax/' --token=<yourtokenhere>
 
 
