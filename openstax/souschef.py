@@ -117,7 +117,7 @@ def scrape_source(writer):
 def read_source(endpoint="books"):
     """ Reads page source using downloader class to get json data """
     page_contents = downloader.read("{baseurl}/{endpoint}".format(baseurl=BASE_URL, endpoint=endpoint))
-    return json.loads(page_contents) # Open Stax url returns json object
+    return json.loads(page_contents.decode('utf-8')) # Open Stax url returns json object
 
 def get_thumbnail(url):
     """ Reads page source using downloader class to get json data """
