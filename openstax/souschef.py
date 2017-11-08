@@ -98,9 +98,12 @@ def scrape_source(writer):
 
         # Read PDFs and write them using DataWriter tool
         LOGGER.info("   Writing {} documents...".format(book.get('title')))
-        writer.add_file(str(PATH), "{} ({} Resolution)".format(content['title'], "High"), content.get("high_resolution_pdf_url"), **auth_info, **details)
-        writer.add_file(str(PATH), "{} ({} Resolution)".format(content['title'], "Low"), content.get("low_resolution_pdf_url"),**auth_info, **details)
-        writer.add_file(str(PATH), "Student Handbook", content.get("student_handbook_url"), **auth_info, **details)
+        auth_info_and_details = dict()              # Py3.4 compatible way to do **auth_info, **details
+        auth_info_and_details.update(auth_info)     #
+        auth_info_and_details.update(details)       #
+        writer.add_file(str(PATH), "{} ({} Resolution)".format(content['title'], "High"), content.get("high_resolution_pdf_url"), **auth_info_and_details)
+        writer.add_file(str(PATH), "{} ({} Resolution)".format(content['title'], "Low"), content.get("low_resolution_pdf_url"), **auth_info_and_details)
+        writer.add_file(str(PATH), "Student Handbook", content.get("student_handbook_url"), **auth_info_and_details)
 
         # Parse resource materials
         LOGGER.info("   Writing {} resources...".format(book.get('title')))
