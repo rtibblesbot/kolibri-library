@@ -63,6 +63,13 @@ def parse_unit(name, link):
     page = BeautifulSoup(content, 'html.parser')
     sections = page.find_all('li', id = re.compile('section-')) 
     for section in sections:
+        page_title = section.find("h3", class_="sectionname")
+        if page_title: 
+            print(page_title.get_text())
+        else:
+            print("no title")
+
+        
         print(section.get('id'))
     return 0
 
