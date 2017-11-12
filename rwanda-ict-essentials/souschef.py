@@ -10,6 +10,7 @@ from le_utils.constants import licenses, exercises, content_kinds, file_formats,
 ###########################################################
 from utils.downloader import read
 from bs4 import BeautifulSoup
+import re
 
 # Run Constants
 ###########################################################
@@ -38,13 +39,32 @@ def scrape_source(writer):
     content = read(BASE_URL) 
 
     soup = BeautifulSoup(content, 'html.parser')
-    for div in soup.find_all("div", class_= "coursename"):
-        link = div.find("a")
-        print(link.name)
-        print(link.get_text())
+    units = get_units_from_site(soup)
+    for u in units:
+       print(u['name'])  
+       parse_unit(u['name'], u['link'])
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
+
+def get_units_from_site(page):
+    """ 
+      Get all the unit names and links from the main page
+    """
+    units = []
+    for div in page.find_all("div", class_= "coursename"):
+        link = div.find("a", text = re.compile("Unit"))
+        if link:
+            units.append({ 'name': link.get_text(), 'link': link.get('href')})
+    return units
+
+def parse_unit(name, link):
+    content = read(link) 
+    page = BeautifulSoup(content, 'html.parser')
+    sections = page.find_all('li', id = re.compile('section-')) 
+    for section in sections:
+        print(section.get('id'))
+    return 0
 
 # Helper Methods 
 ###########################################################
