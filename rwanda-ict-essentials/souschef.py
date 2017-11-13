@@ -9,6 +9,7 @@ from le_utils.constants import licenses, exercises, content_kinds, file_formats,
 # Additional imports 
 ###########################################################
 from utils.downloader import read
+from utils.html import HTMLWriter
 from bs4 import BeautifulSoup
 import re
 
@@ -42,7 +43,7 @@ def scrape_source(writer):
     units = get_units_from_site(soup)
     for u in units:
        print(u['name'])  
-       parse_unit(u['name'], u['link'])
+       parse_unit(writer, u['name'], u['link'])
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
@@ -58,20 +59,30 @@ def get_units_from_site(page):
             units.append({ 'name': link.get_text(), 'link': link.get('href')})
     return units
 
-def parse_unit(name, link):
+def parse_unit(writer, name, link):
+    """ 
+      Parse the elements inside a unit
+      Extract sections, and each section would be an independent HTML5App
+    """
     content = read(link) 
     page = BeautifulSoup(content, 'html.parser')
     sections = page.find_all('li', id = re.compile('section-')) 
     for section in sections:
-        page_title = section.find("h3", class_="sectionname")
-        if page_title: 
-            print(page_title.get_text())
-        else:
-            print("no title")
-
-        
-        print(section.get('id'))
+        generate_html5app_from_section(section)
     return 0
+
+def generate_html5app_from_section(section):
+    page_title = section.find("h3", class_="sectionname")
+    title = "no title" 
+    if page_title: 
+        title = page_title.get_text()
+    print(title)
+    print(section.get('id'))
+    with HTMLWriter("./{}.zip".format(title)) as html5zip:
+        content = section.encode_contents
+        html5zip.write_index_contents("<html><head></head><body>{}</body></html>".format(content))   
+    return 0
+
 
 # Helper Methods 
 ###########################################################
