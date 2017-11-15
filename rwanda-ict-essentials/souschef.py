@@ -2,7 +2,7 @@
 import os
 import sys
 sys.path.append(os.getcwd()) # Handle relative imports
-from utils import data_writer, path_builder, downloader
+from utils import data_writer, path_builder, downloader, slugify
 from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
 
 
@@ -12,6 +12,8 @@ from utils.downloader import read
 from utils.html import HTMLWriter
 from bs4 import BeautifulSoup
 import re
+
+from utils.slugify import slugify
 
 # Run Constants
 ###########################################################
@@ -47,7 +49,8 @@ def scrape_source(writer):
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
-
+# Helper Methods 
+###########################################################
 def get_units_from_site(page):
     """ 
       Get all the unit names and links from the main page
@@ -66,9 +69,16 @@ def parse_unit(writer, name, link):
     """
     content = read(link) 
     page = BeautifulSoup(content, 'html.parser')
+    PATH.open_folder(folder_name(name))
+
     sections = page.find_all('li', id = re.compile('section-')) 
+    writer.add_folder(str(PATH), name, "", "TODO: Generate Description")
     for section in sections:
-        generate_html5app_from_section(section)
+        title = generate_html5app_from_section(section)
+        print_modules(section)
+        writer.add_file(str(PATH), html5app_filename(title), html5app_path_from_title(title), license="TODO", copyright_holder = "TODO")
+        os.remove(html5app_path_from_title(title))
+    PATH.go_to_parent_folder()
     return 0
 
 def generate_html5app_from_section(section):
@@ -76,17 +86,47 @@ def generate_html5app_from_section(section):
     title = "no title" 
     if page_title: 
         title = page_title.get_text()
-    print(title)
-    print(section.get('id'))
-    with HTMLWriter("./{}.zip".format(title)) as html5zip:
+    print("\t" + str(title) + " (" + section.get('id') + ")")
+    html5app_filename = html5app_path_from_title(title)
+    with HTMLWriter(html5app_filename) as html5zip:
         content = section.encode_contents
         html5zip.write_index_contents("<html><head></head><body>{}</body></html>".format(content))   
-    return 0
+    return title 
 
+def html5app_filename(title):
+  return "{}.zip".format(slugify(title))
 
-# Helper Methods 
-###########################################################
+def html5app_path_from_title(title):
+  return "./{}".format(html5app_filename)
 
+def folder_name(unit_name):
+  """ 
+  Extract folder name from full unit name
+  
+  Example:
+  Unit 01 - Example unit
+  
+  returns:
+  Unit 01 
+  """
+  return re.search('(.+?) - .*', unit_name).group(1)
+
+def print_modules(section):
+  modules = section.find_all("li", id=re.compile('module-'))
+  for module in modules:
+    titles = module.find_all("img", class_=re.compile("atto_image_button"))
+    for t in titles:
+      print("\t\t - " + str(t.get('alt') + " " + clasify_module(module)))
+  if len(modules) == 0 :
+      print("\t\t - " + clasify_module(section))
+  return 0
+
+def clasify_module(module):
+  module_type = "html"
+  video = module.find("iframe", src=re.compile("youtube"))
+  if video:
+    module_type = "\033[91m video \033[0m"
+  return module_type
 
 """ This code will run when the sous chef is called from the command line. """
 if __name__ == '__main__':
