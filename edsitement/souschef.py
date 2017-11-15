@@ -10,7 +10,7 @@ from le_utils.constants import licenses, exercises, content_kinds, file_formats,
 ################################################################################
 
 CHANNEL_NAME = "EDSITEment"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-edsitement-en" # Channel's unique id
+CHANNEL_SOURCE_ID = "edsitement-testing" # Channel's unique id    # change to just 'edsitement' for prod
 CHANNEL_DOMAIN = "edsitement.neh.gov"         # Who is providing the content
 CHANNEL_LANGUAGE = "en"      # Language of channel
 CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
