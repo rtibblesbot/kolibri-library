@@ -33,13 +33,8 @@ WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)),
 BASE_URL = "https://ict-essentials-for-teachers.moodlecloud.com/"
 
 IMG_LOOKUP = {
-       # 'UnitMethod1.png': '',  
         'SectionObjective.png': 'Objective', 
         'UnitSectionConclusion.png': 'Conclusion', 
-       # 'UnitMethod2.png': '', 
-       # 'UnitQuoteportfolio.png': '',    
-       # 'UnitQuizQuote.png': '', 
-       # 'UnitPolicyQuote.png': '',
         'SectionIntroduction%20%281%29.png': 'Introduction', 
         'UnitSectionConclusion%20%281%29.png': 'Conclusion',
         'SectionTime3%20%281%29.png': 'Recommended Time',
@@ -56,7 +51,7 @@ IMG_LOOKUP = {
         'SectionIntroduction%20%282%29.png': 'Introduction',
         'UnitReferences.png': 'References',
         'SectionCompetency.png': 'Competency'
-     }
+        }
 
 
 links = set()
@@ -176,7 +171,7 @@ def print_modules(section):
                 links.add(t.get("src"))
                 name_of_files.add(t.get("src").split("/")[-1])
     if len(modules) == 0 :
-       print("\t\t Unit Title - " + clasify_module(section))
+        print("\t\t Unit Title - " + clasify_module(section))
     return 0 
 
 def clasify_module(module):
@@ -192,23 +187,30 @@ def real_title(title):
 
 def isValidTitle(title):
     """
-    isValidTitle is true if the name of the image contains Unit or Title on it 
+    isValidTitle is true if the name of the image contains Unit or Section on it 
+    but not contains Quote 
+    or Method1 or Method2 
+    (because they are extra images on the section)
     """
-    pattern = re.compile("(Unit|Section)^(Quote)", re.IGNORECASE)
+    pattern1 = re.compile("Unit|Section", re.IGNORECASE)
+    pattern2 = re.compile("^.*Quote.*$", re.IGNORECASE)
+    pattern3 = re.compile("^.*Method[1|2].*$", re.IGNORECASE)
     filename = title.get("src").split("/")[-1]
-    return pattern.match(filename)   
+    return (pattern1.match(filename) and (not pattern2.match(filename) and (not pattern3.match(filename))))
 
-    """ This code will run when the sous chef is called from the command line. """
-    if __name__ == '__main__':
+""" This code will run when the sous chef is called from the command line. """
+if __name__ == '__main__':
 
-        # Open a writer to generate files
-        with data_writer.DataWriter(write_to_path=WRITE_TO_PATH) as writer:
+    # Open a writer to generate files
+    with data_writer.DataWriter(write_to_path=WRITE_TO_PATH) as writer:
 
-            # Write channel details to spreadsheet
-            thumbnail = writer.add_file(str(PATH), "Channel Thumbnail", CHANNEL_THUMBNAIL, write_data=False)
-            writer.add_channel(CHANNEL_NAME, CHANNEL_SOURCE_ID, CHANNEL_DOMAIN, CHANNEL_LANGUAGE, description=CHANNEL_DESCRIPTION, thumbnail=thumbnail)
+        # Write channel details to spreadsheet
+        thumbnail = writer.add_file(str(PATH), "Channel Thumbnail", CHANNEL_THUMBNAIL, write_data=False)
+        writer.add_channel(CHANNEL_NAME, CHANNEL_SOURCE_ID, CHANNEL_DOMAIN, CHANNEL_LANGUAGE, description=CHANNEL_DESCRIPTION, thumbnail=thumbnail)
 
-            # Scrape source content
-            scrape_source(writer)
+        # Scrape source content
+        scrape_source(writer)
 
-    sys.stdout.write("\n\nDONE: Zip created at {}\n".format(writer.write_to_path))
+        sys.stdout.write("\n\nDONE: Zip created at {}\n".format(writer.write_to_path))
+
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
