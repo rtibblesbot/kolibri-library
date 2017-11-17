@@ -72,13 +72,13 @@ def scrape_source(writer):
     for u in units:
         print(u['name'])  
         parse_unit(writer, u['name'], u['link'])
-    print(links)
-    print("Number of links")
-    print(len(links))
-    print("Added links")
-    print(str(added_links))
-    print(name_of_files)
-    print(len(name_of_files))
+    #print(links)
+    #print("Number of links")
+    #print(len(links))
+    #print("Added links")
+    #print(str(added_links))
+    #print(name_of_files)
+    #print(len(name_of_files))
 
     pattern = re.compile("bubble") 
     removed_strings = []
@@ -163,13 +163,13 @@ def print_modules(section):
     for module in modules:
         titles = module.find_all("img", class_=re.compile("atto_image_button_"))
         for t in titles:
-            # print("\t\t - " + str(real_title(t) + " " + clasify_module(module)))
-            # if real_title(t) == "Recommended Time":
-            #    print(t.parent.parent.get_text().strip())
             if isValidTitle(t):
+                print("\t\t - " + str(real_title(t) + " " + clasify_module(module)))
                 added_links += 1
                 links.add(t.get("src"))
                 name_of_files.add(t.get("src").split("/")[-1])
+                if real_title(t) == "Recommended Time":
+                    print(t.parent.parent.get_text().strip())
     if len(modules) == 0 :
         print("\t\t Unit Title - " + clasify_module(section))
     return 0 
