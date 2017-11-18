@@ -47,11 +47,7 @@ def scrape_source(writer):
     """
     
     LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
-    page_contents = downloader.read(LESSONS_PLANS_URL)
-    LOGGER.info("Scrapping: " + LESSONS_PLANS_URL)
-    page = BeautifulSoup(page_contents, 'html.parser')
-
-    for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(page)):
+    for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
         subtopic_name = lesson_plan_url.split("/")[-1]
         page_contents = downloader.read(lesson_plan_url, loadjs=False)
         page = BeautifulSoup(page_contents, 'html5lib')
@@ -60,12 +56,15 @@ def scrape_source(writer):
             resources_filename="/tmp/resources-"+subtopic_name+".zip")
         lesson_plan.source = lesson_plan_url
         lesson_plan.to_file(PATH, levels)
-        print(levels)
+        #print(levels)
 
 
 # Helper Methods
 ################################################################################
-def lesson_plans_subject(page):
+def lesson_plans_subject(page_url):
+    page_contents = downloader.read(page_url)
+    LOGGER.info("Scrapping: " + page_url)
+    page = BeautifulSoup(page_contents, 'html.parser')
     lessons_nodes = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
     for node in lessons_nodes:
         page_h3 = page.find("h3", id="node-"+str(node))
@@ -74,14 +73,14 @@ def lesson_plans_subject(page):
         yield subtopic_url, ["Lesson Plans or For Teachers"]
 
 def lesson_plans(lesson_plans_subject):
-    for lesson_url, levels in itertools.islice(lesson_plans_subject, 0, 4):
+    for lesson_url, levels in itertools.islice(lesson_plans_subject, 0, 4): #MAX NUMBER OF SUBJECTS
         page_contents = downloader.read(lesson_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         sub_lessons = page.find_all("div", class_="lesson-plan-link")
         title = page.find("h2", class_="subject-area").text
-        LOGGER.info("Subject Title:"+title)
-        LOGGER.info("Subject url:"+lesson_url)
-        for sub_lesson in itertools.islice(sub_lessons, 0, 2):
+        LOGGER.info("- Subject:"+title)
+        LOGGER.info("- [url]:"+lesson_url)
+        for sub_lesson in itertools.islice(sub_lessons, 0, 2): #MAX NUMBER OF LESSONS
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
             time.sleep(.8)
@@ -180,6 +179,16 @@ class LearningObjetives(LessonSection):
 
     def get_content(self):
         content = self.body.find("div", class_="text").findChildren("ul")
+        return "".join([str(p) for p in content])
+
+
+class Background(LessonSection):
+    def __init__(self, page, filename=None):
+        super(Background, self).__init__(page, filename=filename, 
+            id_="sect-background", menu_name="background")
+
+    def get_content(self):
+        content = self.body.find("div", class_="text").findChildren("p")
         return "".join([str(p) for p in content])
 
 
@@ -285,6 +294,7 @@ class LessonPlan(object):
             Introduction,
             GuidingQuestions,
             LearningObjetives,
+            Background,
             PreparationInstructions,
             LessonActivities,
             Assessment,
