@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 import re
 
 from utils.slugify import slugify
+import youtube_dl
 
 # Run Constants
 ###########################################################
@@ -53,11 +54,6 @@ IMG_LOOKUP = {
         'SectionCompetency.png': 'Competency'
         }
 
-
-links = set()
-added_links = 0
-name_of_files = set()
-
 # Main Scraping Method 
 ###########################################################
 def scrape_source(writer):
@@ -72,14 +68,6 @@ def scrape_source(writer):
     for u in units:
         print(u['name'])  
         parse_unit(writer, u['name'], u['link'])
-    #print(links)
-    #print("Number of links")
-    #print(len(links))
-    #print("Added links")
-    #print(str(added_links))
-    #print(name_of_files)
-    #print(len(name_of_files))
-
     pattern = re.compile("bubble") 
     removed_strings = []
     for x in name_of_files:
@@ -88,8 +76,6 @@ def scrape_source(writer):
     for x in removed_strings:
         name_of_files.remove(x)
 
-    print(name_of_files)
-    print(len(name_of_files))
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
@@ -156,20 +142,16 @@ def folder_name(unit_name):
     return re.search('(.+?) - .*', unit_name).group(1)
 
 def print_modules(section):
-    global links
-    global name_of_files 
-    global added_links
     modules = section.find_all("li", id=re.compile('module-'))
     for module in modules:
         titles = module.find_all("img", class_=re.compile("atto_image_button_"))
         for t in titles:
             if isValidTitle(t):
                 print("\t\t - " + str(real_title(t) + " " + clasify_module(module)))
-                added_links += 1
-                links.add(t.get("src"))
-                name_of_files.add(t.get("src").split("/")[-1])
                 if real_title(t) == "Recommended Time":
-                    print(t.parent.parent.get_text().strip())
+                    print("********")
+                    print("\t\t\t" + get_recommended_time(t))
+                    print("********")
     if len(modules) == 0 :
         print("\t\t Unit Title - " + clasify_module(section))
     return 0 
@@ -185,6 +167,12 @@ def real_title(title):
     filename = title.get("src").split("/")[-1]
     return IMG_LOOKUP[filename]
 
+def get_recommended_time(title):
+    if title.parent.get_text():
+        return title.parent.get_text()
+    else:
+      return title.parent.parent.get_text() 
+
 def isValidTitle(title):
     """
     isValidTitle is true if the name of the image contains Unit or Section on it 
@@ -197,6 +185,24 @@ def isValidTitle(title):
     pattern3 = re.compile("^.*Method[1|2].*$", re.IGNORECASE)
     filename = title.get("src").split("/")[-1]
     return (pattern1.match(filename) and (not pattern2.match(filename) and (not pattern3.match(filename))))
+
+def download_video(url):
+    ydl_options = {
+            'outtmpl': '%(title)s-%(id)s.%(ext)s',
+            'continuedl': True,
+            # 'quiet' : True,
+            'restrictfilenames':True, 
+        }
+    with youtube_dl.YoutubeDL(ydl_options) as ydl:
+        try:
+            ydl.add_default_info_extractors()
+            info = ydl.extract_info(url, download=True)
+            print(info['title'])
+        except (youtube_dl.utils.DownloadError,youtube_dl.utils.ContentTooShortError,youtube_dl.utils.ExtractorError) as e:
+            self.error_occured = True
+            self.statusSignal.emit(str(e))
+    return 0
+
 
 """ This code will run when the sous chef is called from the command line. """
 if __name__ == '__main__':
