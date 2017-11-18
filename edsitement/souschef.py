@@ -78,7 +78,7 @@ def scrape_source(writer):
     for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(page)):
         subtopic_name = lesson_plan_url.split("/")[-1]
         page_contents = downloader.read(lesson_plan_url, loadjs=False)
-        page = BeautifulSoup(page_contents, 'html.parser')
+        page = BeautifulSoup(page_contents, 'html5lib')
         lesson_plan = LessonPlan(page, 
             lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
             resources_filename="/tmp/resources-"+subtopic_name+".zip")
@@ -91,7 +91,6 @@ def scrape_source(writer):
 ################################################################################
 def lesson_plans_subject(page):
     lessons_nodes = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
-    #levels = ["Lesson Plans or For Teachers"]
     limit = 4
     counter = 0
     for node in lessons_nodes:
@@ -104,7 +103,6 @@ def lesson_plans_subject(page):
             break
 
 def lesson_plans(lesson_plans_subject):
-    counter = 0
     limit = 2
     for lesson_url, levels in lesson_plans_subject:
         page_contents = downloader.read(lesson_url)
@@ -113,6 +111,7 @@ def lesson_plans(lesson_plans_subject):
         title = page.find("h2", class_="subject-area").text
         LOGGER.info("Subject Title:"+title)
         LOGGER.info("Subject url:"+lesson_url)
+        counter = 0
         for sub_lesson in sub_lessons:
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
@@ -142,7 +141,10 @@ class Menu(object):
             self.add(title.text)
 
     def get(self, name):
-        return self.menu[name]["filename"]
+        try:
+            return self.menu[name]["filename"]
+        except KeyError:
+            return None
     
     def add(self, title):
         name = title.lower().replace(" ", "_")
@@ -158,9 +160,11 @@ class Menu(object):
 
 class LessonSection(object):
     def __init__(self, page, filename=None, id_=None, menu_name=None):
+        LOGGER.debug(id_)
         self.body = page.find("div", id=id_)
-        title = self.body.find("h4")
-        self.title = str(title) if title is not None else None
+        if self.body is not None:
+            title = self.body.find("h4")
+            self.title = str(title) if title is not None else None
         self.filename = filename
         self.menu_name = menu_name
 
@@ -172,10 +176,11 @@ class LessonSection(object):
             zipper.write_contents(filename, content)
 
     def to_file(self, filename):
-        if self.title:
-            self.write(filename, "<html><body>"+self.title+""+self.get_content()+"<body></html>")
-        else:
-            self.write(filename, "<html><body>"+self.get_content()+"<body></html>")
+        if self.body is not None and filename is not None:
+            if self.title:
+                self.write(filename, "<html><body>"+self.title+""+self.get_content()+"<body></html>")
+            else:
+                self.write(filename, "<html><body>"+self.get_content()+"<body></html>")
 
 
 class Introduction(LessonSection):
@@ -194,8 +199,8 @@ class GuidingQuestions(LessonSection):
             id_="sect-questions", menu_name="guiding_questions")
 
     def get_content(self):
-        lesson_intr_text = self.body.find("div", class_="text").findChildren("ul")
-        return "".join([p.text for p in lesson_intr_text])
+        content = self.body.find("div", class_="text").findChildren("ul")
+        return "".join([str(p) for p in content])
 
 
 class LearningObjetives(LessonSection):
@@ -204,8 +209,8 @@ class LearningObjetives(LessonSection):
             id_="sect-objectives", menu_name="learning_objectives")
 
     def get_content(self):
-        lesson_intr_text = self.body.find("div", class_="text").findChildren("ul")
-        return "".join([p.text for p in lesson_intr_text])
+        content = self.body.find("div", class_="text").findChildren("ul")
+        return "".join([str(p) for p in content])
 
 
 class PreparationInstructions(LessonSection):
@@ -214,18 +219,18 @@ class PreparationInstructions(LessonSection):
             id_="sect-preparation", menu_name="preparation_instructions")
 
     def get_content(self):
-        lesson_intr_text = self.body.find("div", class_="text").findChildren("ul")
-        return "".join([str(p) for p in lesson_intr_text])
+        content = self.body.find("div", class_="text").findChildren("ul")
+        return "".join([str(p) for p in content])
 
 
 class LessonActivities(LessonSection):
     def __init__(self, page, filename=None):
         super(LessonActivities, self).__init__(page, filename=filename, 
-            id_="sect-preparation", menu_name="lesson_activities")
+            id_="sect-activities", menu_name="lesson_activities")
 
     def get_content(self):
-        lesson_intr_text = self.body.find("div", class_="text")
-        return "".join([str(p) for p in lesson_intr_text])
+        content = self.body.find("div", class_="text")
+        return "".join([str(p) for p in content])
 
 
 class Assessment(LessonSection):
@@ -234,8 +239,8 @@ class Assessment(LessonSection):
             id_="sect-assessment", menu_name="assessment")
 
     def get_content(self):
-        lesson_intr_text = self.body.find("div", class_="text")
-        return "".join([str(p) for p in lesson_intr_text])
+        content = self.body.find("div", class_="text")
+        return "".join([str(p) for p in content])
 
 
 class TheBasics(LessonSection):
