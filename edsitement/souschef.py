@@ -23,7 +23,7 @@ WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)),
 import logging
 from bs4 import BeautifulSoup
 import urllib.parse
-#import time
+import time
 #import bisect
 from collections import OrderedDict
 
@@ -36,6 +36,91 @@ LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
+
+
+# Main Scraping Method
+################################################################################
+def scrape_source(writer):
+    """ scrape_source: Scrapes channel page and writes to a DataWriter
+        Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
+        Returns: None
+    """
+    
+    LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
+    page_contents = downloader.read(LESSONS_PLANS_URL)
+    LOGGER.info("Scrapping: " + LESSONS_PLANS_URL)
+    page = BeautifulSoup(page_contents, 'html.parser')
+
+    #lessons_urls = []
+    #for node in lessons_nodes:
+    #    page_h3 = page.find("h3", id="node-"+str(node))
+    #    resource_a = page_h3.find("a", href=True)
+    #    subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
+    #    lessons_urls.append(subtopic_url)
+    #    break
+        
+    #subtopic_urls = []
+    #for lesson_url in lessons_urls:
+    #    page_contents = downloader.read(lesson_url)
+    #    page = BeautifulSoup(page_contents, 'html.parser')
+    #    sub_lessons = page.find_all("div", class_="lesson-plan-link")
+    #    title = page.find("h2", class_="subject-area").text
+    #    levels.append(title)
+    #    LOGGER.info("Subject Title:"+title)
+    #    LOGGER.info("Subject url:"+lesson_url)
+    #    for sub_lesson in sub_lessons:
+    #        resource_a = sub_lesson.find("a", href=True)
+    #        resource_url = resource_a["href"].strip()
+    #        subtopic_urls.append(urllib.parse.urljoin(BASE_URL, resource_url))
+    #        break
+
+    
+    for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(page)):
+        subtopic_name = lesson_plan_url.split("/")[-1]
+        page_contents = downloader.read(lesson_plan_url, loadjs=False)
+        page = BeautifulSoup(page_contents, 'html.parser')
+        lesson_plan = LessonPlan(page, 
+            lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
+            resources_filename="/tmp/resources-"+subtopic_name+".zip")
+        lesson_plan.source = lesson_plan_url
+        lesson_plan.to_file(PATH, levels)
+        print(levels)
+
+
+# Helper Methods
+################################################################################
+def lesson_plans_subject(page):
+    lessons_nodes = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
+    #levels = ["Lesson Plans or For Teachers"]
+    limit = 4
+    counter = 0
+    for node in lessons_nodes:
+        page_h3 = page.find("h3", id="node-"+str(node))
+        resource_a = page_h3.find("a", href=True)
+        subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
+        yield subtopic_url, ["Lesson Plans or For Teachers"]
+        counter += 1
+        if counter >= limit:
+            break
+
+def lesson_plans(lesson_plans_subject):
+    counter = 0
+    limit = 2
+    for lesson_url, levels in lesson_plans_subject:
+        page_contents = downloader.read(lesson_url)
+        page = BeautifulSoup(page_contents, 'html.parser')
+        sub_lessons = page.find_all("div", class_="lesson-plan-link")
+        title = page.find("h2", class_="subject-area").text
+        LOGGER.info("Subject Title:"+title)
+        LOGGER.info("Subject url:"+lesson_url)
+        for sub_lesson in sub_lessons:
+            resource_a = sub_lesson.find("a", href=True)
+            resource_url = resource_a["href"].strip()
+            time.sleep(.8)
+            yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
+            counter += 1
+            if counter >= limit:
+                break
 
 
 class Menu(object):
@@ -181,15 +266,16 @@ class Resources(object):
         resource_links = self.body.find_all("a")
         for link in resource_links:
             if link["href"].endswith(".pdf"):
-                print(link["href"])
+                name = self.get_name_file(link["href"])
+                yield name, urllib.parse.urljoin(BASE_URL, link["href"])
 
     def student_resources(self):
         resources = self.body.find("dd", id="student-resources")
         if resources is not None:
             for link in resources.find_all("a"):
-                print(link["href"])
+                yield link["href"]
 
-    def get_name_img(self, img_url):
+    def get_name_file(self, img_url):
         from urllib.parse import urlparse
         import os
         return os.path.basename(urlparse(img_url).path)
@@ -208,13 +294,10 @@ class Resources(object):
 
     def to_file(self):
         img_url = self.get_img_url()
-        filename = self.get_name_img(img_url)
+        filename = self.get_name_file(img_url)
         img_tag = "<img src='{}'>...".format(filename)
         html = "<html><body>{}{}</body></html>".format(img_tag, self.get_credits())
         self.write(html, img_url, filename)
-
-    def get_filepath(self):
-        return self.filename
 
 
 class LessonPlan(object):
@@ -233,89 +316,37 @@ class LessonPlan(object):
             TheBasics
         ]
         self.resources = Resources(self.page, filename=resources_filename)
+        self.source = None
 
-    def to_file(self):
+    def to_file(self, PATH, levels):
         LOGGER.info(" + Lesson:"+ self.title)
         self.menu.to_file()
         for Section in self.sections:
             section = Section(self.page, filename=self.menu.filename)
             section.to_file(self.menu.get(section.menu_name))
         self.resources.to_file()
-        #resource.get_filepath()
-        #resource.get_pdfs()
-        #resource.student_resources()
+        metadata_dict = {"description": "", 
+            "language": "en", 
+            "license": "CC BY 4.0", 
+            "copyright_holder": "National Endowment for the Humanities", 
+            "author": "", 
+            "source_id": self.source}
 
+        levels.append(self.title)
+        PATH.set(*levels)
+        writer.add_file(str(PATH), "THE LESSON", self.menu.filename, **metadata_dict)
+        writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
+        PATH.set(*(levels+["RESOURCES"]))
+        for name, pdf_url in self.resources.get_pdfs():
+            writer.add_file(str(PATH), name.replace(".pdf", ""), pdf_url, **metadata_dict)
+        writer.add_file(str(PATH), "MEDIA", self.resources.filename, **metadata_dict)
+        #resource.student_resources() external web page
+        PATH.go_to_parent_folder()
+        PATH.go_to_parent_folder()
 
-# Main Scraping Method
-################################################################################
-def scrape_source(writer):
-    """ scrape_source: Scrapes channel page and writes to a DataWriter
-        Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
-        Returns: None
-    """
-    
-    LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
-    page_contents = downloader.read(LESSONS_PLANS_URL)
-    LOGGER.info("Scrapping: " + LESSONS_PLANS_URL)
-    lessons_nodes = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
-    page = BeautifulSoup(page_contents, 'html.parser')
-    levels = ["lesson-plan"]
-
-    lessons_urls = []
-    for node in lessons_nodes:
-        page_h3 = page.find("h3", id="node-"+str(node))
-        resource_a = page_h3.find("a", href=True)
-        subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
-        lessons_urls.append(subtopic_url)
-        break
-        
-    subtopic_urls = []
-    for lesson_url in lessons_urls:
-        LOGGER.info("Subject:"+lesson_url)
-        page_contents = downloader.read(lesson_url)
-        page = BeautifulSoup(page_contents, 'html.parser')
-        sub_lessons = page.find_all("div", class_="lesson-plan-link")
-        for sub_lesson in sub_lessons:
-            resource_a = sub_lesson.find("a", href=True)
-            resource_url = resource_a["href"].strip()
-            subtopic_urls.append(urllib.parse.urljoin(BASE_URL, resource_url))
-            break
-
-    for subtopic_url in subtopic_urls:
-        subtopic_name = subtopic_url.split("/")[-1]
-        levels.append(subtopic_name)
-        page_contents = downloader.read(subtopic_url, loadjs=False)
-        page = BeautifulSoup(page_contents, 'html.parser')
-        lesson_plan = LessonPlan(page, 
-            lesson_filename="lesson-"+subtopic_name+".zip",
-            resources_filename="resources-"+subtopic_name+".zip")
-        lesson_plan.to_file()
-
-        #PATH.set(*levels)
-        #metadata_dict = {"description": "----", "language": "en", 
-        #    "license": "CC BY 4.0", 
-        #    "copyright_holder": "National Endowment for the Humanities", 
-        #    "author": "author", 
-        #    "source_id": "---"}
-
-        #file_path = "myzipfile.zip"
-        #writer.add_folder(str(PATH), "TEST", **metadata_dict)
-        #writer.add_file(str(PATH), "TEST", file_path, **metadata_dict)
-        #with HTMLWriter('./myzipfile.zip') as zipper:
-
-# Helper Methods
-################################################################################
-def get_text(element):
-    """
-    Extract text contents of `element`, normalizing newlines to spaces and stripping.
-    """
-    if element is None:
-        return ''
-    else:
-        return element.get_text().replace('\r', '').replace('\n', ' ').strip()
-
-
-
+    def rm(self):
+        pass
+        #os.remove(pathname)
 
 
 # CLI: This code will run when the sous chef is called from the command line
