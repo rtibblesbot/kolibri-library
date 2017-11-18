@@ -68,14 +68,6 @@ def scrape_source(writer):
     for u in units:
         print(u['name'])  
         parse_unit(writer, u['name'], u['link'])
-    pattern = re.compile("bubble") 
-    removed_strings = []
-    for x in name_of_files:
-        if pattern.match(x):
-            removed_strings.append(x) 
-    for x in removed_strings:
-        name_of_files.remove(x)
-
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
@@ -146,7 +138,7 @@ def print_modules(section):
     for module in modules:
         titles = module.find_all("img", class_=re.compile("atto_image_button_"))
         for t in titles:
-            if isValidTitle(t):
+            if is_valid_title(t):
                 print("\t\t - " + str(real_title(t) + " " + clasify_module(module)))
                 if real_title(t) == "Recommended Time":
                     print("********")
@@ -173,9 +165,9 @@ def get_recommended_time(title):
     else:
       return title.parent.parent.get_text() 
 
-def isValidTitle(title):
+def is_valid_title(title):
     """
-    isValidTitle is true if the name of the image contains Unit or Section on it 
+    is_valid_title is true if the name of the image contains Unit or Section on it 
     but not contains Quote 
     or Method1 or Method2 
     (because they are extra images on the section)
