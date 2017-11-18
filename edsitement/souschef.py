@@ -129,13 +129,13 @@ class LessonSection(object):
         LOGGER.debug(id_)
         self.body = page.find("div", id=id_)
         if self.body is not None:
-            title = self.body.find("h4")
-            self.title = self.clean_title(title)
+            self.title = self.clean_title(self.body.find("h4"))
         self.filename = filename
         self.menu_name = menu_name
 
     def clean_title(self, title):
-        title = str(title) if title is not None else None
+        if title is not None:
+            title = str(title)
         return title
 
     def get_content(self):
@@ -278,7 +278,7 @@ class Resources(object):
 class LessonPlan(object):
     def __init__(self, page, lesson_filename=None, resources_filename=None):
         self.page = page
-        self.title = self.page.find("div", id="description").text.strip()
+        self.title = self.clean_title(self.page.find("div", id="description"))
         self.menu = Menu(self.page, filename=lesson_filename, id_="sect-thelesson")
         self.menu.add("The Basics")
         self.sections = [
@@ -292,6 +292,14 @@ class LessonPlan(object):
         ]
         self.resources = Resources(self.page, filename=resources_filename)
         self.source = None
+
+    def clean_title(self, title):
+        import re
+        if title is not None:
+            title = title.text.strip()
+            title = re.sub("\n|\t", " ", title)
+            title = re.sub(" +", " ", title)
+        return title
 
     def to_file(self, PATH, levels):
         LOGGER.info(" + Lesson:"+ self.title)
