@@ -24,8 +24,8 @@ import logging
 from bs4 import BeautifulSoup
 import urllib.parse
 import time
-#import bisect
 from collections import OrderedDict
+import itertools
 
 # Additional Constants
 ################################################################################
@@ -51,30 +51,6 @@ def scrape_source(writer):
     LOGGER.info("Scrapping: " + LESSONS_PLANS_URL)
     page = BeautifulSoup(page_contents, 'html.parser')
 
-    #lessons_urls = []
-    #for node in lessons_nodes:
-    #    page_h3 = page.find("h3", id="node-"+str(node))
-    #    resource_a = page_h3.find("a", href=True)
-    #    subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
-    #    lessons_urls.append(subtopic_url)
-    #    break
-        
-    #subtopic_urls = []
-    #for lesson_url in lessons_urls:
-    #    page_contents = downloader.read(lesson_url)
-    #    page = BeautifulSoup(page_contents, 'html.parser')
-    #    sub_lessons = page.find_all("div", class_="lesson-plan-link")
-    #    title = page.find("h2", class_="subject-area").text
-    #    levels.append(title)
-    #    LOGGER.info("Subject Title:"+title)
-    #    LOGGER.info("Subject url:"+lesson_url)
-    #    for sub_lesson in sub_lessons:
-    #        resource_a = sub_lesson.find("a", href=True)
-    #        resource_url = resource_a["href"].strip()
-    #        subtopic_urls.append(urllib.parse.urljoin(BASE_URL, resource_url))
-    #        break
-
-    
     for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(page)):
         subtopic_name = lesson_plan_url.split("/")[-1]
         page_contents = downloader.read(lesson_plan_url, loadjs=False)
@@ -91,35 +67,25 @@ def scrape_source(writer):
 ################################################################################
 def lesson_plans_subject(page):
     lessons_nodes = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
-    limit = 4
-    counter = 0
     for node in lessons_nodes:
         page_h3 = page.find("h3", id="node-"+str(node))
         resource_a = page_h3.find("a", href=True)
         subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
         yield subtopic_url, ["Lesson Plans or For Teachers"]
-        counter += 1
-        if counter >= limit:
-            break
 
 def lesson_plans(lesson_plans_subject):
-    limit = 2
-    for lesson_url, levels in lesson_plans_subject:
+    for lesson_url, levels in itertools.islice(lesson_plans_subject, 0, 4):
         page_contents = downloader.read(lesson_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         sub_lessons = page.find_all("div", class_="lesson-plan-link")
         title = page.find("h2", class_="subject-area").text
         LOGGER.info("Subject Title:"+title)
         LOGGER.info("Subject url:"+lesson_url)
-        counter = 0
-        for sub_lesson in sub_lessons:
+        for sub_lesson in itertools.islice(sub_lessons, 0, 2):
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
             time.sleep(.8)
             yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
-            counter += 1
-            if counter >= limit:
-                break
 
 
 class Menu(object):
@@ -164,9 +130,13 @@ class LessonSection(object):
         self.body = page.find("div", id=id_)
         if self.body is not None:
             title = self.body.find("h4")
-            self.title = str(title) if title is not None else None
+            self.title = self.clean_title(title)
         self.filename = filename
         self.menu_name = menu_name
+
+    def clean_title(self, title):
+        title = str(title) if title is not None else None
+        return title
 
     def get_content(self):
         pass
