@@ -99,16 +99,31 @@ def parse_unit(writer, name, link):
     sections = page.find_all('li', id = re.compile('section-')) 
     writer.add_folder(str(PATH), name, "", "TODO: Generate Description")
     for section in sections:
-        title = extract_title(section)
-        filename = generate_html5app_from_section(section)
-        print_modules(section)
-        writer.add_file(str(PATH), html5app_filename(title), html5app_path_from_title(title), license="TODO", copyright_holder = "TODO")
-        os.remove(html5app_path_from_title(title))
+        section_type = clasify_block(section) 
+        if section_type == 'html':
+            add_html5app(writer, section)
+        elif section_type == 'video': 
+            add_video(writer, section)
     PATH.go_to_parent_folder()
     return 0
 
 # Generating HTML5 app
 ##########################
+
+def add_video(writer, section):
+     title = extract_title(section)
+     video = section.find("iframe", src=re.compile("youtube"))
+     video_filename = download_video(video.get('src'))
+     if video_filename:
+         writer.add_file(str(PATH), title, str("./") + str(video_filename), license="TODO", copyright_holder = "TODO")
+
+def add_html5app(writer, section):
+     title = extract_title(section)
+     filename = generate_html5app_from_section(section)
+     print_modules(section)
+     writer.add_file(str(PATH), html5app_filename(title), html5app_path_from_title(title), license="TODO", copyright_holder = "TODO")
+     os.remove(html5app_path_from_title(title))
+
 
 def generate_html5app_from_section(section):
     title = extract_title(section)
@@ -151,20 +166,20 @@ def print_modules(section):
         titles = module.find_all("img", class_=re.compile("atto_image_button_"))
         for t in titles:
             if is_valid_title(t):
-                print("\t\t - " + str(real_title(t) + " " + clasify_module(module)))
+                print("\t\t - " + str(real_title(t) + " " + clasify_block(module)))
                 if real_title(t) == "Recommended Time":
                     print("********")
                     print("\t\t\t" + get_recommended_time(t))
                     print("********")
     if len(modules) == 0 :
-        print("\t\t Unit Title - " + clasify_module(section))
+        print("\t\t Unit Title - " + clasify_block(section))
     return 0 
 
-def clasify_module(module):
-    module_type = "( html )"
+def clasify_block(module):
+    module_type = "html"
     video = module.find("iframe", src=re.compile("youtube"))
     if video:
-        module_type = "\033[91m ( video ) \033[0m"
+        module_type = "video"
     return module_type
 
 def real_title(title):
@@ -175,7 +190,7 @@ def get_recommended_time(title):
     if title.parent.get_text():
         return title.parent.get_text()
     else:
-      return title.parent.parent.get_text() 
+        return title.parent.parent.get_text() 
 
 def is_valid_title(title):
     """
@@ -191,21 +206,22 @@ def is_valid_title(title):
     return (pattern1.match(filename) and (not pattern2.match(filename) and (not pattern3.match(filename))))
 
 def download_video(url):
+    print(url)
     ydl_options = {
             'outtmpl': '%(title)s-%(id)s.%(ext)s',
             'continuedl': True,
             # 'quiet' : True,
             'restrictfilenames':True, 
-        }
+            }
+    video_filename = ""
     with youtube_dl.YoutubeDL(ydl_options) as ydl:
         try:
             ydl.add_default_info_extractors()
             info = ydl.extract_info(url, download=True)
-            print(info['title'])
+            video_filename = ydl.prepare_filename(info)
         except (youtube_dl.utils.DownloadError,youtube_dl.utils.ContentTooShortError,youtube_dl.utils.ExtractorError) as e:
-            self.error_occured = True
-            self.statusSignal.emit(str(e))
-    return 0
+            return "" 
+    return video_filename 
 
 
 
