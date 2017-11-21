@@ -45,28 +45,56 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    
-    LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
-    for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
-        subtopic_name = lesson_plan_url.split("/")[-1]
-        page_contents = downloader.read(lesson_plan_url, loadjs=False)
-        page = BeautifulSoup(page_contents, 'html5lib')
-        lesson_plan = LessonPlan(page, 
-            lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
-            resources_filename="/tmp/resources-"+subtopic_name+".zip")
-        lesson_plan.source = lesson_plan_url
-        lesson_plan.to_file(PATH, levels)
-        #print(levels)
+    #scrap_lesson_plans()
+    scrap_student_resources()
 
 
 # Helper Methods
 ################################################################################
+def scrap_lesson_plans():
+        LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
+        for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
+            subtopic_name = lesson_plan_url.split("/")[-1]
+            page_contents = downloader.read(lesson_plan_url, loadjs=False)
+            page = BeautifulSoup(page_contents, 'html5lib')
+            lesson_plan = LessonPlan(page, 
+                lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
+                resources_filename="/tmp/resources-"+subtopic_name+".zip")
+            lesson_plan.source = lesson_plan_url
+            lesson_plan.to_file(PATH, levels)
+
+
+def scrap_student_resources():
+    STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
+    subject_ids = [25, 21, 22, 23]
+    for subject in subject_ids:
+        params_url = "all?grade=All&subject={}&type=All".format(subject)
+        page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
+        LOGGER.info("Scrapping: " + page_url)
+        time.sleep(.8)
+        page_contents = downloader.read(page_url)
+        page = BeautifulSoup(page_contents, 'html.parser')
+        resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
+        for link in resource_links[20:40]:
+            if link["href"].rfind("/student-resource/") != -1:
+                student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
+                page_contents = downloader.read(student_resource_url)
+                page = BeautifulSoup(page_contents, 'html.parser')
+                student_resource = StudentResourceIndex(page, filename="TEST")
+                student_resource.to_file()
+                #more_resource = page.find(lambda tag: tag.name == "a" and\
+                #                            tag.findParent("div", class_="more"))
+                #print(more_resource)
+                #print(more_resource["href"])
+        break
+
+
 def lesson_plans_subject(page_url):
     page_contents = downloader.read(page_url)
     LOGGER.info("Scrapping: " + page_url)
     page = BeautifulSoup(page_contents, 'html.parser')
-    lessons_nodes = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
-    for node in lessons_nodes:
+    subject_ids = [25, 21, 22, 23, 18319, 18373, 25041, 31471]
+    for node in subject_ids:
         page_h3 = page.find("h3", id="node-"+str(node))
         resource_a = page_h3.find("a", href=True)
         subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
@@ -340,6 +368,99 @@ class LessonPlan(object):
     def rm(self):
         pass
         #os.remove(pathname)
+
+
+class StudentResourceIndex(object):
+    def __init__(self, page, filename=None):
+        self.body = page
+        self.filename = filename
+
+    def get_img_url(self):
+        resource_img = self.body.find("div", class_="image")
+        if resource_img is not None:
+            img_tag = resource_img.find("img")
+            return img_tag["src"]
+
+    def get_credits(self):
+        credits = self.body.find("div", class_="caption")
+        credits_elems = credits.find_all("div")
+        type_ = credits_elems[0]
+        source = credits_elems[1]
+        return "<div>{}</div><div>{}</div>".format(type_, source.text)
+
+    def get_viewmore(self):
+        view_more = self.body.find(lambda tag: tag.name == "a" and\
+                                    tag.findParent("div", class_="more"))
+        return view_more["href"]
+
+    def get_content(self):
+        content = self.body.find("div", id="description")
+        title = content.find("h2")
+        print("Title", title.text)
+        created = content.find("div", class_="created")
+        description = content.find("p")
+        return "".join(map(str, [title, created, description]))
+
+    def get_name_file(self, img_url):
+        from urllib.parse import urlparse
+        import os
+        return os.path.basename(urlparse(img_url).path)
+
+    def write_img(self, img_url, filename):
+        with html_writer.HTMLWriter(self.filename, "a") as zipper:
+            path = zipper.write_url(img_url, filename)
+
+    def write_index(self, content):
+        with html_writer.HTMLWriter(self.filename, "a") as zipper:   
+            zipper.write_index_contents(content)
+
+    def write(self, content, img_url, filename):
+        self.write_index(content)
+        if img_url is not None:
+            self.write_img(img_url, filename)      
+
+    def to_file(self):
+        img_url = self.get_img_url()
+        if img_url is not None:
+            filename = self.get_name_file(img_url)
+            img_tag = "<img src='{}'>...".format(filename)
+        else:
+            img_tag = ""
+            filename = ""
+
+        content = self.get_content()
+        html = "<html><body>{}{}{}</body></html>".format(content, img_tag, self.get_credits())
+        self.write(html, img_url, filename)
+        resource_checker = ResourceChecker(self.get_viewmore())
+        print(resource_checker.check())
+
+
+class ResourceChecker(object):
+    def __init__(self, resource_url):
+        print("URL", resource_url)
+        self.resource_url = resource_url
+
+    def has_file(self):
+        files = [(self.resource_url.endswith(filetype), filetype) 
+                for filetype in ["pdf", "mp4", "mp3", "swf"]]
+        file_ = list(filter(lambda x: x[0], files))
+        if len(file_) > 0:
+            return file_[0][1]
+        else:
+            return None
+
+    def check(self):
+        file_ = self.has_file()
+        if self.resource_url.find(BASE_URL) != -1 and file_ is None:
+            return "web_page"
+        elif file_ is not None and file_ != "swf":
+            return "file"
+        elif self.resource_url.find("interactives.mped.org") != -1:
+            return "not valid"
+        elif file_ == "swf":
+            return "flash"
+        #page_contents = downloader.read(lesson_url)
+        #page = BeautifulSoup(page_contents, 'html.parser')
 
 
 # CLI: This code will run when the sous chef is called from the command line
