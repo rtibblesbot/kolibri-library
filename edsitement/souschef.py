@@ -77,7 +77,7 @@ def scrap_student_resources():
         page_contents = downloader.read(page_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
-        for link in resource_links[50:52]:
+        for link in resource_links[0:1]:
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
                 try:
@@ -437,12 +437,13 @@ class StudentResourceIndex(object):
         html = "<html><body>{}{}{}</body></html>".format(content, img_tag, self.get_credits())
         self.write(html, img_url, filename)
         resource_checker = ResourceChecker(self.get_viewmore())
-        resource_type = resource_checker.check()
-        #print("FILENAME", self.filename)
-        #print("TITLE", self.title.text)
-        #self.levels.append(self.title.text)
+        resource = resource_checker.check()
+        LOGGER.info("Resource Type: "+resource.type_name)
         description = "" if self.description is None else self.description.text
-        resource_type.to_file(self.levels + [self.title.text], description)
+        metadata_dict = resource.to_file(self.levels + [self.title.text], description)
+        if metadata_dict is not None:
+            writer.add_file(str(PATH), "THE LESSON", self.filename, **metadata_dict)
+            PATH.go_to_parent_folder()
 
 
 class ResourceChecker(object):
@@ -461,18 +462,23 @@ class ResourceChecker(object):
 
     def check(self):
         file_ = self.has_file()
-        #edsitement has resources on 208.254.21.241 but is not reacheable
+        #edsitement has resources on 208.254.21.241 but is not reachable
         if self.resource_url.find(BASE_URL) != -1 and file_ is None:
-            return ResourceType()#"web_page"
+            return ResourceType("web_page")
         elif self.resource_url.find(BASE_URL) != -1 and file_ is not None and file_ != "swf":
             return FileSource(self.resource_url)
         elif self.resource_url.find("interactives.mped.org") != -1:
-            return ResourceType()#"not valid"
+            return ResourceType("interactives") #response error
         elif file_ == "swf":
-            return ResourceType()#"flash"
+            return ResourceType("flash")
+        else:
+            return ResourceType("unknown")
 
 
 class ResourceType(object):
+    def __init__(self, type_name=None):
+        self.type_name = type_name
+
     def to_file(self, levels, description):
         pass
 
@@ -483,11 +489,11 @@ class ResourceType(object):
 
 
 class FileSource(ResourceType):
-    def __init__(self, resource_url):
+    def __init__(self, resource_url, type_name="File"):
+        super(FileSource, self).__init__(type_name=type_name)
         self.resource_url = resource_url
 
     def to_file(self, levels, description):
-        print("LEVELS", levels)
         metadata_dict = {"description": description, 
             "language": "en", 
             "license": "CC BY 4.0", 
@@ -499,8 +505,17 @@ class FileSource(ResourceType):
         PATH.set(*(levels+["RESOURCES"]))
         writer.add_file(str(PATH), self.get_name_file(self.resource_url), self.resource_url, **metadata_dict)
         PATH.go_to_parent_folder()
-        PATH.go_to_parent_folder()
-        print(PATH)
+        return metadata_dict
+
+
+class WebPageSource(ResourceType):
+    def __init__(self, resource_url, type_name="File"):
+        super(FileSource, self).__init__(type_name=type_name)
+        self.resource_url = resource_url
+
+    def to_file(self, levels, description):
+        page_contents = downloader.read(self.resource_url)
+        page = BeautifulSoup(page_contents, 'html.parser')
 
 
 # CLI: This code will run when the sous chef is called from the command line
