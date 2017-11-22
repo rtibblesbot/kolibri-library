@@ -322,8 +322,13 @@ def fetch_video(video):
 
     # Add subtitles in whichever languages are available.
     for language in subtitle_languages:
-        video_node.add_file(files.YouTubeSubtitleFile(
-            youtube_id=youtube_id, language=language))
+        # TODO(david): Should catch exception thrown by
+        # files.YouTubeSubtitleFile rather than breaking abstraction.
+        if languages.getlang(language) or languages.getlang_by_alpha2(language):
+            video_node.add_file(files.YouTubeSubtitleFile(
+                youtube_id=youtube_id, language=language))
+        else:
+            print("WARNING: Subtitle language %s not found in languages file" % language)
 
     return video_node
 
