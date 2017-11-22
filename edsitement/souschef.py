@@ -65,8 +65,10 @@ def scrap_lesson_plans():
 
 
 def scrap_student_resources():
+    import requests
     STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
+    levels = ["Student Resources"]
     for subject in subject_ids:
         params_url = "all?grade=All&subject={}&type=All".format(subject)
         page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
@@ -75,17 +77,19 @@ def scrap_student_resources():
         page_contents = downloader.read(page_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
-        for link in resource_links[20:40]:
+        for link in resource_links[50:52]:
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
-                page_contents = downloader.read(student_resource_url)
+                try:
+                    page_contents = downloader.read(student_resource_url)
+                except requests.exceptions.HTTPError as e:
+                    LOGGER.info("Error: {}".format(e))
                 page = BeautifulSoup(page_contents, 'html.parser')
-                student_resource = StudentResourceIndex(page, filename="TEST")
+                topic_name = student_resource_url.split("/")[-1]
+                student_resource = StudentResourceIndex(page, 
+                    filename="/tmp/student-resource-"+topic_name+".zip",
+                    levels=levels)
                 student_resource.to_file()
-                #more_resource = page.find(lambda tag: tag.name == "a" and\
-                #                            tag.findParent("div", class_="more"))
-                #print(more_resource)
-                #print(more_resource["href"])
         break
 
 
@@ -371,9 +375,11 @@ class LessonPlan(object):
 
 
 class StudentResourceIndex(object):
-    def __init__(self, page, filename=None):
+    def __init__(self, page, filename=None, levels=None):
         self.body = page
         self.filename = filename
+        self.title = None
+        self.levels = levels
 
     def get_img_url(self):
         resource_img = self.body.find("div", class_="image")
@@ -395,11 +401,10 @@ class StudentResourceIndex(object):
 
     def get_content(self):
         content = self.body.find("div", id="description")
-        title = content.find("h2")
-        print("Title", title.text)
+        self.title = content.find("h2")
         created = content.find("div", class_="created")
-        description = content.find("p")
-        return "".join(map(str, [title, created, description]))
+        self.description = content.find("p")
+        return "".join(map(str, [self.title, created, self.description]))
 
     def get_name_file(self, img_url):
         from urllib.parse import urlparse
@@ -432,17 +437,22 @@ class StudentResourceIndex(object):
         html = "<html><body>{}{}{}</body></html>".format(content, img_tag, self.get_credits())
         self.write(html, img_url, filename)
         resource_checker = ResourceChecker(self.get_viewmore())
-        print(resource_checker.check())
+        resource_type = resource_checker.check()
+        #print("FILENAME", self.filename)
+        #print("TITLE", self.title.text)
+        #self.levels.append(self.title.text)
+        description = "" if self.description is None else self.description.text
+        resource_type.to_file(self.levels + [self.title.text], description)
 
 
 class ResourceChecker(object):
     def __init__(self, resource_url):
-        print("URL", resource_url)
+        print("URL TO CHECK", resource_url)
         self.resource_url = resource_url
 
     def has_file(self):
         files = [(self.resource_url.endswith(filetype), filetype) 
-                for filetype in ["pdf", "mp4", "mp3", "swf"]]
+                for filetype in ["pdf", "mp4", "mp3", "swf", "jpg"]]
         file_ = list(filter(lambda x: x[0], files))
         if len(file_) > 0:
             return file_[0][1]
@@ -451,16 +461,46 @@ class ResourceChecker(object):
 
     def check(self):
         file_ = self.has_file()
+        #edsitement has resources on 208.254.21.241 but is not reacheable
         if self.resource_url.find(BASE_URL) != -1 and file_ is None:
-            return "web_page"
-        elif file_ is not None and file_ != "swf":
-            return "file"
+            return ResourceType()#"web_page"
+        elif self.resource_url.find(BASE_URL) != -1 and file_ is not None and file_ != "swf":
+            return FileSource(self.resource_url)
         elif self.resource_url.find("interactives.mped.org") != -1:
-            return "not valid"
+            return ResourceType()#"not valid"
         elif file_ == "swf":
-            return "flash"
-        #page_contents = downloader.read(lesson_url)
-        #page = BeautifulSoup(page_contents, 'html.parser')
+            return ResourceType()#"flash"
+
+
+class ResourceType(object):
+    def to_file(self, levels, description):
+        pass
+
+    def get_name_file(self, url):
+        from urllib.parse import urlparse
+        import os
+        return ".".join(os.path.basename(urlparse(url).path).split(".")[:-1])
+
+
+class FileSource(ResourceType):
+    def __init__(self, resource_url):
+        self.resource_url = resource_url
+
+    def to_file(self, levels, description):
+        print("LEVELS", levels)
+        metadata_dict = {"description": description, 
+            "language": "en", 
+            "license": "CC BY 4.0", 
+            "copyright_holder": "National Endowment for the Humanities", 
+            "author": "", 
+            "source_id": self.resource_url}
+        PATH.set(*levels)
+        writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
+        PATH.set(*(levels+["RESOURCES"]))
+        writer.add_file(str(PATH), self.get_name_file(self.resource_url), self.resource_url, **metadata_dict)
+        PATH.go_to_parent_folder()
+        PATH.go_to_parent_folder()
+        print(PATH)
 
 
 # CLI: This code will run when the sous chef is called from the command line
