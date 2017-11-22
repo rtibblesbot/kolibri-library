@@ -30,7 +30,7 @@ WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)),
 
 # Additional Constants 
 ###########################################################
-BASE_URL = "https://ict-essentials-for-teachers.moodlecloud.com/"
+BASE_URL = "http://elearning.reb.rw/course/index.php?categoryid=14"
 
 IMG_LOOKUP = {
         'SectionObjective.png': 'Objective', 
@@ -60,12 +60,12 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    content = read(BASE_URL) 
+    content = read(BASE_URL, loadjs = True) 
 
     soup = BeautifulSoup(content, 'html.parser')
     units = get_units_from_site(soup)
     for u in units:
-        print(u['name'])  
+        print(u['name']) 
         parse_unit(writer, u['name'], u['link'])
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
@@ -92,13 +92,14 @@ def parse_unit(writer, name, link):
       Parse the elements inside a unit
       Extract sections, and each section would be an independent HTML5App
     """
-    content = read(link)
+    content = read(link, loadjs = True)
     page = BeautifulSoup(content, 'html.parser')
     PATH.open_folder(folder_name(name))
 
     sections = page.find_all('li', id = re.compile('section-')) 
     writer.add_folder(str(PATH), name, "", "TODO: Generate Description")
     for section in sections:
+        print(extract_title(section))
         section_type = clasify_block(section) 
         if section_type == 'html':
             add_html5app(writer, section)
