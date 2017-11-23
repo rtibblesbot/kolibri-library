@@ -179,7 +179,7 @@ def print_modules(section):
     #                print("********")
     #if len(modules) == 0 :
     #    print("\t\t Unit Title - " + clasify_block(section))
-    img = section.find("img", src=re.compile("Clock"))
+    img = section.find("img", src=re.compile("[Cc]lock"))
     if img:
         print(get_recommended_time(img)) 
     return 0 
@@ -197,9 +197,9 @@ def real_title(title):
 
 def get_recommended_time(title):
     if title.parent.get_text():
-        return title.parent.get_text()
+        return title.parent.get_text().strip
     else:
-        return title.parent.parent.get_text() 
+        return title.parent.parent.get_text().strip
 
 def is_valid_title(title):
     """
