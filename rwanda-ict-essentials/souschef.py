@@ -34,30 +34,11 @@ WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)),
 ###########################################################
 BASE_URL = "http://elearning.reb.rw/course/index.php?categoryid=14"
 
-IMG_LOOKUP = {
-        'SectionObjective.png': 'Objective', 
-        'UnitSectionConclusion.png': 'Conclusion', 
-        'SectionIntroduction%20%281%29.png': 'Introduction', 
-        'UnitSectionConclusion%20%281%29.png': 'Conclusion',
-        'SectionTime3%20%281%29.png': 'Recommended Time',
-        'SectionAttribution.png': 'Attribution',
-        'SectionActivity%20%281%29.png': 'Activity',
-        'SectiontMethod.png': 'Method',
-        'SectionIntroduction.png': 'Introduction',
-        'SectionFacilitation.png': 'Facilitator\'s Welcome',
-        'SectionPortfolio.png': 'Portfolio assignment',
-        'SectionTime3.png': 'Recommended Time',
-        'SectionActivity.png': 'Activity',
-        'SectionIntroduction%20%283%29.png': 'Introduction',
-        'SectionTime3%20%282%29.png': 'Recommended Time',
-        'SectionIntroduction%20%282%29.png': 'Introduction',
-        'UnitReferences.png': 'References',
-        'SectionCompetency.png': 'Competency'
-        }
-
 chromedriver = "/Users/thot/Downloads/chromedriver"
 os.environ["webdriver.chrome.driver"] = chromedriver
 driver = webdriver.Chrome(chromedriver)
+
+UNIT_BLACKLIST = [ "Unit 00 - Orientation" ]
 # Main Scraping Method 
 ###########################################################
 def scrape_source(writer):
@@ -68,10 +49,10 @@ def scrape_source(writer):
     content = read(BASE_URL, loadjs = True, driver = driver ) 
 
     soup = BeautifulSoup(content, 'html.parser')
-    units = get_units_from_site(soup)
+    units = [unit for unit in get_units_from_site(soup) if not blacklisted_unit(unit['name'])]
     for u in units:
         print(u['name']) 
-        parse_unit(writer, u['name'], u['link'])
+        #parse_unit(writer, u['name'], u['link'])
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
@@ -112,6 +93,12 @@ def parse_unit(writer, name, link):
             add_video(writer, section)
     PATH.go_to_parent_folder()
     return 0
+
+def blacklisted_unit(unit_title):
+    for blacklisted in UNIT_BLACKLIST:
+        if re.search(blacklisted, unit_title):
+            return True 
+    return False 
 
 # Generating HTML5 app
 ##########################
@@ -167,18 +154,6 @@ def folder_name(unit_name):
     return re.search('(.+?) - .*', unit_name).group(1)
 
 def print_modules(section):
-    #modules = section.find_all("li", id=re.compile('module-'))
-    #for module in modules:
-    #    titles = module.find_all("img", class_=re.compile("atto_image_button_"))
-    #    for t in titles:
-    #        if is_valid_title(t):
-    #            print("\t\t - " + str(real_title(t) + " " + clasify_block(module)))
-    #            if real_title(t) == "Recommended Time":
-    #                print("********")
-    #                print("\t\t\t" + get_recommended_time(t))
-    #                print("********")
-    #if len(modules) == 0 :
-    #    print("\t\t Unit Title - " + clasify_block(section))
     img = section.find("img", src=re.compile("[Cc]lock"))
     if img:
         print(get_recommended_time(img)) 
