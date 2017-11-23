@@ -68,24 +68,6 @@ def get_file(file_id, save_target, url_template, cache_ok):
             f.write(response.content)
     return response.content
     
-def embed_code(save_target, index):
-    # note: <script src="https://cdn.geogebra.org/apps/deployggb.js"></script>
-    # or similar needs to be in the code somewhere...
-
-    return """
-<div id="applet_container{index}"></div>
-<script>  
-    var applet{index} = new GGBApplet(
-        {{filename: "{save_target}",
-         "showToolbar":true,
-        }}, true);
-    window.addEventListener("load", function() {{
-        applet{index}.inject('applet_container{index}');
-    }});
-</script>
-""".format(save_target=save_target, index=index)
-
-
 if __name__=="__main__":
     print (get_zip('dZT4v7KZ')[:5])
     print (get_canonical_id('Vxv48Gtz'))
