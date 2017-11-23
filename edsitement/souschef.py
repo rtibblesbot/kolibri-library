@@ -73,11 +73,11 @@ def scrap_student_resources():
         params_url = "all?grade=All&subject={}&type=All".format(subject)
         page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
         LOGGER.info("Scrapping: " + page_url)
-        time.sleep(.8)
         page_contents = downloader.read(page_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
-        for link in resource_links[0:1]:
+        for link in resource_links[0:2]:
+            time.sleep(.8)
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
                 try:
@@ -117,6 +117,17 @@ def lesson_plans(lesson_plans_subject):
             resource_url = resource_a["href"].strip()
             time.sleep(.8)
             yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
+
+
+def get_name_file(url):
+        from urllib.parse import urlparse
+        import os
+        return os.path.basename(urlparse(url).path)
+
+
+def get_name_file_no_ext(url):
+    path = get_name_file(url)
+    return ".".join(path.split(".")[:-1])
 
 
 class Menu(object):
@@ -282,7 +293,7 @@ class Resources(object):
         resource_links = self.body.find_all("a")
         for link in resource_links:
             if link["href"].endswith(".pdf"):
-                name = self.get_name_file(link["href"])
+                name = get_name_file(link["href"])
                 yield name, urllib.parse.urljoin(BASE_URL, link["href"])
 
     def student_resources(self):
@@ -290,11 +301,6 @@ class Resources(object):
         if resources is not None:
             for link in resources.find_all("a"):
                 yield link["href"]
-
-    def get_name_file(self, img_url):
-        from urllib.parse import urlparse
-        import os
-        return os.path.basename(urlparse(img_url).path)
 
     def write_img(self, img_url, filename):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
@@ -310,7 +316,7 @@ class Resources(object):
 
     def to_file(self):
         img_url = self.get_img_url()
-        filename = self.get_name_file(img_url)
+        filename = get_name_file(img_url)
         img_tag = "<img src='{}'>...".format(filename)
         html = "<html><body>{}{}</body></html>".format(img_tag, self.get_credits())
         self.write(html, img_url, filename)
@@ -406,17 +412,12 @@ class StudentResourceIndex(object):
         self.description = content.find("p")
         return "".join(map(str, [self.title, created, self.description]))
 
-    def get_name_file(self, img_url):
-        from urllib.parse import urlparse
-        import os
-        return os.path.basename(urlparse(img_url).path)
-
     def write_img(self, img_url, filename):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
             path = zipper.write_url(img_url, filename)
 
     def write_index(self, content):
-        with html_writer.HTMLWriter(self.filename, "a") as zipper:   
+        with html_writer.HTMLWriter(self.filename, "w") as zipper:   
             zipper.write_index_contents(content)
 
     def write(self, content, img_url, filename):
@@ -427,28 +428,35 @@ class StudentResourceIndex(object):
     def to_file(self):
         img_url = self.get_img_url()
         if img_url is not None:
-            filename = self.get_name_file(img_url)
-            img_tag = "<img src='{}'>...".format(filename)
+            filename_img = get_name_file(img_url)
+            img_tag = "<img src='{}'>...".format(filename_img)
         else:
             img_tag = ""
-            filename = ""
+            filename_img = ""
 
         content = self.get_content()
         html = "<html><body>{}{}{}</body></html>".format(content, img_tag, self.get_credits())
-        self.write(html, img_url, filename)
+        self.write(html, img_url, filename_img)
         resource_checker = ResourceChecker(self.get_viewmore())
         resource = resource_checker.check()
-        LOGGER.info("Resource Type: "+resource.type_name)
         description = "" if self.description is None else self.description.text
-        metadata_dict = resource.to_file(self.levels + [self.title.text], description)
+        levels = self.levels + [self.title.text]
+        metadata_dict = resource.to_file(description, self.filename)
         if metadata_dict is not None:
+            PATH.set(*levels)
             writer.add_file(str(PATH), "THE LESSON", self.filename, **metadata_dict)
+            if resource.extra_files is not None:
+                writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
+                PATH.set(*(levels+["RESOURCES"]))
+                for file_src in resource.extra_files:
+                    writer.add_file(str(PATH), get_name_file_no_ext(file_src), file_src, **metadata_dict)
+                PATH.go_to_parent_folder()
             PATH.go_to_parent_folder()
 
 
 class ResourceChecker(object):
     def __init__(self, resource_url):
-        print("URL TO CHECK", resource_url)
+        LOGGER.info("Resource url:"+resource_url)
         self.resource_url = resource_url
 
     def has_file(self):
@@ -464,7 +472,7 @@ class ResourceChecker(object):
         file_ = self.has_file()
         #edsitement has resources on 208.254.21.241 but is not reachable
         if self.resource_url.find(BASE_URL) != -1 and file_ is None:
-            return ResourceType("web_page")
+            return WebPageSource(self.resource_url)
         elif self.resource_url.find(BASE_URL) != -1 and file_ is not None and file_ != "swf":
             return FileSource(self.resource_url)
         elif self.resource_url.find("interactives.mped.org") != -1:
@@ -477,15 +485,12 @@ class ResourceChecker(object):
 
 class ResourceType(object):
     def __init__(self, type_name=None):
+        LOGGER.info("Resource Type: "+type_name)
         self.type_name = type_name
+        self.extra_files = None
 
-    def to_file(self, levels, description):
+    def to_file(self, description, filename):
         pass
-
-    def get_name_file(self, url):
-        from urllib.parse import urlparse
-        import os
-        return ".".join(os.path.basename(urlparse(url).path).split(".")[:-1])
 
 
 class FileSource(ResourceType):
@@ -493,29 +498,69 @@ class FileSource(ResourceType):
         super(FileSource, self).__init__(type_name=type_name)
         self.resource_url = resource_url
 
-    def to_file(self, levels, description):
+    def to_file(self, description, filename):
         metadata_dict = {"description": description, 
             "language": "en", 
             "license": "CC BY 4.0", 
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
-        PATH.set(*levels)
-        writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
-        PATH.set(*(levels+["RESOURCES"]))
-        writer.add_file(str(PATH), self.get_name_file(self.resource_url), self.resource_url, **metadata_dict)
-        PATH.go_to_parent_folder()
+        self.extra_files = [self.resource_url]
         return metadata_dict
 
 
 class WebPageSource(ResourceType):
-    def __init__(self, resource_url, type_name="File"):
-        super(FileSource, self).__init__(type_name=type_name)
+    def __init__(self, resource_url, type_name="Web Page"):
+        super(WebPageSource, self).__init__(type_name=type_name)
         self.resource_url = resource_url
 
-    def to_file(self, levels, description):
+    def write(self, filename, content):
+        with html_writer.HTMLWriter(filename, "a") as zipper:
+            zipper.write_contents("content.html", content)
+
+    def to_file(self, description, filename):
+        metadata_dict = {"description": description, 
+            "language": "en", 
+            "license": "CC BY 4.0", 
+            "copyright_holder": "National Endowment for the Humanities", 
+            "author": "", 
+            "source_id": self.resource_url}
         page_contents = downloader.read(self.resource_url)
         page = BeautifulSoup(page_contents, 'html.parser')
+        content = page.find("div", id="content")
+        files = self.remove_external_links(content)
+        images = self.find_local_images(content)
+        for file_ in files:
+            self.add_extra_files(file_)
+        for img in images:
+            self.add_extra_files(img)
+        self.write(filename, str(content))
+        return metadata_dict
+
+    def remove_external_links(self, content):
+        files = []
+        for link in content.find_all("a"):
+            href = link.get("href", "")
+            if href.find(BASE_URL) != -1 or href.startswith("#") or\
+                href.startswith("/") or href == "":
+                if href.endswith("pdf"):
+                    files.append(href)
+            link.replaceWithChildren()
+        return files
+
+    def find_local_images(self, content):
+        images = []
+        for img_tag in content.find_all("img"):
+            src = img_tag.get("src", "")
+            if src.startswith("/") or src.find(BASE_URL) != -1:
+                images.append(src)
+            img_tag.replaceWithChildren()
+        return images
+
+    def add_extra_files(self, src):
+        if self.extra_files is None:
+            self.extra_files  = []
+        self.extra_files.append(urllib.parse.urljoin(BASE_URL, src))
 
 
 # CLI: This code will run when the sous chef is called from the command line
