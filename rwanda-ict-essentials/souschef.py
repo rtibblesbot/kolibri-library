@@ -2,6 +2,8 @@
 import os
 import sys
 sys.path.append(os.getcwd()) # Handle relative imports
+
+from selenium import webdriver
 from utils import data_writer, path_builder, downloader, slugify
 from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
 
@@ -53,6 +55,9 @@ IMG_LOOKUP = {
         'SectionCompetency.png': 'Competency'
         }
 
+chromedriver = "/Users/thot/Downloads/chromedriver"
+os.environ["webdriver.chrome.driver"] = chromedriver
+driver = webdriver.Chrome(chromedriver)
 # Main Scraping Method 
 ###########################################################
 def scrape_source(writer):
@@ -60,7 +65,7 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    content = read(BASE_URL, loadjs = True) 
+    content = read(BASE_URL, loadjs = True, driver = driver ) 
 
     soup = BeautifulSoup(content, 'html.parser')
     units = get_units_from_site(soup)
@@ -81,7 +86,7 @@ def get_units_from_site(page):
       Get all the unit names and links from the main page
     """
     units = []
-    for div in page.find_all("div", class_= "coursename"):
+    for div in page.find("div", id="region-main").find_all("div", class_= "coursename"):
         link = div.find("a", text = re.compile("Unit"))
         if link:
             units.append({ 'name': link.get_text(), 'link': link.get('href')})
@@ -92,7 +97,7 @@ def parse_unit(writer, name, link):
       Parse the elements inside a unit
       Extract sections, and each section would be an independent HTML5App
     """
-    content = read(link, loadjs = True)
+    content = read(link, loadjs = True, driver = driver)
     page = BeautifulSoup(content, 'html.parser')
     PATH.open_folder(folder_name(name))
 
@@ -162,18 +167,21 @@ def folder_name(unit_name):
     return re.search('(.+?) - .*', unit_name).group(1)
 
 def print_modules(section):
-    modules = section.find_all("li", id=re.compile('module-'))
-    for module in modules:
-        titles = module.find_all("img", class_=re.compile("atto_image_button_"))
-        for t in titles:
-            if is_valid_title(t):
-                print("\t\t - " + str(real_title(t) + " " + clasify_block(module)))
-                if real_title(t) == "Recommended Time":
-                    print("********")
-                    print("\t\t\t" + get_recommended_time(t))
-                    print("********")
-    if len(modules) == 0 :
-        print("\t\t Unit Title - " + clasify_block(section))
+    #modules = section.find_all("li", id=re.compile('module-'))
+    #for module in modules:
+    #    titles = module.find_all("img", class_=re.compile("atto_image_button_"))
+    #    for t in titles:
+    #        if is_valid_title(t):
+    #            print("\t\t - " + str(real_title(t) + " " + clasify_block(module)))
+    #            if real_title(t) == "Recommended Time":
+    #                print("********")
+    #                print("\t\t\t" + get_recommended_time(t))
+    #                print("********")
+    #if len(modules) == 0 :
+    #    print("\t\t Unit Title - " + clasify_block(section))
+    img = section.find("img", src=re.compile("Clock"))
+    if img:
+        print(get_recommended_time(img)) 
     return 0 
 
 def clasify_block(module):
@@ -223,8 +231,6 @@ def download_video(url):
         except (youtube_dl.utils.DownloadError,youtube_dl.utils.ContentTooShortError,youtube_dl.utils.ExtractorError) as e:
             return "" 
     return video_filename 
-
-
 
 
 
