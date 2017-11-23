@@ -10,6 +10,8 @@ import geogebra
 import re
 session = requests.Session()
 
+DOWNLOAD_FOLDER = "foo"
+
 class LocalConfig(object):
     # https://stackoverflow.com/questions/2725156/ for a full list
     LINK_ATTRIBUTES = ['href', 'src']
@@ -39,14 +41,14 @@ def handle_geogebra_tag(geo_tag):
     """Given a tag in the webpage, download the relevant standalone geogebra app,
     modify that app's html page to remove headers etc and insert it into an iframe.
     Used by make_local"""
-    geo_id = geo.attrs['data-ggb_id']
+    geo_id = geo_tag.attrs['data-ggb_id']
     print ("downloading {}".format(geo_id))
     data = geogebra.get_zip(geo_id)
     print ("handling {}".format(geo_id))
     geo_zip = BytesIO(data)
     with ZipFile(geo_zip) as zip_file:
         # extract all files
-        zip_file.extractall('foo/geogebra')
+        zip_file.extractall(DOWNLOAD_FOLDER+'/geogebra')
         # re-write html file...
         html_filename, = [filename for filename in zip_file.namelist() if '/' not in filename and filename.endswith('.html')]
         zip_soup = BeautifulSoup(zip_file.read(html_filename), 'html.parser')
@@ -61,7 +63,7 @@ def handle_geogebra_tag(geo_tag):
         
     # put html file back into directory
     revised_html = str(zip_soup)
-    with open("foo/geogebra/_"+html_filename, "wb") as f:
+    with open(DOWNLOAD_FOLDER+"/geogebra/_"+html_filename, "wb") as f:
         f.write(revised_html.encode('utf-8'))
     
         
@@ -77,21 +79,21 @@ def handle_geogebra_tag(geo_tag):
             height = re.search('"height":"(\d*)"', tag.text).groups()[0]
         
     # create iframe loading this page
-    geo.name = "iframe"
-    geo.attrs['src'] = 'geogebra/{filename}'.format(filename="_"+html_filename)
-    geo.attrs['width'] = width
-    geo.attrs['height'] = height
-    geo.attrs['scrolling'] = 'no'
+    # TODO: remove old tag
+    geo_tag.name = "iframe"
+    geo_tag.attrs['src'] = 'geogebra/{filename}'.format(filename="_"+html_filename)
+    geo_tag.attrs['width'] = width
+    geo_tag.attrs['height'] = height
+    geo_tag.attrs['scrolling'] = 'no'
     print ("handled {}".format(geo_id))        
 
 def make_local(page_url, config=None):
     
     # TODO 404 handling etc.
-    # TODO remove 'foo'
     try:
-        os.mkdir("foo")
-    except:
-        pass  # TODO trap actual error only
+        os.mkdir(DOWNLOAD_FOLDER)
+    except FileExistsError:
+        pass
     
     if not config:
         config = LocalConfig()
@@ -111,12 +113,20 @@ def make_local(page_url, config=None):
     for geo in geos:
         handle_geogebra_tag(geo)
         
+    # remove headers, footers
+    tags = soup.find_all(lambda tag: tag.name in ["header", "footer"])
+    for tag in tags:
+        if 'global-footer' in tag.attrs['class'] or \
+           'lesson-footer' in tag.attrs['class'] or \
+           'math-header'   in tag.attrs['class'] or \
+           'global-header' in tag.attrs['class']:
+            tag.extract()  # delete it
         
     # note: ensure order of raw_url_list remains the same as other url_lists we later generate.
     # (hopefully there's not two different looking but identical urls -- will lead to duplication)
     raw_url_list = [resource.attrs.get('href') or resource.attrs.get('src') for resource in resources]
     full_url_list = [urljoin(page_url, resource_url) for resource_url in raw_url_list]
-    # TODO: add extensions.
+    # TODO: add extensions to filenames
     hashed_file_list = [hashlib.sha1(resource_url.encode('utf-8')).hexdigest() for resource_url in full_url_list]
     replacement_list = dict(zip(raw_url_list, hashed_file_list))
     for resource in resources:
@@ -127,12 +137,10 @@ def make_local(page_url, config=None):
     
     for url, filename in zip(full_url_list, hashed_file_list):
         print (url)
-        with open("foo/"+filename, "wb") as f:
+        with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
             f.write(session.get(url, verify=False).content)
             
-    with codecs.open("foo/index.html", "w", "utf-8") as f:
-        # str(soup) appears to contain utf-8: "\xe2\x80\x8b" [not bytes] -- soup was based on text at this point, not content
-        
+    with codecs.open(DOWNLOAD_FOLDER+"/index.html", "w", "utf-8") as f:
         f.write(str(soup))
     
 make_local("https://im.openupresources.org/7/students/5/3.html")
