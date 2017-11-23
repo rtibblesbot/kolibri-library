@@ -7,6 +7,7 @@ import codecs
 from io import BytesIO
 from zipfile import ZipFile
 import geogebra
+import re
 session = requests.Session()
 
 class LocalConfig(object):
@@ -59,13 +60,49 @@ def make_local(page_url, config=None):
     geos = soup.find_all("div", {'class': 'geogebra-embed-wrapper'})
     for geo in geos:
         geo_id = geo.attrs['data-ggb_id']
-        # TODO - actually extract zip
+        print ("downloading {}".format(geo_id))
         data = geogebra.get_zip(geo_id)
+        print ("handling {}".format(geo_id))
         geo_zip = BytesIO(data)
         with ZipFile(geo_zip) as zip_file:
-            html_file, = [filename for filename in zip_file.namelist() if '/' not in filename and filename.endswith('.html')]
+            # extract all files
+            zip_file.extractall('foo/geogebra')
+            # re-write html file...
+            html_filename, = [filename for filename in zip_file.namelist() if '/' not in filename and filename.endswith('.html')]
+            zip_soup = BeautifulSoup(zip_file.read(html_filename), 'html.parser')
+        all_tags = zip_soup.find("body").find_all()
+        wanted_tags =  zip_soup.find("body").find_all(lambda tag: tag.name == "script" or ('class' in tag.attrs and 'applet_container' in tag.attrs.get('class')))
+        
+        for tag in all_tags:   # ditch everything in the body, including the script and applet tags, to allow nice flat HTML structure
+            tag.extract()
+        
+        for tag in wanted_tags:  # reinstate bits we want
+            zip_soup.find("body").append(tag)
+            
+        # put html file back into directory
+        revised_html = str(zip_soup)
+        with open("foo/geogebra/_"+html_filename, "wb") as f:
+            f.write(revised_html.encode('utf-8'))
+        
+            
+        # one of these script tags has the height and width we want:
+        # "width":"580","height":"630"
+        
+        width = None
+        height = None
+        for tag in wanted_tags:
+            if '"width"' in tag.text:
+                assert width==None
+                width = re.search('"width":"(\d*)"', tag.text).groups()[0]
+                height = re.search('"height":"(\d*)"', tag.text).groups()[0]
+            
+        # create iframe loading this page
         geo.name = "iframe"
-        geo.attrs['src'] = 'geogebra/{html_file}'.format(geo_id=geo_id, html_file=html_file)
+        geo.attrs['src'] = 'geogebra/{filename}'.format(filename="_"+html_filename)
+        geo.attrs['width'] = width
+        geo.attrs['height'] = height
+        geo.attrs['scrolling'] = 'no'
+        print ("handled {}".format(geo_id))
         
         
         
