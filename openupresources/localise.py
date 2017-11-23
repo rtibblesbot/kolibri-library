@@ -11,18 +11,18 @@ import re
 session = requests.Session()
 
 DOWNLOAD_FOLDER = "foo"
+LINK_ATTRIBUTES = ['href', 'src']
+IGNORE_COMBOS = [['a', 'href']]
 
-class LocalConfig(object):
-    # https://stackoverflow.com/questions/2725156/ for a full list
-    LINK_ATTRIBUTES = ['href', 'src']
-    IGNORE_COMBOS = [['a', 'href']]
 
-def get_resources(soup, config):
+# TODO: handle bad [Are you ready for more?] section icon
+  
+def get_resources(soup):
     def is_valid_tag(tag):
-        if not any(link in tag.attrs for link in config.LINK_ATTRIBUTES):
+        if not any(link in tag.attrs for link in LINK_ATTRIBUTES):
             return False
         # ig
-        for combo in config.IGNORE_COMBOS:
+        for combo in IGNORE_COMBOS:
             if tag.name==combo[0] and combo[1] in tag.attrs:
                 return False
         # do not rewrite self-links
@@ -32,7 +32,7 @@ def get_resources(soup, config):
         return True
             
     resources = set()
-    for attribute in config.LINK_ATTRIBUTES:
+    for attribute in LINK_ATTRIBUTES:
         l = soup.find_all(lambda tag: is_valid_tag(tag))
         resources.update(l)
     return resources
@@ -87,7 +87,7 @@ def handle_geogebra_tag(geo_tag):
     geo_tag.attrs['scrolling'] = 'no'
     print ("handled {}".format(geo_id))        
 
-def make_local(page_url, config=None):
+def make_local(page_url):
     
     # TODO 404 handling etc.
     try:
@@ -95,12 +95,10 @@ def make_local(page_url, config=None):
     except FileExistsError:
         pass
     
-    if not config:
-        config = LocalConfig()
     html_response = session.get(page_url)
     
     soup = BeautifulSoup(html_response.content, 'html.parser')
-    resources = get_resources(soup, config)
+    resources = get_resources(soup)
     # replace mathjax
     # TODO: actually install it
     mathjax, = [resource for resource in resources if 'src' in resource.attrs and "MathJax.js" in resource.attrs.get('src')]
@@ -130,7 +128,7 @@ def make_local(page_url, config=None):
     hashed_file_list = [hashlib.sha1(resource_url.encode('utf-8')).hexdigest() for resource_url in full_url_list]
     replacement_list = dict(zip(raw_url_list, hashed_file_list))
     for resource in resources:
-        for attribute in config.LINK_ATTRIBUTES:
+        for attribute in LINK_ATTRIBUTES:
             attribute_value = resource.attrs.get(attribute)
             if attribute_value in replacement_list.keys():
                 resource.attrs[attribute] = replacement_list[attribute_value]
