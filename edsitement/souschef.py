@@ -69,14 +69,14 @@ def scrap_student_resources():
     STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
     levels = ["Student Resources"]
-    for subject in subject_ids:
+    for subject in subject_ids[2:3]:
         params_url = "all?grade=All&subject={}&type=All".format(subject)
         page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
         LOGGER.info("Scrapping: " + page_url)
         page_contents = downloader.read(page_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
-        for link in resource_links[0:2]:
+        for link in resource_links[0:1]:
             time.sleep(.8)
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
@@ -397,6 +397,7 @@ class StudentResourceIndex(object):
         credits = self.body.find("div", class_="caption")
         credits_elems = credits.find_all("div")
         type_ = credits_elems[0]
+        print("TYPE", type_.text)
         source = credits_elems[1]
         return "<div>{}</div><div>{}</div>".format(type_, source.text)
 
@@ -479,6 +480,8 @@ class ResourceChecker(object):
             return ResourceType("interactives") #response error
         elif file_ == "swf":
             return ResourceType("flash")
+        elif self.resource_url.find("youtu.be") or self.resource_url.find("youtube.com"):
+            return YouTubeResource(self.resource_url)
         else:
             return ResourceType("unknown")
 
@@ -561,6 +564,51 @@ class WebPageSource(ResourceType):
         if self.extra_files is None:
             self.extra_files  = []
         self.extra_files.append(urllib.parse.urljoin(BASE_URL, src))
+
+
+class YouTubeResource(ResourceType):
+    def __init__(self, resource_url, type_name="Youtube"):
+        super(YouTubeResource, self).__init__(type_name=type_name)
+        self.resource_url = resource_url
+
+    def extract(self, url, download=False):
+        import youtube_dl
+
+        ydl_options = {
+            'outtmpl': '%(title)s-%(id)s.%(ext)s',
+            'continuedl': True,
+            # 'quiet' : True,
+            'restrictfilenames':True,
+        }
+
+        with youtube_dl.YoutubeDL(ydl_options) as ydl:
+            try:
+                ydl.add_default_info_extractors()
+                info = ydl.extract_info(url, download=download)
+                print(info['title'])
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,         
+                    youtube_dl.utils.ExtractorError) as e:
+                print('error_occured ' + str(e))
+
+    def to_file(self, description, filename):
+        metadata_dict = {"description": description, 
+            "language": "en", 
+            "license": "CC BY 4.0", 
+            "copyright_holder": "National Endowment for the Humanities", 
+            "author": "", 
+            "source_id": self.resource_url}
+        self.extract(self.resource_url)
+        #page_contents = downloader.read(self.resource_url)
+        #page = BeautifulSoup(page_contents, 'html.parser')
+        #content = page.find("div", id="content")
+        #files = self.remove_external_links(content)
+        #images = self.find_local_images(content)
+        #for file_ in files:
+        #    self.add_extra_files(file_)
+        #for img in images:
+        #    self.add_extra_files(img)
+        #self.write(filename, str(content))
+        return metadata_dict
 
 
 # CLI: This code will run when the sous chef is called from the command line
