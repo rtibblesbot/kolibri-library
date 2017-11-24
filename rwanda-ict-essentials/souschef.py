@@ -16,6 +16,7 @@ import re
 
 from utils.slugify import slugify
 import youtube_dl
+from ricecooker.utils.html import download_file
 
 # Run Constants
 ###########################################################
@@ -39,6 +40,18 @@ os.environ["webdriver.chrome.driver"] = chromedriver
 driver = webdriver.Chrome(chromedriver)
 
 UNIT_BLACKLIST = [ "Unit 00 - Orientation" ]
+
+def make_fully_qualified_url(url):
+    """ Ensure url is qualified """
+    if url.startswith("//"):
+        return "http:" + url
+    elif url.startswith("/"):
+        return "http://elearning.reb.rw" + url
+    assert url.startswith("http"), "Bad URL (relative to unknown location): " + url
+    return url
+
+
+
 # Main Scraping Method 
 ###########################################################
 def scrape_source(writer):
@@ -50,9 +63,12 @@ def scrape_source(writer):
 
     soup = BeautifulSoup(content, 'html.parser')
     units = [unit for unit in get_units_from_site(soup) if not blacklisted_unit(unit['name'])]
+    first = True 
     for u in units:
         print(u['name']) 
-        #parse_unit(writer, u['name'], u['link'])
+        if first:
+          parse_unit(writer, u['name'], u['link'])
+        first = False
     # TODO: Replace line with scraping code
     raise NotImplementedError("Scraping method not implemented")
 
@@ -83,7 +99,10 @@ def parse_unit(writer, name, link):
     PATH.open_folder(folder_name(name))
 
     sections = page.find_all('li', id = re.compile('section-')) 
-    writer.add_folder(str(PATH), name, "", "TODO: Generate Description")
+    description = description_unit(page) 
+    recommended_time = get_recommended_time(page.find('li', id = "section-0"))
+    full_description = description + "(" + recommended_time + ")"
+    writer.add_folder(str(PATH), name, "", full_description) 
     for section in sections:
         print(extract_title(section))
         section_type = clasify_block(section) 
@@ -100,6 +119,11 @@ def blacklisted_unit(unit_title):
             return True 
     return False 
 
+def description_unit(unit):
+    unit_competency = unit.find("p", text=re.compile("Unit Competency"))
+    if unit_competency: 
+        return unit_competency.find_next_sibling('p').get_text()
+    return ""
 # Generating HTML5 app
 ##########################
 
@@ -123,9 +147,27 @@ def generate_html5app_from_section(section):
     print("\t" + str(title) + " (" + section.get('id') + ")")
     filename = html5app_path_from_title(title)
     with HTMLWriter(filename) as html5zip:
+        # Replace tags with local content
+        add_images_to_zip(html5zip, section)
         content = section.encode_contents
         html5zip.write_index_contents("<html><head></head><body>{}</body></html>".format(content))   
     return filename 
+
+def add_images_to_zip(zipwriter, section):
+    images = replace_tags_with_local_content(section)
+    for image in images:
+        zipwriter.write_file(image["src"])
+    return 0
+
+def replace_tags_with_local_content(section):
+    images = section.find_all("img") 
+    for image in images:
+        try:
+           relpath, _ = download_file(make_fully_qualified_url(image["src"]), "./assets")
+           image["src"] = os.path.join("./assets", relpath)
+        except Exception:
+           image["src"] = "#"
+    return images 
 
 def extract_title(section):
     page_title = section.find("h3", class_="sectionname")
@@ -154,9 +196,7 @@ def folder_name(unit_name):
     return re.search('(.+?) - .*', unit_name).group(1)
 
 def print_modules(section):
-    img = section.find("img", src=re.compile("[Cc]lock"))
-    if img:
-        print(get_recommended_time(img)) 
+    print(get_recommended_time(section)) 
     return 0 
 
 def clasify_block(module):
@@ -170,11 +210,15 @@ def real_title(title):
     filename = title.get("src").split("/")[-1]
     return IMG_LOOKUP[filename]
 
-def get_recommended_time(title):
-    if title.parent.get_text():
-        return title.parent.get_text().strip
+def get_recommended_time(section):
+    img = section.find("img", src=re.compile("[Cc]lock"))
+    if not img:
+        return ""
+    pattern = re.compile("(hour|minute)")
+    if pattern.match(img.parent.get_text()):
+        return img.parent.get_text().strip()
     else:
-        return title.parent.parent.get_text().strip
+        return img.parent.parent.get_text().strip()
 
 def is_valid_title(title):
     """
