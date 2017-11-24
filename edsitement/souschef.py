@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Edsitement is organized as follow:
+- There is two top levels set of topics, Lesson Plans and Student Resources
+- Each topic has lessons and resources
+- Finally, each lesson or resource has contents like images, videos, pdfs and html5 files.
+"""
+
 import os
 import sys
 from ricecooker.utils import data_writer, path_builder, downloader, html_writer
@@ -26,6 +33,7 @@ import urllib.parse
 import time
 from collections import OrderedDict
 import itertools
+import requests
 
 # Additional Constants
 ################################################################################
@@ -36,7 +44,17 @@ LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
+STUDENT_RESOURCE_TOPIC_INIT = 0
+STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_INIT = 0
+STUDENT_RESOURCE_END = 4
 
+LESSON_PLANS_TOPIC_INIT = 0
+LESSON_PLANS_TOPIC_END = 4
+LESSON_PLANS_INIT = 0
+LESSON_PLANS_END = 4
+
+DOWNLOAD_VIDEOS = False
 
 # Main Scraping Method
 ################################################################################
@@ -45,7 +63,7 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    #scrap_lesson_plans()
+    scrap_lesson_plans()
     scrap_student_resources()
 
 
@@ -65,18 +83,17 @@ def scrap_lesson_plans():
 
 
 def scrap_student_resources():
-    import requests
     STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
     levels = ["Student Resources"]
-    for subject in subject_ids[2:3]:
+    for subject in subject_ids[STUDENT_RESOURCE_TOPIC_INIT:STUDENT_RESOURCE_TOPIC_END]:
         params_url = "all?grade=All&subject={}&type=All".format(subject)
         page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
         LOGGER.info("Scrapping: " + page_url)
         page_contents = downloader.read(page_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
-        for link in resource_links[0:1]:
+        for link in resource_links[STUDENT_RESOURCE_INIT:STUDENT_RESOURCE_END]:
             time.sleep(.8)
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
@@ -90,7 +107,6 @@ def scrap_student_resources():
                     filename="/tmp/student-resource-"+topic_name+".zip",
                     levels=levels)
                 student_resource.to_file()
-        break
 
 
 def lesson_plans_subject(page_url):
@@ -105,14 +121,14 @@ def lesson_plans_subject(page_url):
         yield subtopic_url, ["Lesson Plans or For Teachers"]
 
 def lesson_plans(lesson_plans_subject):
-    for lesson_url, levels in itertools.islice(lesson_plans_subject, 0, 4): #MAX NUMBER OF SUBJECTS
+    for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_TOPIC_INIT, LESSON_PLANS_TOPIC_END): #MAX NUMBER OF SUBJECTS
         page_contents = downloader.read(lesson_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         sub_lessons = page.find_all("div", class_="lesson-plan-link")
         title = page.find("h2", class_="subject-area").text
         LOGGER.info("- Subject:"+title)
         LOGGER.info("- [url]:"+lesson_url)
-        for sub_lesson in itertools.islice(sub_lessons, 0, 2): #MAX NUMBER OF LESSONS
+        for sub_lesson in itertools.islice(sub_lessons, LESSON_PLANS_INIT, LESSON_PLANS_END): #MAX NUMBER OF LESSONS
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
             time.sleep(.8)
@@ -358,7 +374,7 @@ class LessonPlan(object):
         self.resources.to_file()
         metadata_dict = {"description": "", 
             "language": "en", 
-            "license": "CC BY 4.0", 
+            "license": licenses.CC_BY, 
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.source}
@@ -397,7 +413,7 @@ class StudentResourceIndex(object):
         credits = self.body.find("div", class_="caption")
         credits_elems = credits.find_all("div")
         type_ = credits_elems[0]
-        print("TYPE", type_.text)
+        LOGGER.info(type_.text)
         source = credits_elems[1]
         return "<div>{}</div><div>{}</div>".format(type_, source.text)
 
@@ -450,7 +466,10 @@ class StudentResourceIndex(object):
                 writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
                 PATH.set(*(levels+["RESOURCES"]))
                 for file_src in resource.extra_files:
-                    writer.add_file(str(PATH), get_name_file_no_ext(file_src), file_src, **metadata_dict)
+                    try:
+                        writer.add_file(str(PATH), get_name_file_no_ext(file_src), file_src, **metadata_dict)
+                    except requests.exceptions.HTTPError as e:
+                        LOGGER.info("Error: {}".format(e))
                 PATH.go_to_parent_folder()
             PATH.go_to_parent_folder()
 
@@ -480,7 +499,7 @@ class ResourceChecker(object):
             return ResourceType("interactives") #response error
         elif file_ == "swf":
             return ResourceType("flash")
-        elif self.resource_url.find("youtu.be") or self.resource_url.find("youtube.com"):
+        elif self.resource_url.find("youtu.be") != -1 or self.resource_url.find("youtube.com") != -1:
             return YouTubeResource(self.resource_url)
         else:
             return ResourceType("unknown")
@@ -495,6 +514,14 @@ class ResourceType(object):
     def to_file(self, description, filename):
         pass
 
+    def add_extra_files(self, src, local=False):
+        if self.extra_files is None:
+            self.extra_files  = []
+        if local is True:
+            self.extra_files.append(src)
+        else:
+            self.extra_files.append(urllib.parse.urljoin(BASE_URL, src))
+
 
 class FileSource(ResourceType):
     def __init__(self, resource_url, type_name="File"):
@@ -504,7 +531,7 @@ class FileSource(ResourceType):
     def to_file(self, description, filename):
         metadata_dict = {"description": description, 
             "language": "en", 
-            "license": "CC BY 4.0", 
+            "license": licenses.CC_BY, 
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
@@ -524,7 +551,7 @@ class WebPageSource(ResourceType):
     def to_file(self, description, filename):
         metadata_dict = {"description": description, 
             "language": "en", 
-            "license": "CC BY 4.0", 
+            "license": licenses.CC_BY, 
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
@@ -560,32 +587,33 @@ class WebPageSource(ResourceType):
             img_tag.replaceWithChildren()
         return images
 
-    def add_extra_files(self, src):
-        if self.extra_files is None:
-            self.extra_files  = []
-        self.extra_files.append(urllib.parse.urljoin(BASE_URL, src))
-
 
 class YouTubeResource(ResourceType):
     def __init__(self, resource_url, type_name="Youtube"):
         super(YouTubeResource, self).__init__(type_name=type_name)
         self.resource_url = resource_url
 
-    def extract(self, url, download=False):
+    def process_file(self, url, download=False):
         import youtube_dl
+        from ricecooker.classes.files import download_from_web, config
 
         ydl_options = {
-            'outtmpl': '%(title)s-%(id)s.%(ext)s',
+            #'outtmpl': '%(title)s-%(id)s.%(ext)s',
+            #'format': 'bestaudio/best',
+            'no_warnings': True,
             'continuedl': True,
-            # 'quiet' : True,
             'restrictfilenames':True,
+            'quiet': False,
         }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
             try:
                 ydl.add_default_info_extractors()
-                info = ydl.extract_info(url, download=download)
-                print(info['title'])
+                info = ydl.extract_info(url, download=False)
+                if info["license"] == "Standard YouTube License" and download is True:
+                    filename = download_from_web(url, ydl_options, ext=".{}".format(file_formats.MP4))
+                    filepath = config.get_storage_path(filename)
+                    self.add_extra_files(filepath, local=True)
             except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,         
                     youtube_dl.utils.ExtractorError) as e:
                 print('error_occured ' + str(e))
@@ -593,21 +621,11 @@ class YouTubeResource(ResourceType):
     def to_file(self, description, filename):
         metadata_dict = {"description": description, 
             "language": "en", 
-            "license": "CC BY 4.0", 
+            "license": licenses.CC_BY, 
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
-        self.extract(self.resource_url)
-        #page_contents = downloader.read(self.resource_url)
-        #page = BeautifulSoup(page_contents, 'html.parser')
-        #content = page.find("div", id="content")
-        #files = self.remove_external_links(content)
-        #images = self.find_local_images(content)
-        #for file_ in files:
-        #    self.add_extra_files(file_)
-        #for img in images:
-        #    self.add_extra_files(img)
-        #self.write(filename, str(content))
+        self.process_file(self.resource_url, download=DOWNLOAD_VIDEOS)
         return metadata_dict
 
 
