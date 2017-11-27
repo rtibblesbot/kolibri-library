@@ -181,7 +181,7 @@ def html5app_filename(title):
     return "{}.zip".format(slugify(title))
 
 def html5app_path_from_title(title):
-    return "./{}".format(html5app_filename)
+    return "./{}".format(html5app_filename(title))
 
 def folder_name(unit_name):
     """ 
