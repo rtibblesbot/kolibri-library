@@ -21,14 +21,16 @@ from ricecooker.utils.html import download_file
 # Run Constants
 ###########################################################
 
-CHANNEL_NAME = "RME ICT Essentials for Teachers"              # Name of channel
+CHANNEL_NAME = "RME_ICT_Essentials_for_Teachers"              # Name of channel
 CHANNEL_SOURCE_ID = "rme-ict-essentials"      # Channel's unique id
-CHANNEL_DOMAIN = "content@learningequality.org"					# Who is providing the content
+CHANNEL_DOMAIN = "elearning.reb.rw"					# Who is providing the content
 CHANNEL_LANGUAGE = "en"		# Language of channel
 CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
 PATH = path_builder.PathBuilder(channel_name=CHANNEL_NAME)  # Keeps track of path to write to csv
 WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)), os.path.sep, CHANNEL_NAME) # Where to generate zip file
+CHANNEL_LICENSE = licenses.CC_BY_SA
+CHANNEL_LICENSE_OWNER = "Ministry of Education, Rwanda"
 
 
 # Additional Constants 
@@ -70,7 +72,7 @@ def scrape_source(writer):
           parse_unit(writer, u['name'], u['link'])
         first = False
     # TODO: Replace line with scraping code
-    raise NotImplementedError("Scraping method not implemented")
+    # raise NotImplementedError("Scraping method not implemented")
 
 # Helper Methods 
 ###########################################################
@@ -132,13 +134,13 @@ def add_video(writer, section):
      video = section.find("iframe", src=re.compile("youtube"))
      video_filename = download_video(video.get('src'))
      if video_filename:
-         writer.add_file(str(PATH), title, str("./") + str(video_filename), license="TODO", copyright_holder = "TODO")
+         writer.add_file(str(PATH), title, str("./") + str(video_filename), license= CHANNEL_LICENSE, copyright_holder = CHANNEL_LICENSE_OWNER)
 
 def add_html5app(writer, section):
      title = extract_title(section)
      filename = generate_html5app_from_section(section)
      print_modules(section)
-     writer.add_file(str(PATH), html5app_filename(title), html5app_path_from_title(title), license="TODO", copyright_holder = "TODO")
+     writer.add_file(str(PATH), html5app_filename(title), html5app_path_from_title(title), license = CHANNEL_LICENSE, copyright_holder = CHANNEL_LICENSE_OWNER)
      os.remove(html5app_path_from_title(title))
 
 
