@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import hashlib
 import os
 import codecs
@@ -14,8 +14,10 @@ DOWNLOAD_FOLDER = "foo"
 LINK_ATTRIBUTES = ['href', 'src']
 IGNORE_COMBOS = [['a', 'href']]
 
-
 # TODO: handle bad [Are you ready for more?] section icon
+
+def create_folder_name(url):
+    return (urlparse(url).path.strip('/').replace("/", "_").replace(".html", ""))
   
 def get_resources(soup):
     def is_valid_tag(tag):
@@ -134,13 +136,30 @@ def make_local(page_url):
                 resource.attrs[attribute] = replacement_list[attribute_value]
     
     for url, filename in zip(full_url_list, hashed_file_list):
-        print (url)
+        #print (url)
         with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
             f.write(session.get(url, verify=False).content)
             
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "w", "utf-8") as f:
         f.write(str(soup))
     
-make_local("https://im.openupresources.org/7/students/5/3.html")
-print("END")
+grades = [6,7,8]
+units = [1,2,3,4,5,6,7,8]
+subunits = [1,2,3,4,5,6]
+
+# 7 5 3
+placeholder_url = "https://im.openupresources.org/{}/students/{}/{}.html"
+for grade in grades:
+    for unit in units:
+        for subunit in subunits:
+            target_url = placeholder_url.format(grade, unit, subunit)
+            DOWNLOAD_FOLDER = create_folder_name(target_url)
+            try:
+                make_local(target_url)
+            except Exception as e:
+                print ("*** FAILURE ON {}, {}".format(target_url, str(e)))
+                with open("fail.log", "a") as f:
+                    f.write("{}:{}".format(target_url, str(e)))
+                
+print("END") 
 

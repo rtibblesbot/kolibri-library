@@ -16,6 +16,7 @@ CACHE_DIR = 'cache_dir'
 logged_in = False
 
 def login():
+    global logged_in
     response = session.get(LOGIN_URL)
     soup = BeautifulSoup(response.content, "html.parser")
     inputs = (soup.find("form", {'id':'form_geogebra_login'}).find_all("input"))
