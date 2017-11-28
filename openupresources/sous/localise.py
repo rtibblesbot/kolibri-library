@@ -6,8 +6,10 @@ import os
 import codecs
 from io import BytesIO
 from zipfile import ZipFile
+import shutil
 import geogebra
 import re
+
 session = requests.Session()
 
 DOWNLOAD_FOLDER = "foo"
@@ -16,9 +18,15 @@ IGNORE_COMBOS = [['a', 'href']]
 
 # TODO: handle bad [Are you ready for more?] section icon
 
+
+def test_login():
+    test_response = session.get("https://im.openupresources.org/7/teachers/5.html")
+    assert "sign up as an educator" not in test_response.text
+    assert "Rational Number" in test_response.text
+
 def create_folder_name(url):
     return (urlparse(url).path.strip('/').replace("/", "_").replace(".html", ""))
-  
+
 def get_resources(soup):
     def is_valid_tag(tag):
         if not any(link in tag.attrs for link in LINK_ATTRIBUTES):
@@ -32,7 +40,7 @@ def get_resources(soup):
         if href and href[0]== "#":
             return False
         return True
-            
+
     resources = set()
     for attribute in LINK_ATTRIBUTES:
         l = soup.find_all(lambda tag: is_valid_tag(tag))
@@ -56,22 +64,22 @@ def handle_geogebra_tag(geo_tag):
         zip_soup = BeautifulSoup(zip_file.read(html_filename), 'html.parser')
     all_tags = zip_soup.find("body").find_all()
     wanted_tags =  zip_soup.find("body").find_all(lambda tag: tag.name == "script" or ('class' in tag.attrs and 'applet_container' in tag.attrs.get('class')))
-    
+
     for tag in all_tags:   # ditch everything in the body, including the script and applet tags, to allow nice flat HTML structure
         tag.extract()
-    
+
     for tag in wanted_tags:  # reinstate bits we want
         zip_soup.find("body").append(tag)
-        
+
     # put html file back into directory
     revised_html = str(zip_soup)
     with open(DOWNLOAD_FOLDER+"/geogebra/_"+html_filename, "wb") as f:
         f.write(revised_html.encode('utf-8'))
-    
-        
+
+
     # one of these script tags has the height and width we want:
     # "width":"580","height":"630"
-    
+
     width = None
     height = None
     for tag in wanted_tags:
@@ -79,7 +87,7 @@ def handle_geogebra_tag(geo_tag):
             assert width==None
             width = re.search('"width":"(\d*)"', tag.text).groups()[0]
             height = re.search('"height":"(\d*)"', tag.text).groups()[0]
-        
+
     # create iframe loading this page
     # TODO: remove old tag
     geo_tag.name = "iframe"
@@ -87,41 +95,47 @@ def handle_geogebra_tag(geo_tag):
     geo_tag.attrs['width'] = width
     geo_tag.attrs['height'] = height
     geo_tag.attrs['scrolling'] = 'no'
-    print ("handled {}".format(geo_id))        
+    print ("handled {}".format(geo_id))
 
 def make_local(page_url):
-    
+
     # TODO 404 handling etc.
     try:
         os.mkdir(DOWNLOAD_FOLDER)
     except FileExistsError:
         pass
-    
+
     html_response = session.get(page_url)
-    
+    print (html_response.url)
+
     soup = BeautifulSoup(html_response.content, 'html.parser')
     resources = get_resources(soup)
     # replace mathjax
     # TODO: actually install it
-    mathjax, = [resource for resource in resources if 'src' in resource.attrs and "MathJax.js" in resource.attrs.get('src')]
-    resources.remove(mathjax)
-    mathjax.attrs['src'] = 'mathjax/MathJax.js'
-    
+    try:
+        mathjax, = [resource for resource in resources if 'src' in resource.attrs and "MathJax.js" in resource.attrs.get('src')]
+    except ValueError:  # probably no mathjax
+        print ("Unable to find mathjax on {}".format(page_url))
+    else:   # ValueError not raised... replace mathjax
+        resources.remove(mathjax)
+        mathjax.attrs['src'] = 'mathjax/MathJax.js'
+
     # replace geogebra
     """<div class="geogebra-embed-wrapper" data-ggb_id="Vxv48Gtz">...</div>"""
     geos = soup.find_all("div", {'class': 'geogebra-embed-wrapper'})
     for geo in geos:
         handle_geogebra_tag(geo)
-        
+
     # remove headers, footers
     tags = soup.find_all(lambda tag: tag.name in ["header", "footer"])
     for tag in tags:
-        if 'global-footer' in tag.attrs['class'] or \
-           'lesson-footer' in tag.attrs['class'] or \
-           'math-header'   in tag.attrs['class'] or \
-           'global-header' in tag.attrs['class']:
-            tag.extract()  # delete it
-        
+        if 'class' in tag.attrs:
+            if 'global-footer' in tag.attrs['class'] or \
+               'lesson-footer' in tag.attrs['class'] or \
+               'math-header'   in tag.attrs['class'] or \
+               'global-header' in tag.attrs['class']:
+                tag.extract()  # delete it
+
     # note: ensure order of raw_url_list remains the same as other url_lists we later generate.
     # (hopefully there's not two different looking but identical urls -- will lead to duplication)
     raw_url_list = [resource.attrs.get('href') or resource.attrs.get('src') for resource in resources]
@@ -134,32 +148,37 @@ def make_local(page_url):
             attribute_value = resource.attrs.get(attribute)
             if attribute_value in replacement_list.keys():
                 resource.attrs[attribute] = replacement_list[attribute_value]
-    
+
     for url, filename in zip(full_url_list, hashed_file_list):
         #print (url)
         with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
             f.write(session.get(url, verify=False).content)
-            
+
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "w", "utf-8") as f:
         f.write(str(soup))
-    
-grades = [6,7,8]
-units = [1,2,3,4,5,6,7,8]
-subunits = [1,2,3,4,5,6]
+        
+    # create zip file
+    return shutil.make_archive("__"+DOWNLOAD_FOLDER, "zip", # automatically adds .zip extension!
+                        DOWNLOAD_FOLDER)
 
-# 7 5 3
-placeholder_url = "https://im.openupresources.org/{}/students/{}/{}.html"
-for grade in grades:
-    for unit in units:
-        for subunit in subunits:
-            target_url = placeholder_url.format(grade, unit, subunit)
-            DOWNLOAD_FOLDER = create_folder_name(target_url)
-            try:
-                make_local(target_url)
-            except Exception as e:
-                print ("*** FAILURE ON {}, {}".format(target_url, str(e)))
-                with open("fail.log", "a") as f:
-                    f.write("{}:{}".format(target_url, str(e)))
-                
-print("END") 
+if __name__ == "__main__":
+    grades = [6]#,7,8]
+    units = [1]#,2,3,4,5,6,7,8]
+    subunits = [1]#,2,3,4,5,6]
+
+    # 7 5 3
+    placeholder_url = "https://im.openupresources.org/{}/students/{}/{}.html"
+    for grade in grades:
+        for unit in units:
+            for subunit in subunits:
+                target_url = placeholder_url.format(grade, unit, subunit)
+                DOWNLOAD_FOLDER = create_folder_name(target_url)
+                try:
+                    make_local(target_url)
+                except Exception as e:
+                    print ("*** FAILURE ON {}, {}".format(target_url, str(e)))
+                    with open("fail.log", "a") as f:
+                        f.write("{}:{}".format(target_url, str(e)))
+
+    print("END")
 

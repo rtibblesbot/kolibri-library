@@ -40,7 +40,7 @@ def get_canonical_id(file_id):
 
 def get_ggb(file_id, save_target=None, cache_ok=True):
     return get_file(file_id, save_target, GGB_URL, cache_ok)
-    
+
 def get_zip(file_id, save_target=None, cache_ok=True):
     return get_file(file_id, save_target, ZIP_URL, cache_ok)
 
@@ -60,7 +60,7 @@ def get_file(file_id, save_target, url_template, cache_ok):
             pass # not in cache, will be saved later.
     if not logged_in:
         login()
-            
+
     canonical_file_id = get_canonical_id(file_id)
     response = session.get(url_template.format(file_id=canonical_file_id))
     response.raise_for_status()
@@ -68,7 +68,7 @@ def get_file(file_id, save_target, url_template, cache_ok):
         with open(save_target, "wb") as f:
             f.write(response.content)
     return response.content
-    
+
 if __name__=="__main__":
     print (get_zip('dZT4v7KZ')[:5])
     print (get_canonical_id('Vxv48Gtz'))
