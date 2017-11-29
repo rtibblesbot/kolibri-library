@@ -45,14 +45,14 @@ LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
 STUDENT_RESOURCE_TOPIC_INIT = 0#0
-STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
-STUDENT_RESOURCE_INIT = 20#0
-STUDENT_RESOURCE_END = 30#4
+STUDENT_RESOURCE_TOPIC_END = 1 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_INIT = 0
+STUDENT_RESOURCE_END = 1
 
 LESSON_PLANS_TOPIC_INIT = 0
-LESSON_PLANS_TOPIC_END = 4
+LESSON_PLANS_TOPIC_END = 1
 LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = 4
+LESSON_PLANS_END = 1
 
 DOWNLOAD_VIDEOS = False
 
@@ -64,7 +64,7 @@ def scrape_source(writer):
         Returns: None
     """
     scrap_lesson_plans()
-    scrap_student_resources()
+    #scrap_student_resources()
 
 
 # Helper Methods
@@ -147,6 +147,11 @@ def get_name_file_no_ext(url):
     return ".".join(path.split(".")[:-1])
 
 
+def remove_links(content):
+    for link in content.find_all("a"):
+        link.replaceWithChildren()
+
+
 class Menu(object):
     def __init__(self, page, filename=None, id_=None):
         self.body = page.find("div", id=id_)
@@ -155,11 +160,11 @@ class Menu(object):
         self.menu_titles(self.body.find_all("h4"))
 
     def write(self, content):
-        with html_writer.HTMLWriter(self.filename) as zipper:
+        with html_writer.HTMLWriter(self.filename, "w") as zipper:
             zipper.write_index_contents(content)
 
     def to_file(self):
-        self.write("<html><body><ul>"+self.to_html()+"</ul></body></html>")
+        self.write('<html><body><meta charset="UTF-8"></head><ul>'+self.to_html()+'</ul></body></html>')
 
     def menu_titles(self, titles):
         for title in titles:
@@ -180,7 +185,7 @@ class Menu(object):
 
     def to_html(self):
         return "".join(
-            '<li><a href="{filename}">{text}</a></li>'.format(**e) for e in self.menu.values())
+            '<li><a href="files/{filename}">{text}</a></li>'.format(**e) for e in self.menu.values())
 
 
 class LessonSection(object):
@@ -202,14 +207,17 @@ class LessonSection(object):
 
     def write(self, filename, content):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
-            zipper.write_contents(filename, content)
+            zipper.write_contents(filename, content, directory="files")
 
     def to_file(self, filename):
         if self.body is not None and filename is not None:
+            content = self.get_content()
             if self.title:
-                self.write(filename, "<html><body>"+self.title+""+self.get_content()+"<body></html>")
-            else:
-                self.write(filename, "<html><body>"+self.get_content()+"<body></html>")
+                content = self.title+""+content
+                
+            self.write(filename, '<html><head><meta charset="UTF-8"></head><body>{}<body></html>'.format(
+                content
+            ))
 
 
 class Introduction(LessonSection):
@@ -218,7 +226,9 @@ class Introduction(LessonSection):
             id_="sect-introduction", menu_name="introduction")
 
     def get_content(self):
-        content = self.body.find("div", class_="text").findChildren("p")
+        content = self.body.find("div", class_="text")
+        remove_links(content)
+        content = content.findChildren("p")
         return "".join([str(p) for p in content])
 
 
@@ -228,7 +238,9 @@ class GuidingQuestions(LessonSection):
             id_="sect-questions", menu_name="guiding_questions")
 
     def get_content(self):
-        content = self.body.find("div", class_="text").findChildren("ul")
+        content = self.body.find("div", class_="text")
+        remove_links(content)
+        content = content.findChildren("ul")
         return "".join([str(p) for p in content])
 
 
@@ -238,7 +250,9 @@ class LearningObjetives(LessonSection):
             id_="sect-objectives", menu_name="learning_objectives")
 
     def get_content(self):
-        content = self.body.find("div", class_="text").findChildren("ul")
+        content = self.body.find("div", class_="text")
+        remove_links(content)
+        content = content.findChildren("ul")
         return "".join([str(p) for p in content])
 
 
@@ -248,7 +262,9 @@ class Background(LessonSection):
             id_="sect-background", menu_name="background")
 
     def get_content(self):
-        content = self.body.find("div", class_="text").findChildren("p")
+        content = self.body.find("div", class_="text")
+        remove_links(content)
+        content = content.findChildren("p")
         return "".join([str(p) for p in content])
 
 
@@ -258,7 +274,9 @@ class PreparationInstructions(LessonSection):
             id_="sect-preparation", menu_name="preparation_instructions")
 
     def get_content(self):
-        content = self.body.find("div", class_="text").findChildren("ul")
+        content = self.body.find("div", class_="text")
+        remove_links(content)
+        content = content.findChildren("ul")
         return "".join([str(p) for p in content])
 
 
@@ -269,6 +287,7 @@ class LessonActivities(LessonSection):
 
     def get_content(self):
         content = self.body.find("div", class_="text")
+        remove_links(content)
         return "".join([str(p) for p in content])
 
 
@@ -279,6 +298,18 @@ class Assessment(LessonSection):
 
     def get_content(self):
         content = self.body.find("div", class_="text")
+        remove_links(content)
+        return "".join([str(p) for p in content])
+
+
+class ExtendingTheLesson(LessonSection):
+    def __init__(self, page, filename=None):
+        super(ExtendingTheLesson, self).__init__(page, filename=filename, 
+            id_="sect-extending", menu_name="extending_the_lesson")
+
+    def get_content(self):
+        content = self.body.find("div", class_="text")
+        remove_links(content)
         return "".join([str(p) for p in content])
 
 
@@ -288,6 +319,7 @@ class TheBasics(LessonSection):
             id_="sect-thebasics", menu_name="the_basics")
 
     def get_content(self):
+        remove_links(self.body)
         return str(self.body)
 
 
@@ -303,6 +335,7 @@ class Resources(object):
 
     def get_credits(self):
         resource_img = self.body.find("li", class_="lesson-image")
+        remove_links(resource_img)
         credits = "".join(map(str, resource_img.findChildren("p")))
         return credits
 
@@ -324,7 +357,7 @@ class Resources(object):
             path = zipper.write_url(img_url, filename)
 
     def write_index(self, content):
-        with html_writer.HTMLWriter(self.filename, "a") as zipper:   
+        with html_writer.HTMLWriter(self.filename, "w") as zipper:   
             zipper.write_index_contents(content)
 
     def write(self, content, img_url, filename):
@@ -335,7 +368,8 @@ class Resources(object):
         img_url = self.get_img_url()
         filename = get_name_file(img_url)
         img_tag = "<img src='{}'>...".format(filename)
-        html = "<html><body>{}{}</body></html>".format(img_tag, self.get_credits())
+        html = '<html><head><meta charset="UTF-8"></head><body>{}{}</body></html>'.format(
+            img_tag, self.get_credits())
         self.write(html, img_url, filename)
 
 
@@ -353,6 +387,7 @@ class LessonPlan(object):
             PreparationInstructions,
             LessonActivities,
             Assessment,
+            ExtendingTheLesson,
             TheBasics
         ]
         self.resources = Resources(self.page, filename=resources_filename)
@@ -410,7 +445,8 @@ class StudentResourceIndex(object):
         resource_img = self.body.find("div", class_="image")
         if resource_img is not None:
             img_tag = resource_img.find("img")
-            return img_tag["src"]
+            if img_tag is not None:
+                return img_tag["src"]
 
     def get_credits(self):
         credits = self.body.find("div", class_="caption")
@@ -446,7 +482,7 @@ class StudentResourceIndex(object):
             self.write_img(img_url, filename)      
 
     def to_file(self):
-        #img_url = self.get_img_url()
+        img_url = self.get_img_url()
         #if img_url is not None:
         #    filename_img = get_name_file(img_url)
         #    img_tag = "<img src='{}'>...".format(filename_img)
@@ -464,10 +500,14 @@ class StudentResourceIndex(object):
         metadata_dict = resource.to_file(description, self.filename)
         if metadata_dict is not None:
             PATH.set(*levels)
+            if img_url is not None:
+                metadata_dict["thumbnail"] = str(PATH)+"/RESOURCES/"+get_name_file_no_ext(img_url)
             writer.add_file(str(PATH), "THE LESSON", self.filename, **metadata_dict)
             if resource.resources_files is not None:
                 writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
                 PATH.set(*(levels+["RESOURCES"]))
+                if img_url is not None:
+                    writer.add_file(str(PATH), get_name_file_no_ext(img_url), img_url, **metadata_dict)
                 for file_src, file_metadata in resource.resources_files:
                     try:
                         meta = file_metadata if len(file_metadata) > 0 else metadata_dict
@@ -612,7 +652,8 @@ class WebPageSource(ResourceType):
                 self.add_resources_files(file_, metadata_files)
             #for img in images:
             #    self.add_resources_files(img)
-            self.write(str(content), filepath)
+            self.write('<html><body><head><meta charset="UTF-8"></head>'+\
+                        str(content)+'</body><html>', filepath)
             return metadata_dict
 
     def remove_external_links(self, content):
