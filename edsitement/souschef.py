@@ -44,17 +44,18 @@ LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
-STUDENT_RESOURCE_TOPIC_INIT = 1#0
-STUDENT_RESOURCE_TOPIC_END = 2 #MAX 4 TOPICS OR NONE
-STUDENT_RESOURCE_INIT = 3
-STUDENT_RESOURCE_END = 4
+STUDENT_RESOURCE_TOPIC_INIT = 0#0
+STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_INIT = 0
+STUDENT_RESOURCE_END = 20
 
-LESSON_PLANS_TOPIC_INIT = 0
-LESSON_PLANS_TOPIC_END = 1
-LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = 1
+LESSON_PLANS_TOPIC_INIT = 2
+LESSON_PLANS_TOPIC_END = 3
+LESSON_PLANS_INIT = 280
+LESSON_PLANS_END = None
 
 DOWNLOAD_VIDEOS = False
+TIME_SLEEP = .2
 
 # Main Scraping Method
 ################################################################################
@@ -63,8 +64,8 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    #scrap_lesson_plans()
-    scrap_student_resources()
+    scrap_lesson_plans()
+    #scrap_student_resources()
 
 
 # Helper Methods
@@ -73,13 +74,17 @@ def scrap_lesson_plans():
         LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
         for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
             subtopic_name = lesson_plan_url.split("/")[-1]
-            page_contents = downloader.read(lesson_plan_url, loadjs=False)
-            page = BeautifulSoup(page_contents, 'html5lib')
-            lesson_plan = LessonPlan(page, 
-                lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
-                resources_filename="/tmp/resources-"+subtopic_name+".zip")
-            lesson_plan.source = lesson_plan_url
-            lesson_plan.to_file(PATH, levels)
+            try:
+                page_contents = downloader.read(lesson_plan_url, loadjs=False)
+            except requests.exceptions.HTTPError as e:
+                LOGGER.info("Error: {}".format(e))
+            else:
+                page = BeautifulSoup(page_contents, 'html5lib')
+                lesson_plan = LessonPlan(page, 
+                    lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
+                    resources_filename="/tmp/resources-"+subtopic_name+".zip")
+                lesson_plan.source = lesson_plan_url
+                lesson_plan.to_file(PATH, levels)
 
 
 def scrap_student_resources():
@@ -94,7 +99,7 @@ def scrap_student_resources():
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
         for link in resource_links[STUDENT_RESOURCE_INIT:STUDENT_RESOURCE_END]:
-            time.sleep(.8)
+            time.sleep(TIME_SLEEP)
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
                 try:
@@ -132,7 +137,7 @@ def lesson_plans(lesson_plans_subject):
         for sub_lesson in itertools.islice(sub_lessons, LESSON_PLANS_INIT, LESSON_PLANS_END): #MAX NUMBER OF LESSONS
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
-            time.sleep(.8)
+            time.sleep(TIME_SLEEP)
             yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
 
 
@@ -148,8 +153,21 @@ def get_name_file_no_ext(url):
 
 
 def remove_links(content):
-    for link in content.find_all("a"):
-        link.replaceWithChildren()
+    if content is not None:
+        for link in content.find_all("a"):
+            link.replaceWithChildren()
+
+
+def check_license(content):
+    import re
+    print("LICENSE:", content.body.findAll(text=re.compile('license', flags=re.IGNORECASE)))
+    print("COPYRIGHT:", content.body.findAll(text=re.compile('copyright', flags=re.IGNORECASE)))
+
+
+def if_file_exists(filepath):
+    from pathlib import Path
+    file_ = Path(filepath)
+    return file_.is_file()
 
 
 class Menu(object):
@@ -330,14 +348,16 @@ class Resources(object):
 
     def get_img_url(self):
         resource_img = self.body.find("li", class_="lesson-image")
-        img_tag = resource_img.find("img")
-        return img_tag["src"]
+        if resource_img is not None:
+            img_tag = resource_img.find("img")
+            return img_tag["src"]
 
     def get_credits(self):
         resource_img = self.body.find("li", class_="lesson-image")
-        remove_links(resource_img)
-        credits = "".join(map(str, resource_img.findChildren("p")))
-        return credits
+        if resource_img is not None:
+            remove_links(resource_img)
+            credits = "".join(map(str, resource_img.findChildren("p")))
+            return credits
 
     def get_pdfs(self):
         resource_links = self.body.find_all("a")
@@ -354,7 +374,7 @@ class Resources(object):
 
     def write_img(self, img_url, filename):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
-            path = zipper.write_url(img_url, filename, directory="files")
+            zipper.write_url(img_url, filename, directory="files")
 
     def write_index(self, content):
         with html_writer.HTMLWriter(self.filename, "w") as zipper:   
@@ -366,16 +386,20 @@ class Resources(object):
 
     def to_file(self):
         img_url = self.get_img_url()
-        filename = get_name_file(img_url)
-        img_tag = "<img alt='{img}' src='files/{img}'>".format(img=filename)
-        html = '<html><head><meta charset="UTF-8"></head><body>{}{}</body></html>'.format(
-            img_tag, self.get_credits())
-        self.write(html, img_url, filename)
+        if img_url is not None:
+            response = requests.get(img_url)
+            if response.status_code == 200:
+                filename = get_name_file(img_url)
+                img_tag = "<img alt='{img}' src='files/{img}'>".format(img=filename)
+                html = '<html><head><meta charset="UTF-8"></head><body>{}{}</body></html>'.format(
+                    img_tag, self.get_credits())
+                self.write(html, img_url, filename)
 
 
 class LessonPlan(object):
     def __init__(self, page, lesson_filename=None, resources_filename=None):
         self.page = page
+        check_license(page)
         self.title = self.clean_title(self.page.find("div", id="description"))
         self.menu = Menu(self.page, filename=lesson_filename, id_="sect-thelesson")
         self.menu.add("The Basics")
@@ -423,8 +447,12 @@ class LessonPlan(object):
         for name, pdf_url in self.resources.get_pdfs():
             meta = metadata_dict.copy()
             meta["source_id"] = pdf_url
-            writer.add_file(str(PATH), name.replace(".pdf", ""), pdf_url, **meta)
-        writer.add_file(str(PATH), "MEDIA", self.resources.filename, **metadata_dict)
+            try:
+                writer.add_file(str(PATH), name.replace(".pdf", ""), pdf_url, **meta)
+            except requests.exceptions.HTTPError as e:
+                LOGGER.info("Error: {}".format(e))
+        if if_file_exists(self.resources.filename):
+            writer.add_file(str(PATH), "MEDIA", self.resources.filename, **metadata_dict)
         #resource.student_resources() external web page
         PATH.go_to_parent_folder()
         PATH.go_to_parent_folder()
@@ -509,8 +537,8 @@ class StudentResourceIndex(object):
             if resource.resources_files is not None:
                 writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
                 PATH.set(*(levels+["RESOURCES"]))
-                if img_url is not None:
-                    writer.add_file(str(PATH), get_name_file_no_ext(img_url), img_url, **metadata_dict)
+                #if img_url is not None:
+                #    writer.add_file(str(PATH), get_name_file_no_ext(img_url), img_url, **metadata_dict)
                 for file_src, file_metadata in resource.resources_files:
                     try:
                         meta = file_metadata if len(file_metadata) > 0 else metadata_dict
@@ -700,6 +728,7 @@ class YouTubeResource(ResourceType):
         ydl_options = {
             #'outtmpl': '%(title)s-%(id)s.%(ext)s',
             #'format': 'bestaudio/best',
+            'writethumbnail': False,
             'no_warnings': True,
             'continuedl': True,
             'restrictfilenames':True,
