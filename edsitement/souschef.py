@@ -45,17 +45,22 @@ LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
 STUDENT_RESOURCE_TOPIC_INIT = 0#0
-STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_TOPIC_END = 1 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
 STUDENT_RESOURCE_END = 20
 
-LESSON_PLANS_TOPIC_INIT = 2
-LESSON_PLANS_TOPIC_END = 3
-LESSON_PLANS_INIT = 280
+LESSON_PLANS_TOPIC_INIT = 0
+LESSON_PLANS_TOPIC_END = 1
+LESSON_PLANS_INIT = 0
 LESSON_PLANS_END = None
 
 DOWNLOAD_VIDEOS = False
 TIME_SLEEP = .2
+
+### COPYRIGHT IMAGES IDs
+#25:21
+#22:
+###
 
 # Main Scraping Method
 ################################################################################
@@ -64,8 +69,8 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    scrap_lesson_plans()
-    #scrap_student_resources()
+    #scrap_lesson_plans()
+    scrap_student_resources()
 
 
 # Helper Methods
@@ -158,10 +163,14 @@ def remove_links(content):
             link.replaceWithChildren()
 
 
-def check_license(content):
+def has_copyright(content):
     import re
-    print("LICENSE:", content.body.findAll(text=re.compile('license', flags=re.IGNORECASE)))
-    print("COPYRIGHT:", content.body.findAll(text=re.compile('copyright', flags=re.IGNORECASE)))
+    for license in content.findAll(text=re.compile('license', flags=re.IGNORECASE)):
+        license = license.lower()
+        if license.find("©") != -1 or license.find("all rights reserved") != -1:
+            return True
+    return False
+    #print("COPYRIGHT:", content.body.findAll(text=re.compile('copyright', flags=re.IGNORECASE)))
 
 
 def if_file_exists(filepath):
@@ -349,8 +358,12 @@ class Resources(object):
     def get_img_url(self):
         resource_img = self.body.find("li", class_="lesson-image")
         if resource_img is not None:
-            img_tag = resource_img.find("img")
-            return img_tag["src"]
+            if not has_copyright(resource_img):
+                img_tag = resource_img.find("img")
+                return img_tag["src"]
+            else:
+                LOGGER.info("IMAGE WITH COPYRIGHT")
+                LOGGER.info(resource_img.text)
 
     def get_credits(self):
         resource_img = self.body.find("li", class_="lesson-image")
@@ -399,7 +412,6 @@ class Resources(object):
 class LessonPlan(object):
     def __init__(self, page, lesson_filename=None, resources_filename=None):
         self.page = page
-        check_license(page)
         self.title = self.clean_title(self.page.find("div", id="description"))
         self.menu = Menu(self.page, filename=lesson_filename, id_="sect-thelesson")
         self.menu.add("The Basics")
@@ -453,13 +465,14 @@ class LessonPlan(object):
                 LOGGER.info("Error: {}".format(e))
         if if_file_exists(self.resources.filename):
             writer.add_file(str(PATH), "MEDIA", self.resources.filename, **metadata_dict)
+            self.rm(self.resources.filename)
         #resource.student_resources() external web page
         PATH.go_to_parent_folder()
         PATH.go_to_parent_folder()
 
-    def rm(self):
-        pass
-        #os.remove(pathname)
+    def rm(self, filepath):
+        import os
+        os.remove(filepath)
 
 
 class StudentResourceIndex(object):
