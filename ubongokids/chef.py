@@ -61,7 +61,13 @@ class UbongoKidsChef(JsonTreeChef):
         title = youtube_channel['name']
         return dict(
             kind='UbongoKidsYoutubeChannel',
+            # TODO: put back
+            # id=youtube_channel['id'],
+            id=youtube_channel['_raw']['id'],
             title=title,
+            # TODO: put back
+            # url=youtube_channel['url'],
+            url=youtube_channel['_raw']['webpage_url'],
             children=[self.crawl_youtube_playlist(playlist_id) for playlist_id in youtube_channel['playlists']],
         )
 
@@ -70,16 +76,21 @@ class UbongoKidsChef(JsonTreeChef):
         title = playlist['name']
         return dict(
             kind='UbongoKidsYoutubePlaylist',
+            # TODO: put back
+            # id=playlist['id'],
+            id=playlist['_raw']['id'],
             title=title,
+            # TODO: put back
+            # url=playlist['url'],
+            url=playlist['_raw']['webpage_url'],
             children=[self.crawl_youtube_video(video_id) for video_id in playlist['videos']],
         )
 
     def crawl_youtube_video(self, video_id):
         video = self.youtube.get_video_data(video_id)
-        return dict(
-            kind='UbongoKidsYoutubeVideo',
-            title=video['title'],
-        )
+        result = dict(kind='UbongoKidsYoutubeVideo')
+        result.update(video)
+        return result
 
     def scrape(self, args, options):
         with open(os.path.join(UbongoKidsChef.TREES_DATA_DIR, UbongoKidsChef.CRAWLING_STAGE_OUTPUT), 'r') as f:
