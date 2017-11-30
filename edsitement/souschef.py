@@ -44,23 +44,20 @@ LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
-STUDENT_RESOURCE_TOPIC_INIT = 0#0
+STUDENT_RESOURCE_TOPIC_INIT = 3#0
 STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
-STUDENT_RESOURCE_END = 10
+STUDENT_RESOURCE_END = None
+#37 38
 
 LESSON_PLANS_TOPIC_INIT = 0
 LESSON_PLANS_TOPIC_END = 4
 LESSON_PLANS_INIT = 0
 LESSON_PLANS_END = 10
 
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 TIME_SLEEP = .4
 
-### COPYRIGHT IMAGES IDs
-#25:21
-#22:
-###
 
 # Main Scraping Method
 ################################################################################
@@ -75,24 +72,69 @@ def scrape_source(writer):
 
 # Helper Methods
 ################################################################################
+
 def scrap_lesson_plans():
-        LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
-        for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
-            subtopic_name = lesson_plan_url.split("/")[-1]
-            try:
-                page_contents = downloader.read(lesson_plan_url, loadjs=False)
-            except requests.exceptions.HTTPError as e:
-                LOGGER.info("Error: {}".format(e))
-            else:
-                page = BeautifulSoup(page_contents, 'html5lib')
-                lesson_plan = LessonPlan(page, 
-                    lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
-                    resources_filename="/tmp/resources-"+subtopic_name+".zip")
-                lesson_plan.source = lesson_plan_url
-                lesson_plan.to_file(PATH, levels)
+    """
+        Scrap lesson plans from its urls
+    """
+    LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
+    for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
+        subtopic_name = lesson_plan_url.split("/")[-1]
+        try:
+            page_contents = downloader.read(lesson_plan_url, loadjs=False)
+        except requests.exceptions.HTTPError as e:
+            LOGGER.info("Error: {}".format(e))
+        else:
+            page = BeautifulSoup(page_contents, 'html5lib')
+            lesson_plan = LessonPlan(page, 
+                lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
+                resources_filename="/tmp/resources-"+subtopic_name+".zip")
+            lesson_plan.source = lesson_plan_url
+            lesson_plan.to_file(PATH, levels)
+
+
+def lesson_plans_subject(page_url):
+    """
+        Scrap lesson plans subjects
+        25 -> Art & Culture
+        21 -> Foreign Language
+        22 -> History & Social Studies
+        23 -> Literature & Language Arts
+    """
+    page_contents = downloader.read(page_url)
+    LOGGER.info("Scrapping: " + page_url)
+    page = BeautifulSoup(page_contents, 'html.parser')
+    subject_ids = [25, 21, 22, 23]#, 18319, 18373, 25041, 31471]
+    for node in subject_ids:
+        page_h3 = page.find("h3", id="node-"+str(node))
+        resource_a = page_h3.find("a", href=True)
+        subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
+        yield subtopic_url, ["Lesson Plans or For Teachers"]
+
+
+def lesson_plans(lesson_plans_subject):
+    """
+    Scrap lesson plans from the lessons list of each subject 
+    http://edsitement.neh.gov/subject/<subject>
+    """
+    for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_TOPIC_INIT, LESSON_PLANS_TOPIC_END): #MAX NUMBER OF SUBJECTS
+        page_contents = downloader.read(lesson_url)
+        page = BeautifulSoup(page_contents, 'html.parser')
+        sub_lessons = page.find_all("div", class_="lesson-plan-link")
+        title = page.find("h2", class_="subject-area").text
+        LOGGER.info("- Subject:"+title)
+        LOGGER.info("- [url]:"+lesson_url)
+        for sub_lesson in itertools.islice(sub_lessons, LESSON_PLANS_INIT, LESSON_PLANS_END): #MAX NUMBER OF LESSONS
+            resource_a = sub_lesson.find("a", href=True)
+            resource_url = resource_a["href"].strip()
+            time.sleep(TIME_SLEEP)
+            yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
 
 
 def scrap_student_resources():
+    """
+    Scrap student resources from the main page http://edsitement.neh.gov/student-resources
+    """
     STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
     levels = ["Student Resources"]
@@ -119,37 +161,10 @@ def scrap_student_resources():
                 student_resource.to_file()
 
 
-def lesson_plans_subject(page_url):
-    page_contents = downloader.read(page_url)
-    LOGGER.info("Scrapping: " + page_url)
-    page = BeautifulSoup(page_contents, 'html.parser')
-    subject_ids = [25, 21, 22, 23]#, 18319, 18373, 25041, 31471]
-    for node in subject_ids:
-        page_h3 = page.find("h3", id="node-"+str(node))
-        resource_a = page_h3.find("a", href=True)
-        subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
-        yield subtopic_url, ["Lesson Plans or For Teachers"]
-
-
-def lesson_plans(lesson_plans_subject):
-    for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_TOPIC_INIT, LESSON_PLANS_TOPIC_END): #MAX NUMBER OF SUBJECTS
-        page_contents = downloader.read(lesson_url)
-        page = BeautifulSoup(page_contents, 'html.parser')
-        sub_lessons = page.find_all("div", class_="lesson-plan-link")
-        title = page.find("h2", class_="subject-area").text
-        LOGGER.info("- Subject:"+title)
-        LOGGER.info("- [url]:"+lesson_url)
-        for sub_lesson in itertools.islice(sub_lessons, LESSON_PLANS_INIT, LESSON_PLANS_END): #MAX NUMBER OF LESSONS
-            resource_a = sub_lesson.find("a", href=True)
-            resource_url = resource_a["href"].strip()
-            time.sleep(TIME_SLEEP)
-            yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
-
-
 def get_name_file(url):
-        from urllib.parse import urlparse
-        import os
-        return os.path.basename(urlparse(url).path)
+    from urllib.parse import urlparse
+    import os
+    return os.path.basename(urlparse(url).path)
 
 
 def get_name_file_no_ext(url):
@@ -170,7 +185,6 @@ def has_copyright(content):
         if license.find("©") != -1 or license.find("all rights reserved") != -1:
             return True
     return False
-    #print("COPYRIGHT:", content.body.findAll(text=re.compile('copyright', flags=re.IGNORECASE)))
 
 
 def if_file_exists(filepath):
@@ -180,6 +194,9 @@ def if_file_exists(filepath):
 
 
 class Menu(object):
+    """
+        This class checks elements on the lesson menu and build the menu list
+    """
     def __init__(self, page, filename=None, id_=None):
         self.body = page.find("div", id=id_)
         self.menu = OrderedDict()
@@ -216,6 +233,9 @@ class Menu(object):
 
 
 class LessonSection(object):
+    """
+        Base class for the menu setions
+    """
     def __init__(self, page, filename=None, id_=None, menu_name=None):
         LOGGER.debug(id_)
         self.body = page.find("div", id=id_)
@@ -351,6 +371,9 @@ class TheBasics(LessonSection):
 
 
 class Resources(object):
+    """
+        class for extracting elements from the resources panel on the lesson
+    """
     def __init__(self, page, filename=None):
         self.body = page.find("div", id="sect-resources")
         self.filename = filename
@@ -410,6 +433,9 @@ class Resources(object):
 
 
 class LessonPlan(object):
+    """
+        This class analyze each menu section and save it to a folder
+    """
     def __init__(self, page, lesson_filename=None, resources_filename=None):
         self.page = page
         self.title = self.clean_title(self.page.find("div", id="description"))
@@ -586,13 +612,21 @@ class ResourceChecker(object):
             return ResourceType("interactives") #response error
         elif file_ == "swf":
             return ResourceType("flash")
-        elif self.resource_url.find("youtu.be") != -1 or self.resource_url.find("youtube.com") != -1:
+        elif self.resource_url.find("youtu.be") != -1 or\
+            self.resource_url.find("youtube.com") != -1:
             return YouTubeResource(self.resource_url)
+        elif self.resource_url.find("vimeo.com") != -1:
+            return VimeoResource(self.resource_url)
+        elif self.resource_url.find("soundcloud.com") != -1:
+            return SoundCloudResource(self.resource_url)
         else:
             return ResourceType("unknown")
 
 
 class ResourceType(object):
+    """
+        Base class for File, WebPage, Video, Audio resources
+    """
     def __init__(self, type_name=None):
         LOGGER.info("Resource Type: "+type_name)
         self.type_name = type_name
@@ -730,6 +764,7 @@ class YouTubeResource(ResourceType):
     def __init__(self, resource_url, type_name="Youtube"):
         super(YouTubeResource, self).__init__(type_name=type_name)
         self.resource_url = resource_url
+        self.file_format = file_formats.MP4
 
     def process_file(self, download=False):
         import youtube_dl
@@ -740,7 +775,7 @@ class YouTubeResource(ResourceType):
             #'format': 'bestaudio/best',
             'writethumbnail': False,
             'no_warnings': True,
-            'continuedl': True,
+            'continuedl': False,
             'restrictfilenames':True,
             'quiet': False,
         }
@@ -749,14 +784,36 @@ class YouTubeResource(ResourceType):
             try:
                 ydl.add_default_info_extractors()
                 info = ydl.extract_info(self.resource_url, download=False)
-                if info["license"] == "Standard YouTube License" and download is True:
-                    filename = download_from_web(self.resource_url, ydl_options, 
-                        ext=".{}".format(file_formats.MP4))
-                    filepath = config.get_storage_path(filename)
-                    self.add_resources_files(filepath, {}, local=True)
+                if info["license"] == "Standard YouTube License" or info["license"] is None:
+                    if download is True:
+                        filepath = self.video_download()
+                    else:
+                        filepath = None
+
+                    if filepath is not None:
+                        self.add_resources_files(filepath, {}, local=True)
+                        return True
             except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,         
                     youtube_dl.utils.ExtractorError) as e:
-                print('error_occured ' + str(e))
+                LOGGER.info('error_occured ' + str(e))
+
+    #youtubedl has some troubles downloading videos in youtube,
+    #sometimes raises connection error
+    #for that I choose pafy for downloading
+    def video_download(self):
+        from urllib.error import URLError
+        import pafy
+        for try_number in range(10):
+            try:
+                video = pafy.new(self.resource_url)
+                best = video.getbest()
+                filepath = best.download(filepath="/tmp/")
+            except (URLError, ConnectionResetError) as e:
+                LOGGER.info(e)
+                LOGGER.info("Download retry:"+str(try_number))
+                time.sleep(.5)
+            else:
+                return filepath
 
     def to_file(self, description, filepath):
         metadata_dict = {"description": description, 
@@ -765,8 +822,78 @@ class YouTubeResource(ResourceType):
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
-        self.process_file(download=DOWNLOAD_VIDEOS)
-        return metadata_dict
+        if self.process_file(download=DOWNLOAD_VIDEOS):
+            return metadata_dict        
+
+
+class VimeoResource(ResourceType):
+    def __init__(self, resource_url, type_name="Vimeo"):
+        super(VimeoResource, self).__init__(type_name=type_name)
+        self.resource_url = resource_url
+        self.file_format = file_formats.MP4
+
+    def process_file(self, download=False):
+        import youtube_dl
+
+        ydl_options = {
+            #'outtmpl': '%(title)s-%(id)s.%(ext)s',
+            #'format': 'bestaudio/best',
+            'writethumbnail': False,
+            'no_warnings': True,
+            'continuedl': False,
+            'restrictfilenames':True,
+            'quiet': False,
+        }
+
+        with youtube_dl.YoutubeDL(ydl_options) as ydl:
+            try:
+                ydl.add_default_info_extractors()
+                info = ydl.extract_info(self.resource_url, download=False)
+                if download is True:
+                    filepath = self.video_download(ydl_options)
+                else:
+                    filepath = None
+
+                if filepath is not None:
+                    self.add_resources_files(filepath, {}, local=True)
+                    return True
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,         
+                    youtube_dl.utils.ExtractorError) as e:
+                LOGGER.info('error_occured ' + str(e))
+
+    def video_download(self, ydl_options):
+        from ricecooker.classes.files import download_from_web, config
+        from urllib.error import URLError
+        for try_number in range(10):
+            try:
+                filename = download_from_web(self.resource_url, ydl_options, 
+                    ext=".{}".format(self.file_format))
+            except (URLError, ConnectionResetError) as e:
+                LOGGER.info(e)
+                LOGGER.info("Download retry:"+str(try_number))
+                time.sleep(.5)
+            except FileNotFoundError as e:
+                LOGGER.info(str(e))
+                return None
+            else:
+                filepath = config.get_storage_path(filename)
+                return filepath
+
+    def to_file(self, description, filepath):
+        metadata_dict = {"description": description, 
+            "language": "en", 
+            "license": licenses.CC_BY, 
+            "copyright_holder": "National Endowment for the Humanities", 
+            "author": "", 
+            "source_id": self.resource_url}
+        if self.process_file(download=DOWNLOAD_VIDEOS):
+            return metadata_dict
+
+
+class SoundCloudResource(VimeoResource):
+    def __init__(self, resource_url, type_name="SoundCloud"):
+        super(SoundCloudResource, self).__init__(resource_url, type_name=type_name)
+        self.file_format = file_formats.MP3
 
 
 # CLI: This code will run when the sous chef is called from the command line
