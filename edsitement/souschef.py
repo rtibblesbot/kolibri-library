@@ -44,7 +44,7 @@ LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
-STUDENT_RESOURCE_TOPIC_INIT = 3#0
+STUDENT_RESOURCE_TOPIC_INIT = 0#0
 STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
 STUDENT_RESOURCE_END = None
@@ -53,7 +53,7 @@ STUDENT_RESOURCE_END = None
 LESSON_PLANS_TOPIC_INIT = 0
 LESSON_PLANS_TOPIC_END = 4
 LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = 10
+LESSON_PLANS_END = None
 
 DOWNLOAD_VIDEOS = True
 TIME_SLEEP = .4
@@ -66,7 +66,7 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    #scrap_lesson_plans()
+    scrap_lesson_plans()
     scrap_student_resources()
 
 
