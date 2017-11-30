@@ -55,12 +55,17 @@ class Client:
         return self.client.extract_info(url, download=False)
 
     def get_video_data(self, id):
-        return self._get(f'https://www.youtube.com/watch?v={id}')
+        video = self._get(f'https://www.youtube.com/watch?v={id}')
+        result = dict(url=video['webpage_url'])
+        result.update(video)
+        return result
 
     def get_playlist_data(self, id):
         playlist = self._get(f'https://www.youtube.com/playlist?list={id}')
         assert playlist.get('_type', None) == 'playlist'
-        return dict(name=playlist['title'],
+        return dict(id=playlist['id'],
+                    url=playlist['webpage_url'],
+                    name=playlist['title'],
                     videos=[entry['id'] for entry in playlist.get('entries')],
                     _raw=playlist
         )
@@ -71,7 +76,9 @@ class Client:
         entries = channel.get('entries')
         name = channel['title']
         videos = [entry['id'] for entry in entries]
-        return dict(name=name,
+        return dict(id=channel['id'],
+                    url=channel['webpage_url'],
+                    name=name,
                     videos=videos,
                     playlists=[playlist_id for playlist_id in self._groupby(lambda x: x['playlist_id'], entries).keys()],
                     _raw=channel
