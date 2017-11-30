@@ -45,17 +45,17 @@ LOGGER.setLevel(logging.INFO)
 
 BASE_URL = "http://edsitement.neh.gov"
 STUDENT_RESOURCE_TOPIC_INIT = 0#0
-STUDENT_RESOURCE_TOPIC_END = 1 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
-STUDENT_RESOURCE_END = 20
+STUDENT_RESOURCE_END = 10
 
 LESSON_PLANS_TOPIC_INIT = 0
-LESSON_PLANS_TOPIC_END = 1
+LESSON_PLANS_TOPIC_END = 4
 LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = None
+LESSON_PLANS_END = 10
 
 DOWNLOAD_VIDEOS = False
-TIME_SLEEP = .2
+TIME_SLEEP = .4
 
 ### COPYRIGHT IMAGES IDs
 #25:21
@@ -544,14 +544,10 @@ class StudentResourceIndex(object):
         metadata_dict = resource.to_file(description, self.filename)
         if metadata_dict is not None:
             PATH.set(*levels)
-            #if img_url is not None:
-            #    metadata_dict["thumbnail"] = str(PATH)+"/RESOURCES/"+get_name_file_no_ext(img_url)
             writer.add_file(str(PATH), "THE LESSON", self.filename, **metadata_dict)
             if resource.resources_files is not None:
                 writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
                 PATH.set(*(levels+["RESOURCES"]))
-                #if img_url is not None:
-                #    writer.add_file(str(PATH), get_name_file_no_ext(img_url), img_url, **metadata_dict)
                 for file_src, file_metadata in resource.resources_files:
                     try:
                         meta = file_metadata if len(file_metadata) > 0 else metadata_dict
@@ -626,7 +622,7 @@ class FileSource(ResourceType):
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
-        self.resources_files = [self.resource_url]
+        self.add_resources_files(self.resource_url, metadata_dict)
         return metadata_dict
 
 
@@ -693,6 +689,7 @@ class WebPageSource(ResourceType):
                 "author": "", 
                 "source_id": self.resource_url}
             page = BeautifulSoup(page_contents, 'html.parser')
+            LOGGER.info("COPYRIGHT {}".format(has_copyright(page)))
             content = page.find("div", id="content")
             if self.swf_content(content):
                 return
