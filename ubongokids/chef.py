@@ -49,11 +49,8 @@ class UbongoKidsChef(JsonTreeChef):
         if self.youtube_client_dispose_func:
             self.youtube_client_dispose_func()
 
-    def init_youtube_client(self, use_caching):
-        self.youtube, self.youtube_client_dispose_func = self.youtube_client_factory_func(use_caching)
-
     def pre_run(self, args, options):
-        self.init_youtube_client(options.get('caching', False))
+        self.youtube, self.youtube_client_dispose_func = self.youtube_client_factory_func(options.get('caching', False))
         self.crawl(args, options)
         self.scrape(args, options)
 
