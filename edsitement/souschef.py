@@ -34,6 +34,8 @@ import time
 from collections import OrderedDict
 import itertools
 import requests
+from urllib.parse import urlparse
+from pathlib import Path
 
 # Additional Constants
 ################################################################################
@@ -66,16 +68,16 @@ def scrape_source(writer):
         Args: writer (DataWriter): class that writes data to folder/spreadsheet structure
         Returns: None
     """
-    scrap_lesson_plans()
-    scrap_student_resources()
+    scrape_lesson_plans()
+    scrape_student_resources()
 
 
 # Helper Methods
 ################################################################################
 
-def scrap_lesson_plans():
+def scrape_lesson_plans():
     """
-        Scrap lesson plans from its urls
+        Scrape lesson plans from its urls
     """
     LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
     for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
@@ -95,7 +97,7 @@ def scrap_lesson_plans():
 
 def lesson_plans_subject(page_url):
     """
-        Scrap lesson plans subjects
+        Scrape lesson plans subjects
         25 -> Art & Culture
         21 -> Foreign Language
         22 -> History & Social Studies
@@ -114,7 +116,7 @@ def lesson_plans_subject(page_url):
 
 def lesson_plans(lesson_plans_subject):
     """
-    Scrap lesson plans from the lessons list of each subject 
+    Scrape lesson plans from the lessons list of each subject 
     http://edsitement.neh.gov/subject/<subject>
     """
     for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_TOPIC_INIT, LESSON_PLANS_TOPIC_END): #MAX NUMBER OF SUBJECTS
@@ -131,9 +133,9 @@ def lesson_plans(lesson_plans_subject):
             yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
 
 
-def scrap_student_resources():
+def scrape_student_resources():
     """
-    Scrap student resources from the main page http://edsitement.neh.gov/student-resources
+    Scrape student resources from the main page http://edsitement.neh.gov/student-resources
     """
     STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
@@ -161,14 +163,13 @@ def scrap_student_resources():
                 student_resource.to_file()
 
 
-def get_name_file(url):
-    from urllib.parse import urlparse
+def get_name_from_url(url):
     import os
     return os.path.basename(urlparse(url).path)
 
 
-def get_name_file_no_ext(url):
-    path = get_name_file(url)
+def get_name_from_url_no_ext(url):
+    path = get_name_from_url(url)
     return ".".join(path.split(".")[:-1])
 
 
@@ -188,7 +189,6 @@ def has_copyright(content):
 
 
 def if_file_exists(filepath):
-    from pathlib import Path
     file_ = Path(filepath)
     return file_.is_file()
 
@@ -399,7 +399,7 @@ class Resources(object):
         resource_links = self.body.find_all("a")
         for link in resource_links:
             if link["href"].endswith(".pdf"):
-                name = get_name_file(link["href"])
+                name = get_name_from_url(link["href"])
                 yield name, urllib.parse.urljoin(BASE_URL, link["href"])
 
     def student_resources(self):
@@ -425,7 +425,7 @@ class Resources(object):
         if img_url is not None:
             response = requests.get(img_url)
             if response.status_code == 200:
-                filename = get_name_file(img_url)
+                filename = get_name_from_url(img_url)
                 img_tag = "<img alt='{img}' src='files/{img}'>".format(img=filename)
                 html = '<html><head><meta charset="UTF-8"></head><body>{}{}</body></html>'.format(
                     img_tag, self.get_credits())
@@ -553,7 +553,7 @@ class StudentResourceIndex(object):
     def to_file(self):
         img_url = self.get_img_url()
         if img_url is not None:
-            filename_img = get_name_file(img_url)
+            filename_img = get_name_from_url(img_url)
             img_tag = "<img alt='{img}' src='files/{img}'>".format(img=filename_img)
         else:
             img_tag = ""
@@ -577,7 +577,7 @@ class StudentResourceIndex(object):
                 for file_src, file_metadata in resource.resources_files:
                     try:
                         meta = file_metadata if len(file_metadata) > 0 else metadata_dict
-                        writer.add_file(str(PATH), get_name_file_no_ext(file_src), file_src, **meta)
+                        writer.add_file(str(PATH), get_name_from_url_no_ext(file_src), file_src, **meta)
                     except requests.exceptions.HTTPError as e:
                         LOGGER.info("Error: {}".format(e))
                 PATH.go_to_parent_folder()
@@ -684,7 +684,7 @@ class ImageSource(ResourceType):
             "copyright_holder": "National Endowment for the Humanities", 
             "author": "", 
             "source_id": self.resource_url}
-        img_filename = get_name_file(self.resource_url)
+        img_filename = get_name_from_url(self.resource_url)
         img_tag = "<img alt='{img}' src='files/{img}'>".format(img=img_filename)
         html = "<html><body>{}</body></html>".format(img_tag)
         self.write(html, filepath, img_filename)
