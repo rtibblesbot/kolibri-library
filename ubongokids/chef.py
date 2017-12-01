@@ -61,16 +61,11 @@ class UbongoKidsChef(JsonTreeChef):
         title = youtube_channel['name']
         return dict(
             kind='UbongoKidsYoutubeChannel',
-            # TODO: put back
-            # id=youtube_channel['id'],
-            id=youtube_channel['_raw']['id'],
+            id=youtube_channel['id'],
             title=title,
-            # TODO: put back
-            # url=youtube_channel['url'],
-            url=youtube_channel['_raw']['webpage_url'],
+            url=youtube_channel['url'],
             children=[self.crawl_youtube_playlist(playlist_id) for playlist_id in youtube_channel['playlists']],
-            # TODO
-            # language=
+            language=youtube_channel.get('language', 'en'),
         )
 
     def crawl_youtube_playlist(self, playlist_id):
@@ -78,23 +73,16 @@ class UbongoKidsChef(JsonTreeChef):
         title = playlist['name']
         return dict(
             kind='UbongoKidsYoutubePlaylist',
-            # TODO: put back
-            # id=playlist['id'],
-            id=playlist['_raw']['id'],
+            id=playlist['id'],
             title=title,
-            # TODO: put back
-            # url=playlist['url'],
-            url=playlist['_raw']['webpage_url'],
+            url=playlist['url'],
             children=[self.crawl_youtube_video(video_id) for video_id in playlist['videos']],
-            # TODO
-            # language=
+            language=playlist.get('language', 'en'),
         )
 
     def crawl_youtube_video(self, video_id):
         video = self.youtube.get_video_data(video_id)
-        # TODO
-        # language=
-        result = dict(kind='UbongoKidsYoutubeVideo')
+        result = dict(kind='UbongoKidsYoutubeVideo', language=video.get('language', 'en'))
         result.update(video)
         return result
 
@@ -124,8 +112,8 @@ class UbongoKidsChef(JsonTreeChef):
             title=channel['title'],
             description='',
             children=[self.scrape_youtube_playlist(playlist) for playlist in channel['children']],
-            # TODO:
-            # language=
+            language=channel['language'],
+            # TODO
             license=UbongoKidsChef.LICENSE,
         )
 
@@ -135,10 +123,9 @@ class UbongoKidsChef(JsonTreeChef):
             source_id=playlist['id'],
             title=playlist['title'],
             children=[self.scrape_youtube_video(video) for video in playlist['children']],
+            language=playlist['language'],
             # TODO
-            # language=
             license=UbongoKidsChef.LICENSE,
-            # license=
         )
 
     def scrape_youtube_video(self, video):
@@ -149,12 +136,13 @@ class UbongoKidsChef(JsonTreeChef):
             thumbnail=video['thumbnail'],
             description=video['description'],
             files=[dict(file_type=content_kinds.VIDEO, youtube_id=video['id'])],
-            # TODO:
-            # language=
+            language=video['language'],
+            # TODO
             license=UbongoKidsChef.LICENSE,
         )
 
 if __name__ == '__main__':
+    # TODO: Add a cache=true flag, and use it to determine if we build a youtube.CachingClient or just a youtube.Client
     with Db(os.path.join(os.getcwd(), '.cache'), 'ubongokids') as cache:
         yt = Client(youtube_dl.YoutubeDL(dict(verbose=True, no_warnings=True, writesubtitles=True, allsubtitles=True)))
         chef = UbongoKidsChef(create_logger(), CachingClient(yt, cache))
