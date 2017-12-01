@@ -26,7 +26,6 @@ def create_logger():
     return LOGGER
 
 class UbongoKidsChef(JsonTreeChef):
-    CHANNELS = []
     HOSTNAME = 'ubongokids.com'
     ROOT_URL = f'http://www.{HOSTNAME}'
     DATA_DIR = 'chefdata'
@@ -36,12 +35,25 @@ class UbongoKidsChef(JsonTreeChef):
     LICENSE = get_license(licenses.CC_BY_NC_ND, copyright_holder="Ubongo Media").as_dict()
     YOUTUBE_CHANNEL_IDS=['UCwYh0qBAF8HyKt0KUMp1rNg', 'UCjsrL7gPn-S5SJJcKp-OYUA', 'UCcJywQx_THCEr5-1mJbGL9w', 'UC0TLvo891eEEM6HGC5ON7ug']
 
-    def __init__(self, logger, youtube):
+    def __init__(self, logger, youtube_client_builder_func):
         super(UbongoKidsChef, self).__init__()
         self.logger = logger
-        self.youtube = youtube
+        self.youtube_client_factory_func = youtube_client_builder_func
+        self.youtube_client_dispose_func = None
+        self.youtube = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.youtube_client_dispose_func:
+            self.youtube_client_dispose_func()
+
+    def init_youtube_client(self, use_caching):
+        self.youtube, self.youtube_client_dispose_func = self.youtube_client_factory_func(use_caching)
 
     def pre_run(self, args, options):
+        self.init_youtube_client(options.get('caching', False))
         self.crawl(args, options)
         self.scrape(args, options)
 
@@ -142,8 +154,13 @@ class UbongoKidsChef(JsonTreeChef):
         )
 
 if __name__ == '__main__':
-    # TODO: Add a cache=true flag, and use it to determine if we build a youtube.CachingClient or just a youtube.Client
-    with Db(os.path.join(os.getcwd(), '.cache'), 'ubongokids') as cache:
+    def build_youtube_client(use_caching):
+        print('use_caching', use_caching)
         yt = Client(youtube_dl.YoutubeDL(dict(verbose=True, no_warnings=True, writesubtitles=True, allsubtitles=True)))
-        chef = UbongoKidsChef(create_logger(), CachingClient(yt, cache))
+        if use_caching:
+            cache = Db(os.path.join(os.getcwd(), '.cache'), 'ubongokids').__enter__()
+            return CachingClient(yt, cache), lambda _: cache.__exit__()
+        return yt, None
+
+    with UbongoKidsChef(create_logger(), build_youtube_client) as chef:
         chef.main()
