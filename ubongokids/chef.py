@@ -155,7 +155,6 @@ class UbongoKidsChef(JsonTreeChef):
 
 if __name__ == '__main__':
     def build_youtube_client(use_caching):
-        print('use_caching', use_caching)
         yt = Client(youtube_dl.YoutubeDL(dict(verbose=True, no_warnings=True, writesubtitles=True, allsubtitles=True)))
         if use_caching:
             cache = Db(os.path.join(os.getcwd(), '.cache'), 'ubongokids').__enter__()
