@@ -8,7 +8,15 @@ into a format that can be imported into Kolibri Studio. This project will read a
 given source's content and parse and organize that content into a folder + csv structure,
 which will then be imported into Kolibri Studio. (example can be found under `examples` directory.
 
-
+## How to run it?
+The expected compressed file size after running is 900Mb
+```
+./souschef.py
+```
+or
+```
+./run.sh
+```
 
 ## Installation
 
