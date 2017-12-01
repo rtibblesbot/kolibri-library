@@ -69,6 +69,8 @@ class UbongoKidsChef(JsonTreeChef):
             # url=youtube_channel['url'],
             url=youtube_channel['_raw']['webpage_url'],
             children=[self.crawl_youtube_playlist(playlist_id) for playlist_id in youtube_channel['playlists']],
+            # TODO
+            # language=
         )
 
     def crawl_youtube_playlist(self, playlist_id):
@@ -84,10 +86,14 @@ class UbongoKidsChef(JsonTreeChef):
             # url=playlist['url'],
             url=playlist['_raw']['webpage_url'],
             children=[self.crawl_youtube_video(video_id) for video_id in playlist['videos']],
+            # TODO
+            # language=
         )
 
     def crawl_youtube_video(self, video_id):
         video = self.youtube.get_video_data(video_id)
+        # TODO
+        # language=
         result = dict(kind='UbongoKidsYoutubeVideo')
         result.update(video)
         return result
@@ -104,10 +110,49 @@ class UbongoKidsChef(JsonTreeChef):
             description="""Ubongo is a Tanzanian social enterprise that creates fun, localized edutainment for learners in Africa. "Ubongo" means brain in Kiswahili, and we're all about finding fun ways to stimulate kids (and kids at heart) to use their brains. Our entertaining media help learners understand concepts, rather than memorizing them. And we use catchy songs and captivating imagery to make sure they never forget!"""[:400],
             thumbnail='http://www.ubongokids.com/wp-content/uploads/2016/06/logo_ubongo_kids-150x100.png',
             language='en',
-            children=[]
+            children=[self.scrape_youtube_channel(child) for child in web_resource_tree['children']],
+            # TODO:
+            license=UbongoKidsChef.LICENSE,
         )
         write_tree_to_json_tree(os.path.join(UbongoKidsChef.TREES_DATA_DIR, UbongoKidsChef.SCRAPING_STAGE_OUTPUT), ricecooker_json_tree)
         return ricecooker_json_tree
+
+    def scrape_youtube_channel(self, channel):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=channel['id'],
+            title=channel['title'],
+            description='',
+            children=[self.scrape_youtube_playlist(playlist) for playlist in channel['children']],
+            # TODO:
+            # language=
+            license=UbongoKidsChef.LICENSE,
+        )
+
+    def scrape_youtube_playlist(self, playlist):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=playlist['id'],
+            title=playlist['title'],
+            children=[self.scrape_youtube_video(video) for video in playlist['children']],
+            # TODO
+            # language=
+            license=UbongoKidsChef.LICENSE,
+            # license=
+        )
+
+    def scrape_youtube_video(self, video):
+        return dict(
+            kind=content_kinds.VIDEO,
+            source_id=video['id'],
+            title=video['title'],
+            thumbnail=video['thumbnail'],
+            description=video['description'],
+            files=[dict(file_type=content_kinds.VIDEO, youtube_id=video['id'])],
+            # TODO:
+            # language=
+            license=UbongoKidsChef.LICENSE,
+        )
 
 if __name__ == '__main__':
     with Db(os.path.join(os.getcwd(), '.cache'), 'ubongokids') as cache:
