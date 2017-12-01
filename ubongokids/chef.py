@@ -159,7 +159,7 @@ if __name__ == '__main__':
         yt = Client(youtube_dl.YoutubeDL(dict(verbose=True, no_warnings=True, writesubtitles=True, allsubtitles=True)))
         if use_caching:
             cache = Db(os.path.join(os.getcwd(), '.cache'), 'ubongokids').__enter__()
-            return CachingClient(yt, cache), lambda _: cache.__exit__()
+            return CachingClient(yt, cache), lambda: cache.__exit__()
         return yt, None
 
     with UbongoKidsChef(create_logger(), build_youtube_client) as chef:
