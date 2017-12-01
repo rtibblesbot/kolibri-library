@@ -17,5 +17,5 @@ Run
 ---
 
     source venv/bin/activate
-    ./chef.py -v --reset --token=<YOURTOKEN>
+    ./chef.py -v --reset --token=<YOURTOKEN> caching=<true | false>
 
