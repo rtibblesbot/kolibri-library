@@ -109,7 +109,7 @@ def scrape_lesson_plans():
             LOGGER.info("Error: {}".format(e))
         else:
             page = BeautifulSoup(page_contents, 'html5lib')
-            lesson_plan = LessonPlan(page, 
+            lesson_plan = LessonPlan(page,
                 lesson_filename="/tmp/lesson-"+subtopic_name+".zip",
                 resources_filename="/tmp/resources-"+subtopic_name+".zip")
             lesson_plan.source = lesson_plan_url
@@ -137,7 +137,7 @@ def lesson_plans_subject(page_url):
 
 def lesson_plans(lesson_plans_subject):
     """
-    Scrape lesson plans from the lessons list of each subject 
+    Scrape lesson plans from the lessons list of each subject
     http://edsitement.neh.gov/subject/<subject>
     """
     for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_SUBJECT_INIT, LESSON_PLANS_SUBJECT_END): #MAX NUMBER OF SUBJECTS
@@ -178,7 +178,7 @@ def scrape_student_resources():
                     LOGGER.info("Error: {}".format(e))
                 page = BeautifulSoup(page_contents, 'html.parser')
                 topic_name = student_resource_url.split("/")[-1]
-                student_resource = StudentResourceIndex(page, 
+                student_resource = StudentResourceIndex(page,
                     filename="/tmp/student-resource-"+topic_name+".zip",
                     levels=levels)
                 student_resource.to_file()
@@ -240,7 +240,7 @@ class Menu(object):
             return self.menu[name]["filename"]
         except KeyError:
             return None
-    
+
     def add(self, title):
         name = title.lower().replace(" ", "_")
         self.menu[name] = {
@@ -284,7 +284,7 @@ class LessonSection(object):
             content = self.get_content()
             if self.title:
                 content = self.title+""+content
-                
+
             self.write(filename, '<html><head><meta charset="UTF-8"></head><body>{}<body></html>'.format(
                 content
             ))
@@ -292,55 +292,55 @@ class LessonSection(object):
 
 class Introduction(LessonSection):
     def __init__(self, page, filename=None):
-        super(Introduction, self).__init__(page, filename=filename, 
+        super(Introduction, self).__init__(page, filename=filename,
             id_="sect-introduction", menu_name="introduction")
 
 
 class GuidingQuestions(LessonSection):
     def __init__(self, page, filename=None):
-        super(GuidingQuestions, self).__init__(page, filename=filename, 
+        super(GuidingQuestions, self).__init__(page, filename=filename,
             id_="sect-questions", menu_name="guiding_questions")
 
 
 class LearningObjetives(LessonSection):
     def __init__(self, page, filename=None):
-        super(LearningObjetives, self).__init__(page, filename=filename, 
+        super(LearningObjetives, self).__init__(page, filename=filename,
             id_="sect-objectives", menu_name="learning_objectives")
 
 
 class Background(LessonSection):
     def __init__(self, page, filename=None):
-        super(Background, self).__init__(page, filename=filename, 
+        super(Background, self).__init__(page, filename=filename,
             id_="sect-background", menu_name="background")
 
 
 class PreparationInstructions(LessonSection):
     def __init__(self, page, filename=None):
-        super(PreparationInstructions, self).__init__(page, filename=filename, 
+        super(PreparationInstructions, self).__init__(page, filename=filename,
             id_="sect-preparation", menu_name="preparation_instructions")
 
 
 class LessonActivities(LessonSection):
     def __init__(self, page, filename=None):
-        super(LessonActivities, self).__init__(page, filename=filename, 
+        super(LessonActivities, self).__init__(page, filename=filename,
             id_="sect-activities", menu_name="lesson_activities")
 
 
 class Assessment(LessonSection):
     def __init__(self, page, filename=None):
-        super(Assessment, self).__init__(page, filename=filename, 
+        super(Assessment, self).__init__(page, filename=filename,
             id_="sect-assessment", menu_name="assessment")
 
 
 class ExtendingTheLesson(LessonSection):
     def __init__(self, page, filename=None):
-        super(ExtendingTheLesson, self).__init__(page, filename=filename, 
+        super(ExtendingTheLesson, self).__init__(page, filename=filename,
             id_="sect-extending", menu_name="extending_the_lesson")
 
 
 class TheBasics(LessonSection):
     def __init__(self, page, filename=None):
-        super(TheBasics, self).__init__(page, filename=filename, 
+        super(TheBasics, self).__init__(page, filename=filename,
             id_="sect-thebasics", menu_name="the_basics")
 
     def get_content(self):
@@ -392,12 +392,12 @@ class Resources(object):
             zipper.write_url(img_url, filename, directory="files")
 
     def write_index(self, content):
-        with html_writer.HTMLWriter(self.filename, "w") as zipper:   
+        with html_writer.HTMLWriter(self.filename, "w") as zipper:
             zipper.write_index_contents(content)
 
     def write(self, content, img_url, filename):
         self.write_index(content)
-        self.write_img(img_url, filename)      
+        self.write_img(img_url, filename)
 
     def to_file(self):
         img_url = self.get_img_url()
@@ -449,11 +449,11 @@ class LessonPlan(object):
             section = Section(self.page, filename=self.menu.filename)
             section.to_file(self.menu.get(section.menu_name))
         self.resources.to_file()
-        metadata_dict = {"description": "", 
-            "language": "en", 
-            "license": licenses.CC_BY, 
-            "copyright_holder": "National Endowment for the Humanities", 
-            "author": "", 
+        metadata_dict = {"description": "",
+            "language": "en",
+            "license": licenses.CC_BY,
+            "copyright_holder": "National Endowment for the Humanities",
+            "author": "",
             "source_id": self.source}
 
         levels.append(self.title)
@@ -521,13 +521,13 @@ class StudentResourceIndex(object):
             path = zipper.write_url(img_url, filename, directory="files")
 
     def write_index(self, content):
-        with html_writer.HTMLWriter(self.filename, "w") as zipper:   
+        with html_writer.HTMLWriter(self.filename, "w") as zipper:
             zipper.write_index_contents(content)
 
     def write(self, content, img_url, filename):
         self.write_index(content)
         if img_url is not None:
-            self.write_img(img_url, filename)      
+            self.write_img(img_url, filename)
 
     def to_file(self):
         img_url = self.get_img_url()
@@ -569,7 +569,7 @@ class ResourceChecker(object):
         self.resource_url = resource_url
 
     def has_file(self):
-        files = [(self.resource_url.endswith(filetype), filetype) 
+        files = [(self.resource_url.endswith(filetype), filetype)
                 for filetype in ["pdf", "mp4", "mp3", "swf", "jpg"]]
         file_ = list(filter(lambda x: x[0], files))
         if len(file_) > 0:
@@ -629,11 +629,11 @@ class FileSource(ResourceType):
         self.resource_url = resource_url
 
     def to_file(self, description, filename):
-        metadata_dict = {"description": description, 
-            "language": "en", 
-            "license": licenses.CC_BY, 
-            "copyright_holder": "National Endowment for the Humanities", 
-            "author": "", 
+        metadata_dict = {"description": description,
+            "language": "en",
+            "license": licenses.CC_BY,
+            "copyright_holder": "National Endowment for the Humanities",
+            "author": "",
             "source_id": self.resource_url}
         self.add_resources_files(self.resource_url, metadata_dict)
         return metadata_dict
@@ -649,7 +649,7 @@ class ImageSource(ResourceType):
         self.write_img(self.resource_url, filepath, img_filename)
 
     def write_index(self, content, filepath):
-        with html_writer.HTMLWriter(filepath, "w") as zipper: 
+        with html_writer.HTMLWriter(filepath, "w") as zipper:
             zipper.write_index_contents(content)
 
     def write_img(self, img_url, filepath, img_filename):
@@ -657,11 +657,11 @@ class ImageSource(ResourceType):
             path = zipper.write_url(img_url, img_filename, directory="files")
 
     def to_file(self, description, filepath):
-        metadata_dict = {"description": description, 
-            "language": "en", 
-            "license": licenses.CC_BY, 
-            "copyright_holder": "National Endowment for the Humanities", 
-            "author": "", 
+        metadata_dict = {"description": description,
+            "language": "en",
+            "license": licenses.CC_BY,
+            "copyright_holder": "National Endowment for the Humanities",
+            "author": "",
             "source_id": self.resource_url}
         img_filename = get_name_from_url(self.resource_url)
         img_tag = "<img alt='{img}' src='files/{img}'>".format(img=img_filename)
@@ -679,27 +679,27 @@ class WebPageSource(ResourceType):
         self.write_index(content, filepath)
 
     def write_index(self, content, filepath):
-        with html_writer.HTMLWriter(filepath, "w") as zipper:   
+        with html_writer.HTMLWriter(filepath, "w") as zipper:
             zipper.write_index_contents(content)
 
     def swf_content(self, content):
         obj = content.find("object")
         if obj is not None and obj["type"] == "application/x-shockwave-flash":
             return True
-        return False 
+        return False
 
     def to_file(self, description, filepath):
         try:
-            page_contents = downloader.read(self.resource_url, session=sess)         
+            page_contents = downloader.read(self.resource_url, session=sess)
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
             return None
         else:
-            metadata_dict = {"description": description, 
-                "language": "en", 
-                "license": licenses.CC_BY, 
-                "copyright_holder": "National Endowment for the Humanities", 
-                "author": "", 
+            metadata_dict = {"description": description,
+                "language": "en",
+                "license": licenses.CC_BY,
+                "copyright_holder": "National Endowment for the Humanities",
+                "author": "",
                 "source_id": self.resource_url}
             page = BeautifulSoup(page_contents, 'html.parser')
             LOGGER.info("COPYRIGHT {}".format(has_copyright(page)))
@@ -757,6 +757,7 @@ class YouTubeResource(ResourceType):
             'continuedl': False,
             'restrictfilenames':True,
             'quiet': False,
+            'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='720'),
         }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
@@ -772,7 +773,7 @@ class YouTubeResource(ResourceType):
                     if filepath is not None:
                         self.add_resources_files(filepath, {}, local=True)
                         return True
-            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,         
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError) as e:
                 LOGGER.info('error_occured ' + str(e))
 
@@ -795,14 +796,14 @@ class YouTubeResource(ResourceType):
                 return filepath
 
     def to_file(self, description, filepath):
-        metadata_dict = {"description": description, 
-            "language": "en", 
-            "license": licenses.CC_BY, 
-            "copyright_holder": "National Endowment for the Humanities", 
-            "author": "", 
+        metadata_dict = {"description": description,
+            "language": "en",
+            "license": licenses.CC_BY,
+            "copyright_holder": "National Endowment for the Humanities",
+            "author": "",
             "source_id": self.resource_url}
         if self.process_file(download=DOWNLOAD_VIDEOS):
-            return metadata_dict        
+            return metadata_dict
 
 
 class VimeoResource(ResourceType):
@@ -836,7 +837,7 @@ class VimeoResource(ResourceType):
                 if filepath is not None:
                     self.add_resources_files(filepath, {}, local=True)
                     return True
-            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,         
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError) as e:
                 LOGGER.info('error_occured ' + str(e))
 
@@ -845,7 +846,7 @@ class VimeoResource(ResourceType):
         from urllib.error import URLError
         for try_number in range(10):
             try:
-                filename = download_from_web(self.resource_url, ydl_options, 
+                filename = download_from_web(self.resource_url, ydl_options,
                     ext=".{}".format(self.file_format))
             except (URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
@@ -859,11 +860,11 @@ class VimeoResource(ResourceType):
                 return filepath
 
     def to_file(self, description, filepath):
-        metadata_dict = {"description": description, 
-            "language": "en", 
-            "license": licenses.CC_BY, 
-            "copyright_holder": "National Endowment for the Humanities", 
-            "author": "", 
+        metadata_dict = {"description": description,
+            "language": "en",
+            "license": licenses.CC_BY,
+            "copyright_holder": "National Endowment for the Humanities",
+            "author": "",
             "source_id": self.resource_url}
         if self.process_file(download=DOWNLOAD_VIDEOS):
             return metadata_dict
