@@ -45,20 +45,31 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
+# BASE_URL is used to identify when a resource is owned by Edsitement
 BASE_URL = "http://edsitement.neh.gov"
-STUDENT_RESOURCE_TOPIC_INIT = 0#0
-STUDENT_RESOURCE_TOPIC_END = 4 #MAX 4 TOPICS OR NONE
+
+# These constans restrict the number of subjects and student resources when it's
+# doing the scrape
+# for debugging proporses
+STUDENT_RESOURCE_SUBJECT_INIT = 0
+STUDENT_RESOURCE_SUBJECT_END = 4 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
 STUDENT_RESOURCE_END = None
-#37 38
 
-LESSON_PLANS_TOPIC_INIT = 0
-LESSON_PLANS_TOPIC_END = 4
+# Same with these, restrict the number of subjects and lessons plans when it's
+# doing the scrape
+# for debugging proporses
+LESSON_PLANS_SUBJECT_INIT = 0
+LESSON_PLANS_SUBJECT_END = 4
 LESSON_PLANS_INIT = 0
 LESSON_PLANS_END = None
 
+# If False then no download is made
+# for debugging proporses
 DOWNLOAD_VIDEOS = True
-TIME_SLEEP = .4
+
+# time.sleep for debugging proporses, it helps to check log messages
+TIME_SLEEP = .2
 
 
 # Main Scraping Method
@@ -119,7 +130,7 @@ def lesson_plans(lesson_plans_subject):
     Scrape lesson plans from the lessons list of each subject 
     http://edsitement.neh.gov/subject/<subject>
     """
-    for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_TOPIC_INIT, LESSON_PLANS_TOPIC_END): #MAX NUMBER OF SUBJECTS
+    for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_SUBJECT_INIT, LESSON_PLANS_SUBJECT_END): #MAX NUMBER OF SUBJECTS
         page_contents = downloader.read(lesson_url)
         page = BeautifulSoup(page_contents, 'html.parser')
         sub_lessons = page.find_all("div", class_="lesson-plan-link")
@@ -140,7 +151,7 @@ def scrape_student_resources():
     STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
     levels = ["Student Resources"]
-    for subject in subject_ids[STUDENT_RESOURCE_TOPIC_INIT:STUDENT_RESOURCE_TOPIC_END]:
+    for subject in subject_ids[STUDENT_RESOURCE_SUBJECT_INIT:STUDENT_RESOURCE_SUBJECT_END]:
         params_url = "all?grade=All&subject={}&type=All".format(subject)
         page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
         LOGGER.info("Scrapping: " + page_url)
@@ -250,7 +261,9 @@ class LessonSection(object):
         return title
 
     def get_content(self):
-        pass
+        content = self.body.find("div", class_="text")
+        remove_links(content)
+        return "".join([str(p) for p in content])
 
     def write(self, filename, content):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
@@ -272,23 +285,11 @@ class Introduction(LessonSection):
         super(Introduction, self).__init__(page, filename=filename, 
             id_="sect-introduction", menu_name="introduction")
 
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        content = content.findChildren("p")
-        return "".join([str(p) for p in content])
-
 
 class GuidingQuestions(LessonSection):
     def __init__(self, page, filename=None):
         super(GuidingQuestions, self).__init__(page, filename=filename, 
             id_="sect-questions", menu_name="guiding_questions")
-
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        content = content.findChildren("ul")
-        return "".join([str(p) for p in content])
 
 
 class LearningObjetives(LessonSection):
@@ -296,23 +297,11 @@ class LearningObjetives(LessonSection):
         super(LearningObjetives, self).__init__(page, filename=filename, 
             id_="sect-objectives", menu_name="learning_objectives")
 
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        content = content.findChildren("ul")
-        return "".join([str(p) for p in content])
-
 
 class Background(LessonSection):
     def __init__(self, page, filename=None):
         super(Background, self).__init__(page, filename=filename, 
             id_="sect-background", menu_name="background")
-
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        content = content.findChildren("p")
-        return "".join([str(p) for p in content])
 
 
 class PreparationInstructions(LessonSection):
@@ -320,22 +309,11 @@ class PreparationInstructions(LessonSection):
         super(PreparationInstructions, self).__init__(page, filename=filename, 
             id_="sect-preparation", menu_name="preparation_instructions")
 
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        content = content.findChildren("ul")
-        return "".join([str(p) for p in content])
-
 
 class LessonActivities(LessonSection):
     def __init__(self, page, filename=None):
         super(LessonActivities, self).__init__(page, filename=filename, 
             id_="sect-activities", menu_name="lesson_activities")
-
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        return "".join([str(p) for p in content])
 
 
 class Assessment(LessonSection):
@@ -343,21 +321,11 @@ class Assessment(LessonSection):
         super(Assessment, self).__init__(page, filename=filename, 
             id_="sect-assessment", menu_name="assessment")
 
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        return "".join([str(p) for p in content])
-
 
 class ExtendingTheLesson(LessonSection):
     def __init__(self, page, filename=None):
         super(ExtendingTheLesson, self).__init__(page, filename=filename, 
             id_="sect-extending", menu_name="extending_the_lesson")
-
-    def get_content(self):
-        content = self.body.find("div", class_="text")
-        remove_links(content)
-        return "".join([str(p) for p in content])
 
 
 class TheBasics(LessonSection):
@@ -385,8 +353,9 @@ class Resources(object):
                 img_tag = resource_img.find("img")
                 return img_tag["src"]
             else:
-                LOGGER.info("IMAGE WITH COPYRIGHT")
+                LOGGER.info("  ------- IMAGE WITH COPYRIGHT")
                 LOGGER.info(resource_img.text)
+                LOGGER.info("  -------")
 
     def get_credits(self):
         resource_img = self.body.find("li", class_="lesson-image")
