@@ -22,7 +22,7 @@ fi
 rm -rf content/*
 mv ${ARCHIVE_NAME}.zip content/
 cd content
-unzip -q ${ARCHIVE_NAME}.zip
+unzip -oq ${ARCHIVE_NAME}.zip
 cd ..
 
 
