@@ -27,6 +27,7 @@ WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)),
 
 # Additional imports
 ###########################################################
+from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 import logging
 from bs4 import BeautifulSoup
 import urllib.parse
@@ -71,6 +72,15 @@ DOWNLOAD_VIDEOS = True
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .2
 
+# webcache
+###############################################################
+sess = requests.Session()
+cache = FileCache('.webcache')
+basic_adapter = CacheControlAdapter(cache=cache)
+forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
+sess.mount('http://', basic_adapter)
+sess.mount(BASE_URL, forever_adapter)
+
 
 # Main Scraping Method
 ################################################################################
@@ -94,7 +104,7 @@ def scrape_lesson_plans():
     for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
         subtopic_name = lesson_plan_url.split("/")[-1]
         try:
-            page_contents = downloader.read(lesson_plan_url, loadjs=False)
+            page_contents = downloader.read(lesson_plan_url, session=sess)
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
         else:
@@ -114,7 +124,7 @@ def lesson_plans_subject(page_url):
         22 -> History & Social Studies
         23 -> Literature & Language Arts
     """
-    page_contents = downloader.read(page_url)
+    page_contents = downloader.read(page_url, session=sess)
     LOGGER.info("Scrapping: " + page_url)
     page = BeautifulSoup(page_contents, 'html.parser')
     subject_ids = [25, 21, 22, 23]#, 18319, 18373, 25041, 31471]
@@ -131,7 +141,7 @@ def lesson_plans(lesson_plans_subject):
     http://edsitement.neh.gov/subject/<subject>
     """
     for lesson_url, levels in itertools.islice(lesson_plans_subject, LESSON_PLANS_SUBJECT_INIT, LESSON_PLANS_SUBJECT_END): #MAX NUMBER OF SUBJECTS
-        page_contents = downloader.read(lesson_url)
+        page_contents = downloader.read(lesson_url, session=sess)
         page = BeautifulSoup(page_contents, 'html.parser')
         sub_lessons = page.find_all("div", class_="lesson-plan-link")
         title = page.find("h2", class_="subject-area").text
@@ -155,7 +165,7 @@ def scrape_student_resources():
         params_url = "all?grade=All&subject={}&type=All".format(subject)
         page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
         LOGGER.info("Scrapping: " + page_url)
-        page_contents = downloader.read(page_url)
+        page_contents = downloader.read(page_url, session=sess)
         page = BeautifulSoup(page_contents, 'html.parser')
         resource_links = page.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"))
         for link in resource_links[STUDENT_RESOURCE_INIT:STUDENT_RESOURCE_END]:
@@ -163,7 +173,7 @@ def scrape_student_resources():
             if link["href"].rfind("/student-resource/") != -1:
                 student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
                 try:
-                    page_contents = downloader.read(student_resource_url)
+                    page_contents = downloader.read(student_resource_url, session=sess)
                 except requests.exceptions.HTTPError as e:
                     LOGGER.info("Error: {}".format(e))
                 page = BeautifulSoup(page_contents, 'html.parser')
@@ -680,7 +690,7 @@ class WebPageSource(ResourceType):
 
     def to_file(self, description, filepath):
         try:
-            page_contents = downloader.read(self.resource_url)            
+            page_contents = downloader.read(self.resource_url, session=sess)         
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
             return None
