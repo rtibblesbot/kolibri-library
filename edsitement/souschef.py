@@ -6,11 +6,25 @@ Edsitement is organized as follow:
 - Finally, each lesson or resource has contents like images, videos, pdfs and html5 files.
 """
 
+from collections import OrderedDict
+import itertools
+import logging
 import os
+from pathlib import Path
+import re
 import sys
-from ricecooker.utils import data_writer, path_builder, downloader, html_writer
-from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
+import time
+from urllib.error import URLError
+from urllib.parse import urlparse, urljoin
 
+from bs4 import BeautifulSoup
+from le_utils.constants import licenses, file_formats
+import pafy
+import requests
+from ricecooker.classes.files import download_from_web, config
+from ricecooker.utils import data_writer, path_builder, downloader, html_writer
+from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
+import youtube_dl
 
 
 # Run Constants
@@ -25,18 +39,7 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 PATH = path_builder.PathBuilder(channel_name=CHANNEL_NAME)  # Keeps track of path to write to csv
 WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)), os.path.sep, CHANNEL_NAME) # Where to generate zip file
 
-# Additional imports
-###########################################################
-from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
-import logging
-from bs4 import BeautifulSoup
-import urllib.parse
-import time
-from collections import OrderedDict
-import itertools
-import requests
-from urllib.parse import urlparse
-from pathlib import Path
+
 
 # Additional Constants
 ################################################################################
@@ -100,7 +103,7 @@ def scrape_lesson_plans():
     """
         Scrape lesson plans from its urls
     """
-    LESSONS_PLANS_URL = urllib.parse.urljoin(BASE_URL, "lesson-plans")
+    LESSONS_PLANS_URL = urljoin(BASE_URL, "lesson-plans")
     for lesson_plan_url, levels in lesson_plans(lesson_plans_subject(LESSONS_PLANS_URL)):
         subtopic_name = lesson_plan_url.split("/")[-1]
         try:
@@ -131,7 +134,7 @@ def lesson_plans_subject(page_url):
     for node in subject_ids:
         page_h3 = page.find("h3", id="node-"+str(node))
         resource_a = page_h3.find("a", href=True)
-        subtopic_url = urllib.parse.urljoin(BASE_URL, resource_a["href"].strip())
+        subtopic_url = urljoin(BASE_URL, resource_a["href"].strip())
         yield subtopic_url, ["Lesson Plans or For Teachers"]
 
 
@@ -151,19 +154,19 @@ def lesson_plans(lesson_plans_subject):
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
             time.sleep(TIME_SLEEP)
-            yield urllib.parse.urljoin(BASE_URL, resource_url), levels + [title]
+            yield urljoin(BASE_URL, resource_url), levels + [title]
 
 
 def scrape_student_resources():
     """
     Scrape student resources from the main page http://edsitement.neh.gov/student-resources
     """
-    STUDENT_RESOURCES_URL = urllib.parse.urljoin(BASE_URL, "student-resources/")
+    STUDENT_RESOURCES_URL = urljoin(BASE_URL, "student-resources/")
     subject_ids = [25, 21, 22, 23]
     levels = ["Student Resources"]
     for subject in subject_ids[STUDENT_RESOURCE_SUBJECT_INIT:STUDENT_RESOURCE_SUBJECT_END]:
         params_url = "all?grade=All&subject={}&type=All".format(subject)
-        page_url = urllib.parse.urljoin(STUDENT_RESOURCES_URL, params_url)
+        page_url = urljoin(STUDENT_RESOURCES_URL, params_url)
         LOGGER.info("Scrapping: " + page_url)
         page_contents = downloader.read(page_url, session=sess)
         page = BeautifulSoup(page_contents, 'html.parser')
@@ -171,7 +174,7 @@ def scrape_student_resources():
         for link in resource_links[STUDENT_RESOURCE_INIT:STUDENT_RESOURCE_END]:
             time.sleep(TIME_SLEEP)
             if link["href"].rfind("/student-resource/") != -1:
-                student_resource_url = urllib.parse.urljoin(BASE_URL, link["href"])
+                student_resource_url = urljoin(BASE_URL, link["href"])
                 try:
                     page_contents = downloader.read(student_resource_url, session=sess)
                 except requests.exceptions.HTTPError as e:
@@ -185,7 +188,6 @@ def scrape_student_resources():
 
 
 def get_name_from_url(url):
-    import os
     return os.path.basename(urlparse(url).path)
 
 
@@ -201,7 +203,6 @@ def remove_links(content):
 
 
 def has_copyright(content):
-    import re
     for license in content.findAll(text=re.compile('license', flags=re.IGNORECASE)):
         license = license.lower()
         if license.find("©") != -1 or license.find("all rights reserved") != -1:
@@ -379,7 +380,7 @@ class Resources(object):
         for link in resource_links:
             if link["href"].endswith(".pdf"):
                 name = get_name_from_url(link["href"])
-                yield name, urllib.parse.urljoin(BASE_URL, link["href"])
+                yield name, urljoin(BASE_URL, link["href"])
 
     def student_resources(self):
         resources = self.body.find("dd", id="student-resources")
@@ -435,7 +436,6 @@ class LessonPlan(object):
         self.source = None
 
     def clean_title(self, title):
-        import re
         if title is not None:
             title = title.text.strip()
             title = re.sub("\n|\t", " ", title)
@@ -476,7 +476,6 @@ class LessonPlan(object):
         PATH.go_to_parent_folder()
 
     def rm(self, filepath):
-        import os
         os.remove(filepath)
 
 
@@ -620,7 +619,7 @@ class ResourceType(object):
         if local is True:
             self.resources_files.append((src, metadata))
         else:
-            self.resources_files.append((urllib.parse.urljoin(BASE_URL, src), metadata))
+            self.resources_files.append((urljoin(BASE_URL, src), metadata))
 
 
 class FileSource(ResourceType):
@@ -746,9 +745,6 @@ class YouTubeResource(ResourceType):
         self.file_format = file_formats.MP4
 
     def process_file(self, download=False):
-        import youtube_dl
-        from ricecooker.classes.files import download_from_web, config
-
         ydl_options = {
             #'outtmpl': '%(title)s-%(id)s.%(ext)s',
             #'format': 'bestaudio/best',
@@ -781,8 +777,6 @@ class YouTubeResource(ResourceType):
     #sometimes raises connection error
     #for that I choose pafy for downloading
     def video_download(self):
-        from urllib.error import URLError
-        import pafy
         for try_number in range(10):
             try:
                 video = pafy.new(self.resource_url)
@@ -813,8 +807,6 @@ class VimeoResource(ResourceType):
         self.file_format = file_formats.MP4
 
     def process_file(self, download=False):
-        import youtube_dl
-
         ydl_options = {
             #'outtmpl': '%(title)s-%(id)s.%(ext)s',
             #'format': 'bestaudio/best',
@@ -842,8 +834,6 @@ class VimeoResource(ResourceType):
                 LOGGER.info('error_occured ' + str(e))
 
     def video_download(self, ydl_options):
-        from ricecooker.classes.files import download_from_web, config
-        from urllib.error import URLError
         for try_number in range(10):
             try:
                 filename = download_from_web(self.resource_url, ydl_options,
