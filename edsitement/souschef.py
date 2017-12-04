@@ -63,14 +63,14 @@ STUDENT_RESOURCE_END = None
 # Same with these, restrict the number of subjects and lessons plans when it's
 # doing the scrape
 # for debugging proporses
-LESSON_PLANS_SUBJECT_INIT = 0
-LESSON_PLANS_SUBJECT_END = 4
-LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = None
+LESSON_PLANS_SUBJECT_INIT = 2
+LESSON_PLANS_SUBJECT_END = 3
+LESSON_PLANS_INIT = 8
+LESSON_PLANS_END = 9
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .2
@@ -93,7 +93,7 @@ def scrape_source(writer):
         Returns: None
     """
     scrape_lesson_plans()
-    scrape_student_resources()
+    #scrape_student_resources()
 
 
 # Helper Methods
@@ -150,9 +150,10 @@ def lesson_plans(lesson_plans_subject):
         title = page.find("h2", class_="subject-area").text
         LOGGER.info("- Subject:"+title)
         LOGGER.info("- [url]:"+lesson_url)
-        for sub_lesson in itertools.islice(sub_lessons, LESSON_PLANS_INIT, LESSON_PLANS_END): #MAX NUMBER OF LESSONS
+        for seq, sub_lesson in enumerate(itertools.islice(sub_lessons, LESSON_PLANS_INIT, LESSON_PLANS_END)): #MAX NUMBER OF LESSONS
             resource_a = sub_lesson.find("a", href=True)
             resource_url = resource_a["href"].strip()
+            LOGGER.info("SEQ ID: {}".format(LESSON_PLANS_INIT+seq))
             time.sleep(TIME_SLEEP)
             yield urljoin(BASE_URL, resource_url), levels + [title]
 
@@ -249,9 +250,16 @@ class Menu(object):
             "text": title
         }
 
-    def to_html(self):
-        return "".join(
-            '<li><a href="files/{filename}">{text}</a></li>'.format(**e) for e in self.menu.values())
+    def to_html(self, directory="files/", active_li=None):
+        li = []
+        for e in self.menu.values():
+            li.append("<li>")
+            if active_li is not None and e["filename"] == active_li:
+                li.append('{text}'.format(text=e["text"]))
+            else:
+                li.append('<a href="{directory}{filename}">{text}</a>'.format(directory=directory, **e))
+            li.append("</li>")
+        return "".join(li)
 
 
 class LessonSection(object):
@@ -280,15 +288,20 @@ class LessonSection(object):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
             zipper.write_contents(filename, content, directory="files")
 
-    def to_file(self, filename):
+    def to_file(self, filename, menu_index=None):
         if self.body is not None and filename is not None:
             content = self.get_content()
             if self.title:
                 content = self.title+""+content
 
-            self.write(filename, '<html><head><meta charset="UTF-8"></head><body>{}<body></html>'.format(
-                content
-            ))
+            if menu_index is not None:
+                html = '<html><head><meta charset="UTF-8"></head><body>{}{}<body></html>'.format(
+                    menu_index, content)
+            else:
+                html = '<html><head><meta charset="UTF-8"></head><body>{}<body></html>'.format(
+                    content)
+
+            self.write(filename, html)
 
 
 class Introduction(LessonSection):
@@ -447,7 +460,9 @@ class LessonPlan(object):
         self.menu.to_file()
         for Section in self.sections:
             section = Section(self.page, filename=self.menu.filename)
-            section.to_file(self.menu.get(section.menu_name))
+            menu_filename = self.menu.get(section.menu_name)
+            menu_index = self.menu.to_html(directory="", active_li=menu_filename)
+            section.to_file(menu_filename, menu_index=menu_index)
         self.resources.to_file()
         metadata_dict = {"description": "",
             "language": "en",
