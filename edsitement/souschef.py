@@ -93,7 +93,7 @@ def scrape_source(writer):
         Returns: None
     """
     scrape_lesson_plans()
-    #scrape_student_resources()
+    scrape_student_resources()
 
 
 # Helper Methods
