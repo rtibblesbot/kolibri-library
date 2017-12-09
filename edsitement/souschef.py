@@ -63,10 +63,10 @@ STUDENT_RESOURCE_END = None
 # Same with these, restrict the number of subjects and lessons plans when it's
 # doing the scrape
 # for debugging proporses
-LESSON_PLANS_SUBJECT_INIT = 2
-LESSON_PLANS_SUBJECT_END = 3
-LESSON_PLANS_INIT = 8
-LESSON_PLANS_END = 9
+LESSON_PLANS_SUBJECT_INIT = 0
+LESSON_PLANS_SUBJECT_END = 4
+LESSON_PLANS_INIT = 0
+LESSON_PLANS_END = None
 
 # If False then no download is made
 # for debugging proporses
