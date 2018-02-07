@@ -143,6 +143,18 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     # Create a temporary folder to download all the files for a book.
     destination = tempfile.mkdtemp()
 
+    # Ensure the thumbnail is in a format Ricecooker can accept, and if not,
+    # use the first slide as the thumbnail.
+    thumbnail_extensions = ('jpg', 'jpeg', 'png')
+    if not thumbnail.lower().endswith(thumbnail_extensions):
+        print("Thumbnail src (%s) doesn't end in any of %s."
+                " Will use the first slide as the source." % (
+            thumbnail, thumbnail_extensions))
+        first_slide_src = doc.select_one('#slide-container .slide img')['src']
+        thumbnail = make_fully_qualified_url(first_slide_src)
+        if not thumbnail.lower().endswith(thumbnail_extensions):
+            thumbnail = None
+
     # Download all the JS/CSS/images/audio/etc. we'll need to make a standalone
     # app.
     doc = download_static_assets(doc, destination)
@@ -160,15 +172,6 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     # Write out the HTML source.
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
-
-    # Ensure the thumbnail is in a format Ricecooker can accept, and if not,
-    # use the first slide as the thumbnail.
-    thumbnail_extensions = ('jpg', 'jpeg', 'png')
-    if not thumbnail.lower().endswith(thumbnail_extensions):
-        first_slide_src = doc.select_one('#slide-container .slide img')['src']
-        thumbnail = make_fully_qualified_url(first_slide_src)
-        if not thumbnail.lower().endswith(thumbnail_extensions):
-            thumbnail = None
 
     print("Downloaded book %s titled \"%s\" (thumbnail %s) to destination %s" % (
         book_id, title, thumbnail, destination))
