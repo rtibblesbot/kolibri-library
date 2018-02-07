@@ -84,7 +84,7 @@ def download_all(channel):
     for i in range(books_count):
         print()
         print('-' * 80)
-        print('Downloading book %s of %s' % (i, books_count))
+        print('Downloading book %s of %s' % (i + 1, books_count))
         channel.add_child(download_single(i))
 
 
@@ -161,13 +161,13 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
 
     # Remove a bunch of HTML that we don't want showing in our standalone app.
     doc.select_one('base')['href'] = ''
-    remove_node('#loading')
-    remove_node('#finishedActions')
-    remove_node('.bookmarkbtn')
-    remove_node('.reader-expand')
-    remove_node('#progressBar')
-    remove_node('#androidNotification')
-    remove_node('#exit')
+    remove_node(doc, '#loading')
+    remove_node(doc, '#finishedActions')
+    remove_node(doc, '.bookmarkbtn')
+    remove_node(doc, '.reader-expand')
+    remove_node(doc, '#progressBar')
+    remove_node(doc, '#androidNotification')
+    remove_node(doc, '#exit')
 
     # Write out the HTML source.
     with open(os.path.join(destination, "index.html"), "w") as f:
@@ -189,7 +189,7 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     )
 
 
-def remove_node(selector):
+def remove_node(doc, selector):
     node = doc.select_one(selector)
     if node:
         node.decompose()
