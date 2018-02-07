@@ -33,6 +33,7 @@ cache = FileCache('.webcache')
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
 sess.mount('http://3asafeer.com/', forever_adapter)
+sess.mount('http://fonts.googleapis.com/', forever_adapter)
 
 
 headers = {
@@ -68,15 +69,41 @@ class ThreeAsafeerChef(SushiChef):
             title = channel_info['CHANNEL_TITLE'],
             thumbnail = channel_info.get('CHANNEL_THUMBNAIL'),
             description = channel_info.get('CHANNEL_DESCRIPTION'),
-            language = "en",
+            language = "ar",
         )
 
-        channel.add_child(download_single())
-
+        download_all(channel)
         return channel
 
 
-def download_single():
+def download_all(channel):
+    print("Getting number of books")
+    books_count = get_books_count()
+    print("There are %s books ... scraping them now!" % books_count)
+
+    for i in range(books_count):
+        print()
+        print('-' * 80)
+        print('Downloading book %s of %s' % (i, books_count))
+        channel.add_child(download_single(i))
+
+
+def get_books_count():
+    with WebDriver("http://3asafeer.com/", delay=3000) as driver:
+        click_read_and_wait(driver)
+        return len(driver.find_elements_by_css_selector('.story-cover'))
+
+
+def click_read_and_wait(driver):
+    read_link = driver.find_element_by_css_selector('#readLink')
+    read_link.click()
+    selenium_ui.WebDriverWait(driver, 60).until(
+            lambda driver: driver.find_element_by_id('list-container'))
+    time.sleep(3)
+
+
+def download_single(i):
+    """Download the book at index i."""
     with WebDriver("http://3asafeer.com/", delay=3000) as driver:
 
         print('Closing popup')
@@ -85,109 +112,66 @@ def download_single():
         time.sleep(1)
 
         print('Clicking "read"')
-        read_link = driver.find_element_by_css_selector('#readLink')
-        read_link.click()
+        click_read_and_wait(driver)
 
-        selenium_ui.WebDriverWait(driver, 60).until(
-                lambda driver: driver.find_element_by_id('list-container'))
-        time.sleep(2)
+        book = driver.find_elements_by_css_selector('.story-cover')[i]
+        book_id = book.get_attribute('id')
+        cover_src = book.find_element_by_css_selector('.cover').get_attribute('src')
+        thumbnail = make_fully_qualified_url(cover_src)
+        title = book.find_element_by_css_selector('.cover-title').text
 
-        print('Clicking book 13')
-        book = driver.find_element_by_css_selector('#cover-13 .story')
-        book.click()
+        print('Clicking book %s' % book_id)
+        link = book.find_element_by_css_selector('.story')
+        link.click()
 
-        #driver.find_elements_by_css_selector('.story-cover')
+        try:
+            selenium_ui.WebDriverWait(driver, 30).until(
+                    lambda driver: driver.find_element_by_id('reader-viewport'))
+        except:
+            print("Not able to click into the book :(, check screenshot.png")
+            driver.save_screenshot('screenshot.png')
+            raise
 
-        selenium_ui.WebDriverWait(driver, 60).until(
-                lambda driver: driver.find_element_by_id('reader-viewport'))
-
-        # XXX also wait for the actual images themselves to be loaded or
-        # something
-
-        #print('Scraping book 13')
-        #book_content = driver.find_element_by_css_selector('#maincontent')
-        #book_html = book_content.get_attribute('innerHTML')
-
-        destination = tempfile.mkdtemp()
+        time.sleep(5)
 
         doc = BeautifulSoup(driver.page_source, "html.parser")
-        download_static_assets(doc, destination)
-
-        doc.select_one('base')['href'] = ''
-        doc.select_one('#loading').decompose()
-        doc.select_one('#finishedActions').decompose()
-        doc.select_one('.bookmarkbtn').decompose()
-        doc.select_one('.reader-expand').decompose()
-        doc.select_one('#progressBar').decompose()
-        doc.select_one('#androidNotification').decompose()
-        doc.select_one('#exit').decompose()
-
-        with open(os.path.join(destination, "index.html"), "w") as f:
-            f.write(str(doc))
-
-        print("destination is", destination)
-        preview_in_browser(destination)
-
-        zip_path = create_predictable_zip(destination)
-        return nodes.HTML5AppNode(
-            source_id='cover-13',
-            title=truncate_metadata('Book of animals'),
-            license=licenses.CC_BYLicense(
-                copyright_holder=truncate_metadata('copyright holder')),
-            description='book of animals',
-            author=truncate_metadata('3asafeer'),
-            #thumbnail='',  # XXX
-            files=[files.HTMLZipFile(zip_path)],
-            #language=getlang_by_name(languages[0]),
-            language="en",
-        )
+        return process_node_from_doc(doc, book_id, title, thumbnail)
 
 
-def download_book(book_url, book_id, title, author, description, languages):
-    """Downloads a single book from the African Storybook website given its URL.
-
-    Return a tuple of (
-        the downloaded book as an HTML5AppNode,
-        the language of the book as a string).
-    """
-    # -- 0. Parse --
-
-    doc = get_parsed_html_from_url(book_url)
-
-    if "The storybook you wanted is not part of the African Storybook website" in doc.body.text:
-        return None, None, []
-
-    # -- 1. Extract --
-
-    # Extract copyright holder.
-    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
-
-    # Extract the language if we didn't get it already.
-    if not languages:
-        author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
-        language_raw = next(l for l in author_text_lines if l.startswith("Language"))
-        languages = [language_raw.strip("Language").strip(" -")]
-
-    # -- 2. Modify and write files --
-
+def process_node_from_doc(doc, book_id, title, thumbnail):
+    """Extract a Ricecooker node given the HTML source and some metadata."""
+    # Create a temporary folder to download all the files for a book.
     destination = tempfile.mkdtemp()
-    thumbnail = download_static_assets(doc, destination)
 
-    # Hide the African Storybook header nav bar.
-    header = doc.select_one("#headerBar")
-    if header:
-        header["style"] = "display: none;"
+    # Download all the JS/CSS/images/audio/etc. we'll need to make a standalone
+    # app.
+    doc = download_static_assets(doc, destination)
 
-    # Add page flipper buttons
-    left_png, response = download_file("http://www.africanstorybook.org/img/left.png",
-            destination, request_fn=make_request)
-    right_png, response = download_file("http://www.africanstorybook.org/img/right.png",
-            destination, request_fn=make_request)
-    add_page_flipper_buttons(doc, left_png, right_png)
+    # Remove a bunch of HTML that we don't want showing in our standalone app.
+    doc.select_one('base')['href'] = ''
+    remove_node('#loading')
+    remove_node('#finishedActions')
+    remove_node('.bookmarkbtn')
+    remove_node('.reader-expand')
+    remove_node('#progressBar')
+    remove_node('#androidNotification')
+    remove_node('#exit')
 
+    # Write out the HTML source.
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
 
+    # Ensure the thumbnail is in a format Ricecooker can accept, and if not,
+    # use the first slide as the thumbnail.
+    thumbnail_extensions = ('jpg', 'jpeg', 'png')
+    if not thumbnail.lower().endswith(thumbnail_extensions):
+        first_slide_src = doc.select_one('#slide-container .slide img')['src']
+        thumbnail = make_fully_qualified_url(first_slide_src)
+        if not thumbnail.lower().endswith(thumbnail_extensions):
+            thumbnail = None
+
+    print("Downloaded book %s titled \"%s\" (thumbnail %s) to destination %s" % (
+        book_id, title, thumbnail, destination))
     #preview_in_browser(destination)
 
     zip_path = create_predictable_zip(destination)
@@ -195,17 +179,17 @@ def download_book(book_url, book_id, title, author, description, languages):
         source_id=book_id,
         title=truncate_metadata(title),
         license=licenses.CC_BYLicense(
-            copyright_holder=truncate_metadata(copyright_holder)),
-        description=description,
-        author=truncate_metadata(author),
+            copyright_holder=truncate_metadata('3asafeer.com')),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
-        language=getlang_by_name(languages[0]),
-    ), languages
+        language="ar",
+    )
 
 
-def strip_level_from_title(title):
-    return re.sub("\(Level .\)", "", title).strip()
+def remove_node(selector):
+    node = doc.select_one(selector)
+    if node:
+        node.decompose()
 
 
 def truncate_metadata(data_string):
@@ -216,30 +200,15 @@ def truncate_metadata(data_string):
 
 
 CSS_URL_RE = re.compile(r"url\(['\"]?(.*?)['\"]?\)")
-BG_IMG_RE = re.compile("background-image:url\((.*)\)")
 IMAGES_IN_JS_RE = re.compile(r"images/(.*?)['\")]")
-
-
-url_blacklist = [
-    'google-analytics.com/analytics.js',
-    'fbds.js',
-    # TODO(davidhu): Remove Mailchimp and some other scripts too
-]
-
-
-def is_blacklisted(url):
-    return any((item in url) for item in url_blacklist)
-
-
-def derive_filename(url):
-    return "%s.%s" % (uuid.uuid4().hex, os.path.basename(urlparse(url).path))
 
 
 def download_static_assets(doc, destination):
     """Download all the static assets for a given book's HTML soup.
 
-    Return the downloaded filename of an image to use for the book's thumbnail.
+    Will download JS, CSS, images, and audio clips.
     """
+    # Helper function to download all assets for a given CSS selector.
     def download_assets(selector, attr, url_middleware=None,
             content_middleware=None, node_filter=None):
         nodes = doc.select(selector)
@@ -278,7 +247,7 @@ def download_static_assets(doc, destination):
         # Download all images referenced in JS files
         for img in IMAGES_IN_JS_RE.findall(content):
             url = make_fully_qualified_url('/images/%s' % img)
-            print("Downloading file", img, "from url", url)
+            print("Downloading", url, "to filename", img)
             download_file(url, destination, subpath="images",
                     request_fn=make_request, filename=img)
 
@@ -303,6 +272,7 @@ def download_static_assets(doc, destination):
             src = match.group(1)
             if src.startswith('//localhost'):
                 return 'src()'
+            # Don't download data: files
             if src.startswith('data:'):
                 return match.group(0)
             src_url = make_fully_qualified_url(src)
@@ -313,7 +283,7 @@ def download_static_assets(doc, destination):
 
         return CSS_URL_RE.sub(repl, content)
 
-    # Download all static assets.
+    # Download all linked static assets.
     download_assets("img[src]", "src")  # Images
     download_assets("link[href]", "href", url_middleware=css_url_middleware,
             content_middleware=css_content_middleware,
@@ -322,13 +292,17 @@ def download_static_assets(doc, destination):
     download_assets("source[src]", "src") # Audio
     download_assets("source[srcset]", "srcset") # Audio
 
-    # ... and also run the middleware on associated CSS/JS to get linked files
+    # ... and also run the middleware on CSS/JS embedded in the page source to
+    # get linked files.
     for node in doc.select('style'):
         node.string = css_content_middleware(node.get_text(), url='')
+
     for node in doc.select('script'):
         if not node.attrs.get('src'):
             node.string = js_middleware(node.get_text(), url='')
 
+    # Copy over some of our own JS/CSS files and then add links to them in the
+    # page source.
     copy_tree("static", os.path.join(destination, "static"))
 
     chef_head_script = doc.new_tag("script", src="static/chef_end_of_head.js")
@@ -340,73 +314,21 @@ def download_static_assets(doc, destination):
     chef_css = doc.new_tag("link", href="static/chef.css")
     doc.select_one('head').append(chef_css)
 
-    # Download all background images, e.g. <div style="background-image:url()">
-    # (africanstorybook.org uses these for the main picture found on each page
-    # of the storybook.)
-    thumbnail = None
-    bg_img_nodes = doc.select("div[style*=\"background-image:url(\"]")
-    for i, node in enumerate(bg_img_nodes):
-        style = node["style"]
-        match = BG_IMG_RE.search(style)
-        if not match:
-            continue
-
-        url = make_fully_qualified_url(match.group(1))
-        filename = "%s_%s" % (i, os.path.basename(url))
-        node["style"] = BG_IMG_RE.sub("background-image:url(%s)" % filename, style)
-        download_file(url, destination, request_fn=make_request, filename=filename)
-
-        if node.has_attr("class") and "cover-image" in node.get("class"):
-            thumbnail = os.path.join(destination, filename)
-
-    return thumbnail
+    return doc
 
 
-def add_page_flipper_buttons(doc, left_png, right_png):
-    width = "6%"
-    base_flipper_html = """
-    <div id="%(id)s"
-            style="display: block; position: absolute; top: 0; bottom: 0; width: %(width)s; z-index: 9001; background: #757575; %(style)s"
-            onclick="%(onclick)s">
-        <img style="display: block; position: absolute; top: 50%%; margin-top: -16px; left: 50%%; margin-left: -16px;"
-                src="%(src)s" />
-    </div>"""
+url_blacklist = [
+    'google-analytics.com/analytics.js',
+    'fbds.js',
+    'chimpstatic.com',
+]
 
-    left_flipper_html = base_flipper_html % {
-        "id": "left-flipper",
-        "width": width,
-        "style": "left: 0; cursor: w-resize;",
-        "onclick": "$$('#go-back').click();",
-        "src": left_png,
-    }
-
-    right_flipper_html = base_flipper_html % {
-        "id": "right-flipper",
-        "width": width,
-        "style": "right: 0; cursor: e-resize;",
-        "onclick": "$$('#go-next').click();",
-        "src": right_png,
-    }
-
-    flippers = BeautifulSoup("<div>%s%s</div>" % (left_flipper_html, right_flipper_html),
-            "html.parser")
-
-    root_node = doc.select_one(".views")
-    root_node["style"] = "padding-left: %(width)s; padding-right: %(width)s; box-sizing: border-box;" % {"width": width}
-    root_node.append(flippers.find(id="left-flipper"))
-    root_node.append(flippers.find(id="right-flipper"))
+def is_blacklisted(url):
+    return any((item in url) for item in url_blacklist)
 
 
-def replace_br_with_newlines(element):
-    text = ''
-    for elem in element.recursiveChildGenerator():
-        if isinstance(elem, str):
-            text += elem
-        elif elem.name == 'br':
-            text += '\n'
-
-    # Merge consecutive spaces
-    return re.sub(" +", " ", text.strip())
+def derive_filename(url):
+    return "%s.%s" % (uuid.uuid4().hex, os.path.basename(urlparse(url).path))
 
 
 def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
@@ -431,11 +353,6 @@ def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
         print("NOT FOUND:", url)
 
     return response
-
-
-def get_parsed_html_from_url(url, *args, **kwargs):
-    html = make_request(url, *args, **kwargs).content
-    return BeautifulSoup(html, "html.parser")
 
 
 def make_fully_qualified_url(url):
