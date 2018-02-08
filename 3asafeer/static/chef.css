@@ -1,3 +1,7 @@
 #reader-viewport {
     background: white;
 }
+
+#slide-container .slide img {
+    max-height: 100%;
+}

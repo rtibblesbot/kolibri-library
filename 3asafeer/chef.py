@@ -181,8 +181,7 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     return nodes.HTML5AppNode(
         source_id=book_id,
         title=truncate_metadata(title),
-        license=licenses.CC_BYLicense(
-            copyright_holder=truncate_metadata('3asafeer.com')),
+        license=licenses.AllRightsLicense(copyright_holder='3asafeer.com'),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
         language="ar",
@@ -314,7 +313,7 @@ def download_static_assets(doc, destination):
     chef_body_script = doc.new_tag("script", src="static/chef_end_of_body.js")
     doc.select_one('body').append(chef_body_script)
 
-    chef_css = doc.new_tag("link", href="static/chef.css")
+    chef_css = doc.new_tag("link", href="static/chef.css", rel="stylesheet")
     doc.select_one('head').append(chef_css)
 
     return doc
