@@ -294,6 +294,8 @@ class Collection(object):
         sections = self.drop_null_sections(menu)
         collection_info = sections["QuickLook"].info()
         collection_info["description"] = sections["OverView"].overview
+        license = get_license(licenses.CC_BY, copyright_holder=sections["Copyright"].copyright).as_dict()
+        collection_info["license"] = license
         print(collection_info)
         #build the menu index
         #menu.to_file()
@@ -382,7 +384,7 @@ class LessonPlan(CurriculumType):
     def __init__(self, *args, **kwargs):
         self.sections = [
             {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
-            {"id": "overview", "class": OverView, "menu_name": "overview"}
+            {"id": "overview", "class": OverView, "menu_name": "overview"},
             #{"id": "summary", "class": [CurriculumHeader, Summary, EngineeringConnection], "menu_name": "summary"},
             #{"id": "prereq", "class": CollectionSection, "menu_name": "pre-req_knowledge"},
             #{"id": "objectives", "class": CollectionSection, "menu_name": "learning_objectives"},
@@ -396,7 +398,7 @@ class LessonPlan(CurriculumType):
             #{"id": "multimedia", "class": CollectionSection, "menu_name": "additional_multimedia_support"},
             #{"id": "extensions", "class": CollectionSection, "menu_name": "extensions"},
             #{"id": "references", "class": CollectionSection, "menu_name": "references"},
-            #{"id": "info", "class": Copyright, "menu_name": "info"},
+            {"id": "info", "class": Copyright, "menu_name": "info"},
         ]
 
 
@@ -654,6 +656,22 @@ class OverView(CollectionSection):
         self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
             tag.findChildren(lambda tag: tag.name == "a" and tag.attrs.get("name", "") == "overview"))
         self.overview = self.overview.findNext("p").text
+
+
+class Copyright(CollectionSection):
+    def __init__(self, collection, filename=None, id_="copyright", menu_name="copyright"):
+        super(Copyright, self).__init__(collection, filename=filename,
+                id_=id_, menu_name=menu_name)
+        self.get_copyright_info()
+
+    def get_copyright_info(self):
+        p = self.collection.page.find("p", id="footer-l").text
+        index = p.find("©")
+        if index != -1:
+            self.copyright = p[index:].strip().replace("\n", "").replace("\t", "")
+            LOGGER.info("   - COPYRIGHT INFO:" + self.copyright)
+        else:
+            self.copyright = ""
 
 
 def save_thumbnail(url, save_as):
