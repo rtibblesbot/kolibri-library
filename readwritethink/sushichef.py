@@ -225,12 +225,12 @@ class Collection(object):
             return text.strip()
 
     def drop_null_sections(self, menu):
-        sections = []
-        for section in self.curriculum_type.render(self, ""):#self.curriculum_type.render(menu.filepath):
+        sections = OrderedDict()
+        for section in self.curriculum_type.render(self, menu_filename=""):#self.curriculum_type.render(menu.filepath):
             #if section.body is None:
             #    menu.remove(section.id)
             #else:
-            sections.append(section)
+            sections[section.__class__.__name__] = section
         return sections
 
     ##activities, lessons, etc
@@ -240,18 +240,6 @@ class Collection(object):
                 source_id=self.type,
                 title=self.type,
                 description="",
-                license=self.license,
-                children=[]
-            )
-
-    ##curriculum title
-    def info(self, thumbnail):
-        return dict(
-                kind=content_kinds.TOPIC,
-                source_id=self.resource_url,
-                title=self.title,
-                thumbnail=thumbnail,
-                description=self.description(),
                 license=self.license,
                 children=[]
             )
@@ -304,6 +292,9 @@ class Collection(object):
         #menu.add("info", "Info")
 
         sections = self.drop_null_sections(menu)
+        collection_info = sections["QuickLook"].info()
+        collection_info["description"] = sections["OverView"].overview
+        print(collection_info)
         #build the menu index
         #menu.to_file()
         #set section's html files to the menu
@@ -373,7 +364,7 @@ class Collection(object):
 
 
 class CurriculumType(object):
-    def render(self, collection, menu_filename, lang="en", resource_url=None):
+    def render(self, collection, menu_filename):
         for meta_section in self.sections:
             Section = meta_section["class"]
             if isinstance(Section, list):
@@ -391,6 +382,7 @@ class LessonPlan(CurriculumType):
     def __init__(self, *args, **kwargs):
         self.sections = [
             {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
+            {"id": "overview", "class": OverView, "menu_name": "overview"}
             #{"id": "summary", "class": [CurriculumHeader, Summary, EngineeringConnection], "menu_name": "summary"},
             #{"id": "prereq", "class": CollectionSection, "menu_name": "pre-req_knowledge"},
             #{"id": "objectives", "class": CollectionSection, "menu_name": "learning_objectives"},
@@ -613,18 +605,10 @@ class QuickLook(CollectionSection):
     def __init__(self, collection, filename=None, id_="quick", menu_name="quick_look"):
         super(QuickLook, self).__init__(collection, filename=filename,
                 id_=id_, menu_name=menu_name)
-        #self.body = self.collection.page.find("div", class_="quick-look")
         img_src = self.get_thumbnail()
         filename = get_name_from_url(img_src)
-        filepath = save_thumbnail(img_src, filename)
-        print(filepath)
-        ## cleaning html code
-        #for s in self.body.find_all("script"):
-        #    s.extract()
-        #for b in self.body.find_all("button"):
-        #    b.extract()
-        #div = self.body.find("div", id="PrintShareModal")
-        #div.extract()
+        self.thumbnail = save_thumbnail(img_src, filename)
+        self.plan_info = self.get_plan_info()
     
     def get_thumbnail(self):
         div = self.collection.page.find("div", class_="box-fade")
@@ -634,13 +618,42 @@ class QuickLook(CollectionSection):
         else:
             return img["src"]
 
-    def get_subject_area(self):
-        subject_areas = self.body.find_all(lambda tag: tag.name == 'a' and\
-                        tag.findParent("dd", class_="subject-area"))
-        subjects = []
-        for a in subject_areas:
-            subjects.append(a.text)
-        return subjects
+    def get_plan_info(self):
+        table = self.collection.page.find("table", class_="plan-info")
+        rows = table.find_all("td")
+        data = {}
+        for row_name, row_value in zip(rows[::2], rows[1::2]):
+            key = row_name.text.strip().lower()
+            if key == "publisher":
+                a = row_value.find("a")
+                data[key] = {"url": a["href"], "title": a["title"]}
+            else:
+                data[key] = row_value.text
+        return data
+
+    def info(self):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.collection.source_id,
+            title=self.collection.title,
+            thumbnail=self.thumbnail,
+            description="",
+            author=self.plan_info.get("lesson author", ""),
+            license="",
+            children=[]
+        )
+
+
+class OverView(CollectionSection):
+    def __init__(self, collection, filename=None, id_="overview", menu_name="overview"):
+        super(OverView, self).__init__(collection, filename=filename,
+                id_=id_, menu_name=menu_name)
+        self.get_overview()
+
+    def get_overview(self):
+        self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
+            tag.findChildren(lambda tag: tag.name == "a" and tag.attrs.get("name", "") == "overview"))
+        self.overview = self.overview.findNext("p").text
 
 
 def save_thumbnail(url, save_as):
@@ -664,7 +677,9 @@ def if_dir_exists(filepath):
 
 def get_name_from_url(url):
     head, tail = ntpath.split(url)
-    return tail or ntpath.basename(url)
+    tail = tail[:tail.find("&")]
+    basename = ntpath.basename(url)
+    return tail or basename[:basename.find("&")]
 
 
 def get_name_from_url_no_ext(url):
