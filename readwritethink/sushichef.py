@@ -173,7 +173,7 @@ class PrintPage(object):
 
 
 class Collection(object):
-    def __init__(self, url, source_id, type, subjects_area=None):
+    def __init__(self, url, source_id, type, subjects_area=None, obj_id=None):
         self.page = self.download_page(url)
         if self.page is not False:
             self.title = self.clean_title(self.page.find("h1"))
@@ -185,7 +185,8 @@ class Collection(object):
             self.type = type
             self.license = None
             self.lang = "en"
-            self.subjects_area = subjects_area
+            #self.subjects_area = subjects_area
+            self.obj_id = obj_id
             
             #if self.type == "MakerChallenges":
             #    self.curriculum_type = MakerChallenge()
@@ -226,7 +227,7 @@ class Collection(object):
 
     def drop_null_sections(self, menu):
         sections = OrderedDict()
-        for section in self.curriculum_type.render(self, menu_filename=""):#self.curriculum_type.render(menu.filepath):
+        for section in self.curriculum_type.render(self, menu_filename=menu.filepath):#self.curriculum_type.render(menu.filepath):
             #if section.body is None:
             #    menu.remove(section.id)
             #else:
@@ -275,16 +276,16 @@ class Collection(object):
             return self.subjects_area
 
     def to_file(self, channel_tree):
+        from collections import namedtuple
         LOGGER.info(" + [{}]: {}".format(self.type, self.title))
         LOGGER.info("   - URL: {}".format(self.resource_url))
         copy_page = copy.copy(self.page)
-        #cr = Copyright(copy_page)
-        #self.license = get_license(licenses.CC_BY, copyright_holder=cr.get_copyright_info()).as_dict()
-        #subjects_area = self.get_subjects_area()
-        #base_path = build_path([DATA_DIR, self.type, self.source_id])
-        #filepath = "{path}/{source_id}.zip".format(path=base_path, 
-        #    source_id=self.source_id)
-        menu = None
+        base_path = build_path([DATA_DIR, self.type, self.obj_id])
+        filepath = "{path}/{title}.zip".format(path=base_path, 
+            title=self.title)
+        Menu = namedtuple('Menu', ['filepath'])
+        menu = Menu(filepath=filepath)
+        #menu = None
         #menu = Menu(self.page, filepath=filepath, id_="CurriculumNav", 
         #    exclude_titles=["attachments", "comments"], 
         #    include_titles=[("quick", "Quick Look")],
@@ -296,7 +297,8 @@ class Collection(object):
         collection_info["description"] = sections["OverView"].overview
         license = get_license(licenses.CC_BY, copyright_holder=sections["Copyright"].copyright).as_dict()
         collection_info["license"] = license
-        print(collection_info)
+        sections["PrintContainer"].to_file()
+        #print(collection_info)
         #build the menu index
         #menu.to_file()
         #set section's html files to the menu
@@ -385,19 +387,7 @@ class LessonPlan(CurriculumType):
         self.sections = [
             {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
             {"id": "overview", "class": OverView, "menu_name": "overview"},
-            #{"id": "summary", "class": [CurriculumHeader, Summary, EngineeringConnection], "menu_name": "summary"},
-            #{"id": "prereq", "class": CollectionSection, "menu_name": "pre-req_knowledge"},
-            #{"id": "objectives", "class": CollectionSection, "menu_name": "learning_objectives"},
-            #{"id": "morelikethis", "class": CollectionSection, "menu_name": "more_like_this"},
-            #{"id": "intro", "class": CollectionSection, "menu_name": "introduction_motivation"},
-            #{"id": "background", "class": CollectionSection, "menu_name": "background"},
-            #{"id": "vocab", "class": CollectionSection, "menu_name": "vocabulary_definitions"},
-            #{"id": "assoc", "class": CollectionSection, "menu_name": "associated_activities"},
-            #{"id": "closure", "class": CollectionSection, "menu_name": "lesson_closure"},
-            #{"id": "assessment", "class": CollectionSection, "menu_name": "assessment"},
-            #{"id": "multimedia", "class": CollectionSection, "menu_name": "additional_multimedia_support"},
-            #{"id": "extensions", "class": CollectionSection, "menu_name": "extensions"},
-            #{"id": "references", "class": CollectionSection, "menu_name": "references"},
+            {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
             {"id": "info", "class": Copyright, "menu_name": "info"},
         ]
 
@@ -407,21 +397,8 @@ class CollectionSection(object):
         LOGGER.debug(id_)
         self.id = id_
         self.collection = collection
-        #if id_ is None:
-        #    self.body = page
-        #else:
-        #    self.body = page.find("section", id=id_)
-
-        #if self.body is not None:
-        #    h3 = self.body.find("h3")
-        #    self.title = self.clean_title(h3)
-        #    del h3
-        #else:
-        #    self.title = None
         self.filename = filename
         self.menu_name = menu_name
-        #self.resource_url = resource_url
-        #self.lang = lang
         self.img_url = None
 
     def __add__(self, o):
@@ -674,6 +651,32 @@ class Copyright(CollectionSection):
             self.copyright = ""
 
 
+class PrintContainer(CollectionSection):
+    def __init__(self, collection, filename=None, id_="print-container", menu_name="body"):
+        super(PrintContainer, self).__init__(collection, filename=filename,
+                id_=id_, menu_name=menu_name)
+        self.body = self.collection.page
+        self.filepath = filename
+        comments = self.body.find(lambda tag: tag.name == "h3" and tag.text == "Comments")
+        for section in comments.find_all_next():
+            if section.name == "div" and section.attrs.get("id", "") == "footer":
+                break
+            section.decompose()
+
+    def write(self, content):
+        with html_writer.HTMLWriter(self.filepath, "w") as zipper:
+            zipper.write_index_contents(content)
+
+    def to_file(self):
+        if self.body is not None:
+            images = self.get_imgs(prefix="files/")
+            html = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
+                self.body)
+            self.write(html)
+            for img_src, img_filename in images:
+                self.write_img(img_src, img_filename)
+
+
 def save_thumbnail(url, save_as):
     THUMB_DATA_DIR = build_path([DATA_DIR, 'thumbnail'])
     filepath = os.path.join(THUMB_DATA_DIR, save_as)
@@ -695,9 +698,14 @@ def if_dir_exists(filepath):
 
 def get_name_from_url(url):
     head, tail = ntpath.split(url)
-    tail = tail[:tail.find("&")]
+    params_index = tail.find("&")
+    if params_index != -1:
+        tail = tail[:params_index]
     basename = ntpath.basename(url)
-    return tail or basename[:basename.find("&")]
+    params_b_index = basename.find("&")
+    if params_b_index != -1:
+        basename = basename[:params_b_index]
+    return tail or basename
 
 
 def get_name_from_url_no_ext(url):
@@ -801,7 +809,8 @@ class ReadWriteThinkChef(JsonTreeChef):
         for resource in web_resource_tree["children"]:
             collection = Collection(resource["url"],
                             source_id=resource["url"],
-                            type=resource["collection"])
+                            type=resource["collection"],
+                            obj_id=resource["id"])
             collection.to_file(channel_tree)
             break
             #if counter == 20:
