@@ -8,7 +8,7 @@ index_url = "https://artsedge.kennedy-center.org/educators/lessons?ps=2147483647
 
 class Lesson(object):
     def __repr__(self):
-        print (repr(self.link))
+        return repr(self.link)
     
     def __init__(self, lesson_soup):
         main, grade, subject, other_subject = lesson_soup.find_all("td")
