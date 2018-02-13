@@ -2,17 +2,20 @@ import pickle
 import os
 import pprint
 import re
+import le_utils
+import json
+import pkgutil 
+from itertools import groupby
 
 if not os.path.exists('chocmoose_info.pickle'):
     print("error, missing chocmoose_info.pickle, please download and unzip in current dir.")
-
 
 with open('chocmoose_info.pickle', 'rb') as handle:
     info = pickle.load(handle)
 
 # LOOK AROUND
 ########################################################################
-print(info.keys())
+#print(info.keys())
 
 # non-entries keys
 keys = ['extractor', 'extractor_key', 'title', '_type', 'webpage_url', 'id', 'webpage_url_basename']
@@ -20,22 +23,24 @@ for key in keys:
     print(key, ':', info[key])
             
 # number of entries
-print("\n\nlen(info['entries'] = ", len(info['entries']) )
+print("\n\nlen(info['entries']) = ", len(info['entries']) )
 
 # sample entry
-pp = pprint.PrettyPrinter()
-vinfo=info['entries'][5].copy()
-del vinfo['formats']  # to keep from printing 100+ lines
-del vinfo['requested_formats']  # to keep from printing 100+ lines
-pp.pprint(vinfo)
+#pp = pprint.PrettyPrinter()
+#vinfo=info['entries'][5].copy()
+#del vinfo['formats']  # to keep from printing 100+ lines
+#del vinfo['requested_formats']  # to keep from printing 100+ lines
+#pp.pprint(vinfo)
 
 projects =  [
         { 'pattern': re.compile('.*[EÉI|Ȧŋi]bola.*'),
           'section': "Ebola A Poem For The Living" },
-        { 'pattern': re.compile('.*No Excuses.*', re.I),
-          'section': "No Excuses domestic violence prevention" },
         { 'pattern': re.compile('.*Solar [Campaign|Camgian].*'),
           'section': "Solar Campaign promoting solar lights" },
+        { 'pattern': re.compile('.*No Excuses.*', re.I),
+          'section': "No Excuses domestic violence prevention" },
+        { 'pattern': re.compile('.*Preventing.*', re.I),
+          'section': "No Excuses domestic violence prevention" },
         { 'pattern': re.compile('.*buzz-and-bite.*'),
           'section': "Buzz and Bite malaria prevention" },
         { 'pattern': re.compile('.*the-three-amigos.*'),
@@ -76,10 +81,45 @@ projects =  [
           'section': "The Power of Animation and Humour"},
         ] 
 
+LANGS_LOOKUP = [
+        { 'pattern': re.compile('.*Mandarin.*'),
+          'lang': 'zh'  },
+        { 'pattern': re.compile('.*Greek.*'),
+          'lang': 'el'  },
+        { 'pattern': re.compile('.*Creole.*'),
+          'lang': 'ht'  },
+        { 'pattern': re.compile('.*Romanian.*'),
+          'lang': 'ro'  },
+        { 'pattern': re.compile('.*Sotho.*'),
+          'lang': 'st'  },
+        # From this: https://en.wikipedia.org/wiki/Krio_language
+        { 'pattern': re.compile('.*Krio.*'),
+          'lang': 'kri'  },
+        { 'pattern': re.compile('.*Themne.*'),
+          'lang': 'tem'  },
+        ]
+
+langlist = json.loads(pkgutil.get_data('le_utils', 'resources/languagelookup.json').decode('utf-8'))
+pprint.pprint(langlist)
+
 def section_from_title(title):
     for project in projects:
         if project['pattern'].match(title):
             return project['section'] 
+
+def lang_from_video(vid):
+    for k,v in langlist.items():  
+        name = v['name']
+        native_name = v['native_name']
+        if name in vid['title']:
+           return k 
+        if native_name and (native_name in vid['title']):
+           return k 
+
+def manual_lang_tag_from_video(vid):
+    for language in LANGS_LOOKUP:
+        if language['pattern'].match(vid['title']):
+            return language['lang'] 
 
 for vid in info['entries']:
     vid['project_name'] = section_from_title(vid['title'])
@@ -93,3 +133,23 @@ for vid in info['entries']:
         print(vid['title'],'\033[91m', vid['project_name'], '\033[0m')
 
 print("Remaining videos:", remaining)
+
+
+for vid in info['entries']:
+    vid['lang_tag'] = lang_from_video(vid)
+    if not vid['lang_tag']:
+       vid['lang_tag'] = manual_lang_tag_from_video(vid)
+
+remaining = 0
+for vid in info['entries']:
+    lang = vid['lang_tag']
+    if not lang: 
+        remaining += 1
+        print(vid['webpage_url'])
+        print(vid['title'],'\033[91m', vid['project_name'], '\033[0m')
+
+print("Remaining videos without language:", remaining)
+
+#for key, group in groupby(info['eitries'], lambda x: x['lang_tag']):
+#    print(key) 
+#    print(list(group)[0]['title'])
