@@ -67,15 +67,9 @@ def test():
     """
     Test individual resources
     """
-    #url = "https://www.teachengineering.org/activities/view/gat_esr_test_activity1"
-    #url = "https://www.teachengineering.org/curricularunits/view/cub_dams"
-    #url = "https://www.teachengineering.org/curricularunits/view/umo_sensorswork_unit"
-    url = "https://www.teachengineering.org/curricularunits/view/cub_service_unit"
-    #collection_type = "Sprinkles"
-    #collection_type = "MakerChallenges"
-    #collection_type = "Lessons"
-    #collection_type = "Activities"
-    collection_type = "CurricularUnits"
+    #url = "http://www.readwritethink.org/resources/resource-print.html?id=410"
+    url = "http://www.readwritethink.org/resources/resource-print.html?id=1121"
+    collection_type = "Lesson Plan"
     channel_tree = dict(
         source_domain="www.readwritethink.org",
         source_id='readwritethink',
@@ -90,10 +84,9 @@ def test():
     try:
         subtopic_name = "test"
         collection = Collection(url, 
-            title="test",
             source_id="test",
             type=collection_type,
-            lang="en")
+            obj_id="410")
         collection.to_file(channel_tree)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
@@ -297,7 +290,10 @@ class Collection(object):
         collection_info["description"] = sections["OverView"].overview
         license = get_license(licenses.CC_BY, copyright_holder=sections["Copyright"].copyright).as_dict()
         collection_info["license"] = license
+        pdfs_info = sections["PrintContainer"].build_pdfs_info(base_path, license)
+        sections["PrintContainer"].clean_page()
         sections["PrintContainer"].to_file()
+        print(pdfs_info)
         #print(collection_info)
         #build the menu index
         #menu.to_file()
@@ -400,6 +396,7 @@ class CollectionSection(object):
         self.filename = filename
         self.menu_name = menu_name
         self.img_url = None
+        self.lang = "en"
 
     def __add__(self, o):
         if isinstance(self.body, Tag) and isinstance(o.body, Tag):
@@ -431,7 +428,7 @@ class CollectionSection(object):
     def get_pdfs(self):
         urls = {}
         if self.body is not None:
-            resource_links = self.body.find_all("a", href=re.compile("^\/content|https\:\/\/www.teachengineering"))
+            resource_links = self.body.find_all("a", href=re.compile("\.pdf$"))
             for link in resource_links:
                 if link["href"].endswith(".pdf") and link["href"] not in urls:
                     filename = get_name_from_url(link["href"])
@@ -657,11 +654,24 @@ class PrintContainer(CollectionSection):
                 id_=id_, menu_name=menu_name)
         self.body = self.collection.page
         self.filepath = filename
+
+    def clean_page(self):
+        self.body.find("p", id="page-url").decompose()
+        self.body.find("div", class_="table-tabs-back").decompose()
+        self.body.find("span", class_="print-page-button").decompose()
+        self.body.find("div", id="email-share-print").decompose()
+        for p in self.body.find_all(lambda tag: tag.name == "p" and\
+            "txt-right" in tag.attrs.get("class", []) and tag.findChildren("img")):
+            p.decompose()
+
         comments = self.body.find(lambda tag: tag.name == "h3" and tag.text == "Comments")
         for section in comments.find_all_next():
             if section.name == "div" and section.attrs.get("id", "") == "footer":
                 break
             section.decompose()
+        comments.decompose()
+
+        remove_links(self.body)
 
     def write(self, content):
         with html_writer.HTMLWriter(self.filepath, "w") as zipper:
@@ -779,7 +789,8 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        test()
+        #channel_tree = self._build_scraping_json_tree(web_resource_tree)
         #self.write_tree_to_json(channel_tree, lang)
 
     def write_tree_to_json(self, channel_tree, lang):
