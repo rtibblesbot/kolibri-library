@@ -541,7 +541,7 @@ em
 	{
 		margin: 0px 0px 0px 0px;
 		padding: 20px 20px 0px 20px;
-		background-color: #fff;
+		dragon-background-color: #fff;
 			
 		min-height: 200px;
 		height: auto !important; /* hack to get min-height to work reliably */
