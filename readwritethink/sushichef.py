@@ -9,7 +9,6 @@ import gettext
 import json
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
-import ntpath
 import os
 import pafy
 from pathlib import Path
@@ -24,6 +23,9 @@ import sys
 import time
 from urllib.error import URLError
 from urllib.parse import urljoin, urlencode
+from utils import save_thumbnail, if_file_exists
+from utils import if_dir_exists, get_name_from_url, get_name_from_url_no_ext
+from utils import build_path, remove_links, remove_iframes, check_shorter_url
 import urllib.parse as urlparse
 import youtube_dl
 
@@ -40,7 +42,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .1
@@ -91,6 +93,7 @@ def test():
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
 
+    return channel_tree
 
 
 class ResourceBrowser(object):
@@ -220,10 +223,7 @@ class Collection(object):
 
     def drop_null_sections(self, menu):
         sections = OrderedDict()
-        for section in self.curriculum_type.render(self, menu_filename=menu.filepath):#self.curriculum_type.render(menu.filepath):
-            #if section.body is None:
-            #    menu.remove(section.id)
-            #else:
+        for section in self.curriculum_type.render(self, menu_filename=menu.filepath):
             sections[section.__class__.__name__] = section
         return sections
 
@@ -278,89 +278,44 @@ class Collection(object):
             title=self.title)
         Menu = namedtuple('Menu', ['filepath'])
         menu = Menu(filepath=filepath)
-        #menu = None
-        #menu = Menu(self.page, filepath=filepath, id_="CurriculumNav", 
-        #    exclude_titles=["attachments", "comments"], 
-        #    include_titles=[("quick", "Quick Look")],
-        #    lang=self.lang)
-        #menu.add("info", "Info")
-
         sections = self.drop_null_sections(menu)
         collection_info = sections["QuickLook"].info()
         collection_info["description"] = sections["OverView"].overview
         license = get_license(licenses.CC_BY, copyright_holder=sections["Copyright"].copyright).as_dict()
         collection_info["license"] = license
         pdfs_info = sections["PrintContainer"].build_pdfs_info(base_path, license)
+        videos_info = sections["PrintContainer"].build_videos_info(base_path, license)
         sections["PrintContainer"].clean_page()
         sections["PrintContainer"].to_file()
-        print(pdfs_info)
-        #print(collection_info)
-        #build the menu index
-        #menu.to_file()
-        #set section's html files to the menu
-        #for section in sections:
-        #    menu_filename = menu.set_section(section)
-        #    menu_index = menu.to_html(directory="", active_li=menu_filename)
-        #    section.to_file(menu_filename, menu_index=menu_index)
+        #print(videos_info)
 
-        return
-        menu.check()
-        menu.license = self.license
+        #for subject_area in ["TEST"]:
+            #subject_area_topic_node = get_level_map(channel_tree, [subject_area])
+            #if subject_area_topic_node is None:
+            #    subject_area_topic_node = dict(
+            #        kind=content_kinds.TOPIC,
+            #        source_id=subject_area,
+            #        title=subject_area,
+            #        description="",
+            #        license=self.license,
+            #        children=[]
+            #    )
+            #    channel_tree["children"].append(subject_area_topic_node)
 
-        #check for pdfs and videos on all page
-        all_sections = CollectionSection(copy_page, resource_url=self.resource_url, lang=self.lang)
-        pdfs_info = all_sections.build_pdfs_info(base_path, self.license)
-        videos_info = all_sections.build_videos_info(base_path, self.license)
+            #topic_node = get_level_map(channel_tree, [subject_area, self.type])
+            #thumbnail_img = self.get_thumbnail(sections)
+            #curriculum_info = self.info(thumbnail_img) #curricular name
+            #description = self.description()
+            #curriculum_info["children"].append(menu.info(thumbnail_img, self.title, description))
+        if pdfs_info is not None:
+            collection_info["children"] += pdfs_info
+        if videos_info is not None:
+            collection_info["children"] += videos_info
+            #if topic_node is None:
+            #    topic_node = self.topic_info() #topic name
+            #    subject_area_topic_node["children"].append(topic_node)
 
-        for subject_area in subjects_area:
-            subject_area_topic_node = get_level_map(channel_tree, [subject_area])
-            if subject_area_topic_node is None:
-                subject_area_topic_node = dict(
-                    kind=content_kinds.TOPIC,
-                    source_id=subject_area,
-                    title=_(subject_area),
-                    description="",
-                    license=self.license,
-                    children=[]
-                )
-                channel_tree["children"].append(subject_area_topic_node)
-
-            topic_node = get_level_map(channel_tree, [subject_area, self.type])
-            thumbnail_img = self.get_thumbnail(sections)
-            curriculum_info = self.info(thumbnail_img) #curricular name
-            description = self.description()
-            curriculum_info["children"].append(menu.info(thumbnail_img, self.title, description))
-            if pdfs_info is not None:
-                curriculum_info["children"] += pdfs_info
-            if videos_info is not None:
-                curriculum_info["children"] += videos_info
-            if topic_node is None:
-                topic_node = self.topic_info() #topic name
-                subject_area_topic_node["children"].append(topic_node)
-
-            topic_node["children"].append(curriculum_info)
-            if self.type == "CurricularUnits":       
-                #build a template for the curriculums
-                for url, index in CURRICULAR_UNITS_MAP[self.resource_url].items():
-                    #search for lessons
-                    node = get_node_from_channel(url, channel_tree, exclude="CurricularUnits")
-                    if node is None:
-                        curriculum_info["children"].append(self.empty_info(url))
-                    else:
-                        curriculum_info["children"].append(node)
-        
-        if self.type != "CurricularUnits":
-            curriculars_unit_url = LESSONS_CURRICULAR_MAP.get(self.resource_url, [])
-            for curricular_unit_url in curriculars_unit_url:
-                #search for curricular units
-                curricular_nodes = get_multiple_node_from_channel(curricular_unit_url, 
-                    channel_tree, max_level=2)
-                if curricular_nodes:
-                    for curricular_node in curricular_nodes:
-                        for i, children in enumerate(curricular_node["children"]):
-                            if children["source_id"] == self.resource_url:
-                                curricular_node["children"][i] = curriculum_info
-                                break
+            #topic_node["children"].append(curriculum_info)
 
 
 class CurriculumType(object):
@@ -495,6 +450,7 @@ class CollectionSection(object):
 
     def get_videos_urls(self):
         urls = set([])
+
         for iframe in self.body.find_all("iframe"):
             url = iframe["src"]
             if YouTubeResource.is_youtube(url):
@@ -537,9 +493,18 @@ class CollectionSection(object):
                 num_tries = 0
         return urls
 
+    def get_local_video_urls(self):
+        urls = set([])
+        local_videos_page = self.body.find_all(lambda tag: tag.name == "a" and\
+            tag.attrs.get("href", "").find("video") != -1)
+        for link in local_videos_page:
+            urls.add(urljoin(BASE_URL, link.get("href", "")).strip())
+        return urls
+
     def build_videos_info(self, path, license=None):
         videos_urls = self.get_videos_urls()
-        if len(videos_urls) == 0:
+        local_videos_urls = self.get_local_video_urls()
+        if len(videos_urls) == 0 and len(local_videos_urls) == 0:
             return
 
         VIDEOS_DATA_DIR = build_path([path, 'videos'])
@@ -550,7 +515,35 @@ class CollectionSection(object):
             resource.to_file(filepath=VIDEOS_DATA_DIR)
             if resource.resource_file is not None:
                 videos_list.append(resource.resource_file)
+
+        for i, page_url in enumerate(local_videos_urls):
+            urls = self.find_video_url(page_url)
+            for url in urls:
+                resource = LocalVideoResource(url, lang=self.lang)
+                resource.to_file(filepath=VIDEOS_DATA_DIR)
+                if resource.resource_file is not None:
+                    videos_list.append(resource.resource_file)
         return videos_list
+
+    def find_video_url(self, page_url):
+        try:
+            document = downloader.read(page_url, loadjs=False, session=sess)
+        except requests.exceptions.HTTPError as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.ConnectionError:
+            ### this is a weird error, may be it's raised when teachengineering's webpage
+            ### is slow to respond requested resources
+            LOGGER.info("Connection error, the resource will be scraped in 5s...")
+            time.sleep(3)
+        else:
+            urls = set([])
+            for rs in re.findall(r"[/\w+]+\.mp4", str(document)):
+                if rs.startswith("/"):
+                    urls.add(urljoin(BASE_URL, rs))
+                else:
+                    start = rs.find("/")
+                    urls.add(urljoin(BASE_URL, rs[start:]))
+            return urls
 
     def write(self, filename, content):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
@@ -687,63 +680,160 @@ class PrintContainer(CollectionSection):
                 self.write_img(img_src, img_filename)
 
 
-def save_thumbnail(url, save_as):
-    THUMB_DATA_DIR = build_path([DATA_DIR, 'thumbnail'])
-    filepath = os.path.join(THUMB_DATA_DIR, save_as)
-    document = downloader.read(url, loadjs=False, session=sess)        
-    with open(filepath, 'wb') as f:
-        f.write(document)
-        return filepath
+class ResourceType(object):
+    """
+        Base class for File, WebPage, Video, Audio resources
+    """
+    def __init__(self, type_name=None):
+        LOGGER.info("Resource Type: "+type_name)
+        self.type_name = type_name
+        self.resource_file = None
+
+    def to_file(self, filepath=None):
+        pass
+
+    def add_resource_file(self, info):
+        self.resource_file = info
 
 
-def if_file_exists(filepath):
-    file_ = Path(filepath)
-    return file_.is_file()
+class YouTubeResource(ResourceType):
+    def __init__(self, resource_url, type_name="Youtube", lang="en"):
+        super(YouTubeResource, self).__init__(type_name=type_name)
+        self.resource_url = self.clean_url(resource_url)
+        self.file_format = file_formats.MP4
+        self.lang = lang
+
+    def clean_url(self, url):
+        if url[-1] == "/":
+            url = url[:-1]
+        return url.strip()
+
+    @classmethod
+    def is_youtube(self, url, get_channel=False):
+        youtube = url.find("youtube") != -1 or url.find("youtu.be") != -1
+        if get_channel is False:
+            youtube = youtube and url.find("user") == -1 and url.find("/c/") == -1
+        return youtube
+
+    @classmethod
+    def transform_embed(self, url):
+        url = "".join(url.split("?")[:1])
+        return url.replace("embed/", "watch?v=").strip()
+
+    def get_video_info(self):
+        ydl_options = {
+                'writesubtitles': True,
+                'allsubtitles': True,
+                'no_warnings': True,
+                'restrictfilenames':True,
+                'continuedl': True,
+                'quiet': False,
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='720')
+            }
+
+        with youtube_dl.YoutubeDL(ydl_options) as ydl:
+            try:
+                ydl.add_default_info_extractors()
+                info = ydl.extract_info(self.resource_url, download=False)
+                return info
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError) as e:
+                LOGGER.info('An error occured ' + str(e))
+                LOGGER.info(self.resource_url)
+            except KeyError as e:
+                LOGGER.info(str(e))
+
+    def subtitles_dict(self):
+        video_info = self.get_video_info()
+        video_id = video_info["id"]
+        subs = []
+        if 'subtitles' in video_info:
+            subtitles_info = video_info["subtitles"]
+            for language in subtitles_info.keys():
+                subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
+        return subs
+
+    def process_file(self, download=False, filepath=None):
+        if download is True:
+            video_filepath = self.video_download(download_to=filepath)
+        else:
+            video_filepath = None
+
+        if video_filepath is not None:
+            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
+            files += self.subtitles_dict()
+
+            self.add_resource_file(dict(
+                kind=content_kinds.VIDEO,
+                source_id=self.resource_url,
+                title=get_name_from_url_no_ext(video_filepath),
+                description='',
+                files=files,
+                language=self.lang,
+                license=get_license(licenses.CC_BY, copyright_holder="TeachEngineering").as_dict()))
+
+    #youtubedl has some troubles downloading videos in youtube,
+    #sometimes raises connection error
+    #for that I choose pafy for downloading
+    def video_download(self, download_to="/tmp/"):
+        for try_number in range(10):
+            try:
+                video = pafy.new(self.resource_url)
+                best = video.getbest(preftype="mp4")
+                video_filepath = best.download(filepath=download_to)
+            except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
+                LOGGER.info(e)
+                LOGGER.info("Download retry:"+str(try_number))
+                time.sleep(.8)
+            except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError, OSError) as e:
+                LOGGER.info("An error ocurred, may be the video is not available.")
+                return
+            else:
+                return video_filepath
+
+    def to_file(self, filepath=None):
+        self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
 
 
-def if_dir_exists(filepath):
-    file_ = Path(filepath)
-    return file_.is_dir()
+class LocalVideoResource(ResourceType):
+    def __init__(self, resource_url, type_name="Local Video", lang="en"):
+        super(LocalVideoResource, self).__init__(type_name=type_name)
+        self.resource_url = resource_url
+        self.file_format = file_formats.MP4
+        self.lang = lang
 
+    def process_file(self, download=False, filepath=None):
+        if download is True:
+            video_filepath = self.video_download(download_to=filepath)
+        else:
+            video_filepath = None
 
-def get_name_from_url(url):
-    head, tail = ntpath.split(url)
-    params_index = tail.find("&")
-    if params_index != -1:
-        tail = tail[:params_index]
-    basename = ntpath.basename(url)
-    params_b_index = basename.find("&")
-    if params_b_index != -1:
-        basename = basename[:params_b_index]
-    return tail or basename
+        if video_filepath is not None:
+            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
 
+            self.add_resource_file(dict(
+                kind=content_kinds.VIDEO,
+                source_id=self.resource_url,
+                title=get_name_from_url_no_ext(video_filepath),
+                description='',
+                files=files,
+                language=self.lang,
+                license=get_license(licenses.CC_BY, copyright_holder="TeachEngineering").as_dict()))
 
-def get_name_from_url_no_ext(url):
-    path = get_name_from_url(url)
-    path_split = path.split(".")
-    if len(path_split) > 1:
-        name = ".".join(path_split[:-1])
-    else:
-        name = path_split[0]
-    return name
+    def video_download(self, download_to):
+        r = requests.get(self.resource_url, stream=True)
+        videp_filepath = os.path.join(download_to, get_name_from_url(self.resource_url))
+        with open(videp_filepath, 'wb') as f:
+            LOGGER.info("   - Downloading {}".format(self.resource_url))
+            for chunk in r.iter_content(chunk_size=1024*4): 
+                if chunk:
+                    f.write(chunk)
+                    f.flush()
+        return videp_filepath
 
-
-def build_path(levels):
-    path = os.path.join(*levels)
-    if not if_dir_exists(path):
-        os.makedirs(path)
-    return path
-
-
-def remove_links(content):
-    if content is not None:
-        for link in content.find_all("a"):
-            link.replaceWithChildren()
-
-def remove_iframes(content):
-    if content is not None:
-        for iframe in content.find_all("iframe"):
-            iframe.extract()
+    def to_file(self, filepath=None):
+        self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
 
 
 class ReadWriteThinkChef(JsonTreeChef):
@@ -789,9 +879,9 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        test()
+        channel_tree = test()
         #channel_tree = self._build_scraping_json_tree(web_resource_tree)
-        #self.write_tree_to_json(channel_tree, lang)
+        self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
         scrape_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
