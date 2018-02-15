@@ -77,14 +77,13 @@ def test():
         source_id='readwritethink',
         title='ReadWriteThink',
         description="""----"""[:400], #400 UPPER LIMIT characters allowed 
-        thumbnail="",
+        thumbnail=None,#"http://www.readwritethink.org/images/rwt-243.gif",
         language="en",
         children=[],
         license=get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict(),
     )
 
     try:
-        subtopic_name = "test"
         collection = Collection(url, 
             source_id="test",
             type=collection_type,
@@ -280,6 +279,7 @@ class Collection(object):
         menu = Menu(filepath=filepath)
         sections = self.drop_null_sections(menu)
         collection_info = sections["QuickLook"].info()
+        author = sections["QuickLook"].plan_info.get("lesson author", "")
         collection_info["description"] = sections["OverView"].overview
         license = get_license(licenses.CC_BY, copyright_holder=sections["Copyright"].copyright).as_dict()
         collection_info["license"] = license
@@ -287,7 +287,9 @@ class Collection(object):
         videos_info = sections["PrintContainer"].build_videos_info(base_path, license)
         sections["PrintContainer"].clean_page()
         sections["PrintContainer"].to_file()
-        #print(videos_info)
+        html_info = sections["PrintContainer"].html_info(license, 
+            collection_info["description"], collection_info["thumbnail"],
+            author)
 
         #for subject_area in ["TEST"]:
             #subject_area_topic_node = get_level_map(channel_tree, [subject_area])
@@ -307,6 +309,8 @@ class Collection(object):
             #curriculum_info = self.info(thumbnail_img) #curricular name
             #description = self.description()
             #curriculum_info["children"].append(menu.info(thumbnail_img, self.title, description))
+        if html_info is not None:
+            collection_info["children"].append(html_info)
         if pdfs_info is not None:
             collection_info["children"] += pdfs_info
         if videos_info is not None:
@@ -316,6 +320,7 @@ class Collection(object):
             #    subject_area_topic_node["children"].append(topic_node)
 
             #topic_node["children"].append(curriculum_info)
+        channel_tree["children"].append(collection_info)
 
 
 class CurriculumType(object):
@@ -607,7 +612,6 @@ class QuickLook(CollectionSection):
             title=self.collection.title,
             thumbnail=self.thumbnail,
             description="",
-            author=self.plan_info.get("lesson author", ""),
             license="",
             children=[]
         )
@@ -622,7 +626,13 @@ class OverView(CollectionSection):
     def get_overview(self):
         self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
             tag.findChildren(lambda tag: tag.name == "a" and tag.attrs.get("name", "") == "overview"))
-        self.overview = self.overview.findNext("p").text
+        node = self.overview.findNext("p")
+        for i in range(5):
+            if node.text is None or len(node.text) < 2:
+                node = node.findNext("p")
+            else:
+                break
+        self.overview = node.text
 
 
 class Copyright(CollectionSection):
@@ -648,6 +658,21 @@ class PrintContainer(CollectionSection):
         self.body = self.collection.page
         self.filepath = filename
 
+    def html_info(self, license, description, thumbnail, author):
+        return dict(
+            kind=content_kinds.HTML5,
+            source_id=self.collection.source_id,
+            title=self.collection.title,
+            description=description,
+            thumbnail=thumbnail,
+            author=author,
+            files=[dict(
+                file_type=content_kinds.HTML5,
+                path=self.filepath
+            )],
+            language=self.lang,
+            license=license)
+
     def clean_page(self):
         self.body.find("p", id="page-url").decompose()
         self.body.find("div", class_="table-tabs-back").decompose()
@@ -663,7 +688,6 @@ class PrintContainer(CollectionSection):
                 break
             section.decompose()
         comments.decompose()
-
         remove_links(self.body)
 
     def write(self, content):
