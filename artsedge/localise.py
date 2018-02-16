@@ -2,6 +2,12 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import hashlib
+import os
+import requests_cache
+import codecs
+import shutil
+
+requests_cache.install_cache()
 
 DOMAIN = "artsedge.kennedy-center.org"
 LINK_ATTRIBUTES = ["src", "href"]
@@ -11,11 +17,36 @@ sample_url = "https://artsedge.kennedy-center.org/educators/lessons/grade-9-12/A
 response = requests.get(sample_url)
 soup = BeautifulSoup(response.content, "html5lib")
 
+"""
+TODO LIST:
+fix local anchors (even if they don't appear local)
+correctly mangle links beginning with ~ -- i.e. ones with no domain
+"""
+
+print ("_")
+
+def make_links_absolute(soup, base_url):
+    for r in get_resources(soup):
+        for attr in LINK_ATTRIBUTES:
+            old_url = r.attrs.get(attr, None)
+            url = old_url
+            if not url:
+                continue
+            if not urlparse(url).netloc:
+                url = urljoin(url, urlparse(base_url).netloc)
+            if not urlparse(url).scheme:
+                url = urljoin(url, urlparse(base_url).scheme)
+            if url != old_url:
+                print ("Rewrote {} to {}".format(old_url, url))
+            r.attrs[attr] = url
+
 def guess_extension(filename):
     if "." not in filename[-8:]: # arbitarily chosen
         return ""
-    else:
-        return "." + filename.split(".")[-1]
+    ext = "." + filename.split(".")[-1]
+    if "/" in ext:
+        return ""
+    return ext
 
 def get_resources(soup):
     def is_valid_tag(tag):
@@ -34,34 +65,37 @@ def get_resources(soup):
     return resources
 
 
-
 def make_local(soup, page_url):
+    def full_url(url):
+        if urlparse(url).scheme == "":
+            url = urljoin("https://", url)
+        if urlparse(url).netloc == "":
+            return urljoin(page_url, url)
+        else:
+            return url
+        
+    def hashed_url(url):
+        return hashlib.sha1(full_url(url).encode('utf-8')).hexdigest() + guess_extension(full_url(url))
      
+    make_links_absolute(soup, page_url)
     resources = get_resources(soup)
 
-    #try:
-    #    os.mkdir(DOWNLOAD_FOLDER)
-    #except FileExistsError:
-    #   pass
+    try:
+        os.mkdir(DOWNLOAD_FOLDER)
+    except FileExistsError:
+        pass
     
-    
-    # note: ensure order of raw_url_list remains the same as other url_lists we later generate.
-    # (hopefully there's not two different looking but identical urls -- will lead to duplication)
-    raw_url_list = [resource.attrs.get('href') or resource.attrs.get('src') for resource in resources]
-    
-    full_url_list = [urljoin(page_url, resource_url) for resource_url in raw_url_list]
-    hashed_file_list = [hashlib.sha1(resource_url.encode('utf-8')).hexdigest() + guess_extension(resource_url) \
-                            for resource_url in full_url_list]
-    replacement_list = dict(zip(raw_url_list, hashed_file_list))
-    
-    # remove items from list if they're non-local links and replace with text explanation.
-    
+    raw_url_list = [resource.attrs.get('href') or resource.attrs.get('src') for resource in resources if "mailto:"]
+    url_list = [x for x in raw_url_list if not x.startswith("mailto:")]
+    url_list = [full_url(url) for url in url_list]
     
     # replace URLs
+    required_resources = set()
+    
     for resource in resources:
         for attribute in LINK_ATTRIBUTES:
-            attribute_value = resource.attrs.get(attribute)
-            if attribute_value in replacement_list.keys():
+            attribute_value = full_url(resource.attrs.get(attribute))
+            if attribute_value and attribute_value in url_list:
                 if resource.name == "a" and urlparse(attribute_value).netloc not in (DOMAIN, "", "www.kennedy-center.org"):
                     print (urlparse(attribute_value).netloc)
                     print ("rewriting non-local URL {} in {}".format(attribute_value, resource.name))
@@ -70,24 +104,27 @@ def make_local(soup, page_url):
                     u.insert(0, resource.text)
                     new_tag.insert(0, " (url:\xa0{})".format(resource.attrs['href']))
                     new_tag.insert(0, u)
-                    
-                    #original_tag.append(new_tag)
-                    #tag = Tag(soup, "newTag", [("id", 1)])
-                    #tag.insert(0, "Hooray!")
-                    resource.replaceWith(new_tag)  # TODO -- this might  mess up the iteration?
+                    resource.replaceWith(new_tag)  # TODO -- this might mess up the iteration?
+                    continue
 
                 else:
-                    resource.attrs[attribute] = replacement_list[attribute_value]
+                    if attribute_value.startswith("mailto:"):
+                        continue
+                    required_resources.add(attribute_value)
+                    resource.attrs[attribute] = hashed_url(attribute_value)
+                    continue
 
-    return soup
+    html = nice_html(soup)
 
     # download content
-    for url, filename in zip(full_url_list, hashed_file_list):
+    # todo: don't download offsite a's?
+    for url in required_resources:
+        filename = hashed_url(url)
         with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
-            f.write(session.get(url, verify=False).content)
+            f.write(requests.get(url, verify=False).content)
 
-    with codecs.open(DOWNLOAD_FOLDER+"/index.html", "w", "utf-8") as f:
-        f.write(str(soup))
+    with codecs.open(DOWNLOAD_FOLDER+"/index.html", "wb") as f:
+        f.write(html)
         
     # create zip file
     return shutil.make_archive("__"+DOWNLOAD_FOLDER, "zip", # automatically adds .zip extension!
@@ -123,5 +160,4 @@ def nice_html(soup):
     return b"\n\n<!-- dragon -->\n\n".join(output)
 
 
-with open("output.html", "wb") as f:
-    f.write(nice_html(make_local(soup, sample_url)))
+print (make_local(soup, sample_url))
