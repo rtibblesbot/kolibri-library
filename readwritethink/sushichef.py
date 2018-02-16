@@ -45,7 +45,7 @@ BASE_URL = "http://www.readwritethink.org"
 DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
-TIME_SLEEP = .1
+TIME_SLEEP = 1
 
 DATA_DIR = "chefdata"
 
@@ -70,7 +70,7 @@ def test():
     Test individual resources
     """
     #url = "http://www.readwritethink.org/resources/resource-print.html?id=410"
-    url = "http://www.readwritethink.org/resources/resource-print.html?id=1121"
+    url = "http://www.readwritethink.org/resources/resource-print.html?id=30636"
     collection_type = "Lesson Plan"
     channel_tree = dict(
         source_domain="www.readwritethink.org",
@@ -110,9 +110,15 @@ class ResourceBrowser(object):
         url_parts[4] = urlencode(query)
         return urlparse.urlunparse(url_parts)
 
+    def get_total_items(self, text):
+        string = re.search(r"\d+\-\d+ of \d+", text).group()
+        return int(string.split("of")[-1].strip())
+
     def run(self, limit_page=1):
         page_number = 1
-        while True:
+        total_items = None
+        counter = 0
+        while total_items is None or counter < total_items:
             url = self.build_pagination_url(page_number)
             try:
                 page_contents = downloader.read(url, loadjs=False)
@@ -122,17 +128,23 @@ class ResourceBrowser(object):
                 LOGGER.info("CRAWLING : URL {}".format(url))
                 page = BeautifulSoup(page_contents, 'html.parser')
                 browser = page.find("ol", class_="results")
+                if total_items is None:
+                    results = page.find("h2", class_="results-hdr-l")
+                    total_items = self.get_total_items(results.text)
                 for a in browser.find_all(lambda tag: tag.name == "a"):
+                    counter += 1
                     url = urljoin(BASE_URL, a["href"])
                     print_page = PrintPage()
                     print_page.search_printpage_url(url)
                     print_page.get_type()
                     yield dict(url=print_page.url, 
                         collection=print_page.type,
-                        id=print_page.resource_id)
-
+                        id=print_page.resource_id,
+                        sub_type=print_page.sub_type)
+                LOGGER.info("  - {} of {}".format(counter, total_items))
+                time.sleep(TIME_SLEEP)
                 page_number += 1
-                if page_number > limit_page:
+                if limit_page is not None and page_number > limit_page:
                     break
 
 
@@ -140,6 +152,7 @@ class PrintPage(object):
     def __init__(self):
         self.url = None
         self.type = None
+        self.sub_type = None
         self.resource_id = None
 
     def search_printpage_url(self, url):
@@ -160,6 +173,10 @@ class PrintPage(object):
         page = BeautifulSoup(page_contents, 'html.parser')
         h3 = page.find("h3", class_="pad3b")
         self.type = h3.text
+        try:
+            self.sub_type = page.find(text="Lesson Plan Type").findNext("td").text
+        except:
+            pass
 
     def parse_js(self, value):
         init = value.find("/")
@@ -247,17 +264,6 @@ class Collection(object):
                 license=get_license(licenses.CC_BY, copyright_holder="X").as_dict(),
                 children=[]
             )
-
-    def get_thumbnail(self, sections):
-        thumbnail_img = None
-        for section in sections:
-            if section.id == "summary" or section.id == "intro":
-                if section.img_url is not None:
-                    ext = section.img_url.split(".")[-1]
-                    if ext in ['jpg', 'jpeg', 'png']:
-                        thumbnail_img = section.img_url #section summary or introduction
-                break
-        return thumbnail_img
 
     def get_subjects_area(self):
         if self.subjects_area is None:
@@ -392,7 +398,8 @@ class CollectionSection(object):
             for link in resource_links:
                 if link["href"].endswith(".pdf") and link["href"] not in urls:
                     filename = get_name_from_url(link["href"])
-                    urls[link["href"]] = (filename, link.text, urljoin(BASE_URL, link["href"]))
+                    abs_url = urljoin(BASE_URL, link["href"])
+                    urls[abs_url] = (filename, link.text, abs_url)
             return urls.values()
 
     def build_pdfs_info(self, path, license=None):
@@ -421,6 +428,8 @@ class CollectionSection(object):
                     license=license)
                 files_list.append(files)
             except requests.exceptions.HTTPError as e:
+                LOGGER.info("Error: {}".format(e))
+            except requests.exceptions.ConnectionError as e:
                 LOGGER.info("Error: {}".format(e))
 
         return files_list
@@ -580,8 +589,12 @@ class QuickLook(CollectionSection):
         super(QuickLook, self).__init__(collection, filename=filename,
                 id_=id_, menu_name=menu_name)
         img_src = self.get_thumbnail()
-        filename = get_name_from_url(img_src)
-        self.thumbnail = save_thumbnail(img_src, filename)
+        filename = get_name_from_url(img_src).lower()
+        filename_ext = filename.split(".")[-1]
+        if filename_ext in ["jpg", "jpeg", "png"]:
+            self.thumbnail = save_thumbnail(img_src, filename)
+        else:
+            self.thumbnail = None
         self.plan_info = self.get_plan_info()
     
     def get_thumbnail(self):
@@ -876,9 +889,8 @@ class ReadWriteThinkChef(JsonTreeChef):
         super(ReadWriteThinkChef, self).__init__()
 
     def pre_run(self, args, options):
-        #self.crawl(args, options)
-        self.scrape(args, options)
-        #test()
+        self.crawl(args, options)
+        #self.scrape(args, options)
 
     def crawl(self, args, options):
         web_resource_tree = dict(
@@ -888,10 +900,13 @@ class ReadWriteThinkChef(JsonTreeChef):
         )
         crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR,                     
                                     ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
-        curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?resource_type=6")
-        resource_browser = ResourceBrowser(curriculum_url)
-        for data in resource_browser.run():
-            web_resource_tree["children"].append(data)
+        resources_types = [(6, "Lesson Plans"), (70, "Activities & Projects"), 
+            (74, "Tips & Howtos")]
+        for resource_id, resource_name in resources_types:
+            curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?resource_type={}".format(resource_id))
+            resource_browser = ResourceBrowser(curriculum_url)
+            for data in resource_browser.run(limit_page=None):
+                web_resource_tree["children"].append(data)
         with open(crawling_stage, 'w') as f:
             json.dump(web_resource_tree, f, indent=2)
         return web_resource_tree
@@ -903,20 +918,14 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        channel_tree = test()
-        #channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        #channel_tree = test()
+        channel_tree = self._build_scraping_json_tree(web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
         scrape_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
                                 ReadWriteThinkChef.SCRAPING_STAGE_OUTPUT_TPL)
         write_tree_to_json_tree(scrape_stage, channel_tree)
-
-    #def get_json_tree_path(self, **kwargs):
-    #    lang = kwargs.get('lang', "en")
-    #    json_tree_path = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
-    #                ReadWriteThinkChef.SCRAPING_STAGE_OUTPUT_TPL)
-    #    return json_tree_path
 
     def _build_scraping_json_tree(self, web_resource_tree):
         LANG = 'en'
@@ -925,22 +934,21 @@ class ReadWriteThinkChef(JsonTreeChef):
             source_id='readwritethink',
             title='ReadWriteThink',
             description="""Here at ReadWriteThink, our mission is to provide educators, parents, and afterschool professionals with access to the highest quality practices in reading and language arts instruction by offering the very best in free materials.."""[:400], #400 UPPER LIMIT characters allowed 
-            thumbnail=ReadWriteThinkChef.THUMBNAIL,
+            thumbnail=None,#ReadWriteThinkChef.THUMBNAIL,
             language=LANG,
             children=[],
             license=ReadWriteThinkChef.LICENSE,
         )
-        #counter = 0
+        counter = 0
         for resource in web_resource_tree["children"]:
             collection = Collection(resource["url"],
                             source_id=resource["url"],
                             type=resource["collection"],
                             obj_id=resource["id"])
             collection.to_file(channel_tree)
-            break
-            #if counter == 20:
-            #    break
-            #counter += 1
+            if counter == 20:
+                break
+            counter += 1
         return channel_tree
 
 
