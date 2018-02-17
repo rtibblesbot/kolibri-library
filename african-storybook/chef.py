@@ -198,7 +198,7 @@ def download_book(book_url, book_id, title, author, description, languages):
 
     zip_path = create_predictable_zip(destination)
     return nodes.HTML5AppNode(
-        source_id=book_id,
+        source_id=book_url,
         title=truncate_metadata(title),
         license=licenses.CC_BYLicense(
             copyright_holder=truncate_metadata(copyright_holder)),
