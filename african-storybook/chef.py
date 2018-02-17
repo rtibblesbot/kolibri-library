@@ -221,6 +221,7 @@ def truncate_metadata(data_string):
 
 
 FONT_SRC_RE = re.compile(r"src:\W?url\(.*?fonts/(.*?)['\"]?\)")
+UP_DIR_IMG_RE = re.compile(r"url\(['\"]../im.*?\)")
 BG_IMG_RE = re.compile("background-image:url\((.*)\)")
 
 with open("resources/font_sizing.css") as f:
@@ -260,8 +261,11 @@ def download_static_assets(doc, destination):
                 filename = match.groups()[0]
                 url = make_fully_qualified_url("fonts/%s" % filename)
                 download_file(url, destination, request_fn=make_request)
-
             processed_css = FONT_SRC_RE.sub(r"src: url('\1')", content)
+
+            # ... and we don't need references to images. Remove them else they
+            # may cause a 500 on the server.
+            processed_css = UP_DIR_IMG_RE.sub('url("")', content)
 
             # ... and then append additional CSS to reduce font sizing to fit
             # better on shorter screens (for previewing in Kolibri's iframe
