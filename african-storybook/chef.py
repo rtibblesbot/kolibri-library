@@ -75,6 +75,7 @@ class AfricanStorybookChef(SushiChef):
             title = channel_info['CHANNEL_TITLE'],
             thumbnail = channel_info.get('CHANNEL_THUMBNAIL'),
             description = channel_info.get('CHANNEL_DESCRIPTION'),
+            language= "en",
         )
 
         #download_book("http://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", ["en"])
