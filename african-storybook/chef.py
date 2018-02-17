@@ -221,7 +221,7 @@ def truncate_metadata(data_string):
 
 
 FONT_SRC_RE = re.compile(r"src:\W?url\(.*?fonts/(.*?)['\"]?\)")
-UP_DIR_IMG_RE = re.compile(r"url\(['\"]../im.*?\)")
+UP_DIR_IMG_RE = re.compile(r"url\(['\"]?../im.*?\)")
 BG_IMG_RE = re.compile("background-image:url\((.*)\)")
 
 with open("resources/font_sizing.css") as f:
