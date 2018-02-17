@@ -42,7 +42,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = 1
@@ -69,9 +69,17 @@ def test():
     """
     Test individual resources
     """
-    #url = "http://www.readwritethink.org/resources/resource-print.html?id=410"
-    url = "http://www.readwritethink.org/resources/resource-print.html?id=30636"
+    #obj_id = "1121"
+    #obj_id = "1166"
+    #obj_id = "31054"
+    obj_id = "30279"
     collection_type = "Lesson Plan"
+    #obj_id = "31023"
+    #obj_id = "31034"
+    #collection_type = "Strategy Guide"
+    obj_id = "31049"
+    collection_type = "Printout"
+    url = "http://www.readwritethink.org/resources/resource-print.html?id={}".format(obj_id)
     channel_tree = dict(
         source_domain="www.readwritethink.org",
         source_id='readwritethink',
@@ -87,7 +95,7 @@ def test():
         collection = Collection(url, 
             source_id="test",
             type=collection_type,
-            obj_id="410")
+            obj_id=obj_id)
         collection.to_file(channel_tree)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
@@ -210,10 +218,10 @@ class Collection(object):
                 self.curriculum_type = LessonPlan()
             #elif self.type == "Activities":
             #    self.curriculum_type = Activity()
-            #elif self.type == "CurricularUnits":
-            #    self.curriculum_type = CurricularUnit()
-            #elif self.type == "Sprinkles":
-            #    self.curriculum_type = Sprinkle()
+            elif self.type == "Strategy Guide":
+                self.curriculum_type = StrategyGuide()
+            elif self.type == "Printout":
+                self.curriculum_type = Printout()
 
     def download_page(self, url):
         tries = 0
@@ -240,7 +248,8 @@ class Collection(object):
     def drop_null_sections(self, menu):
         sections = OrderedDict()
         for section in self.curriculum_type.render(self, menu_filename=menu.filepath):
-            sections[section.__class__.__name__] = section
+            #sections[section.__class__.__name__] = section
+            sections[section.id] = section
         return sections
 
     ##activities, lessons, etc
@@ -284,16 +293,16 @@ class Collection(object):
         Menu = namedtuple('Menu', ['filepath'])
         menu = Menu(filepath=filepath)
         sections = self.drop_null_sections(menu)
-        collection_info = sections["QuickLook"].info()
-        author = sections["QuickLook"].plan_info.get("lesson author", "")
-        collection_info["description"] = sections["OverView"].overview
-        license = get_license(licenses.CC_BY, copyright_holder=sections["Copyright"].copyright).as_dict()
+        collection_info = sections["quick"].info()
+        author = sections["quick"].plan_info.get("lesson author", "")
+        collection_info["description"] = sections["overview"].overview
+        license = get_license(licenses.CC_BY, copyright_holder=sections["info"].copyright).as_dict()
         collection_info["license"] = license
-        pdfs_info = sections["PrintContainer"].build_pdfs_info(base_path, license)
-        videos_info = sections["PrintContainer"].build_videos_info(base_path, license)
-        sections["PrintContainer"].clean_page()
-        sections["PrintContainer"].to_file()
-        html_info = sections["PrintContainer"].html_info(license, 
+        pdfs_info = sections["print-container"].build_pdfs_info(base_path, license)
+        videos_info = sections["print-container"].build_videos_info(base_path, license)
+        sections["print-container"].clean_page()
+        sections["print-container"].to_file()
+        html_info = sections["print-container"].html_info(license, 
             collection_info["description"], collection_info["thumbnail"],
             author)
 
@@ -349,6 +358,16 @@ class LessonPlan(CurriculumType):
         self.sections = [
             {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
             {"id": "overview", "class": OverView, "menu_name": "overview"},
+            {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
+            {"id": "info", "class": Copyright, "menu_name": "info"},
+        ]
+
+
+class StrategyGuide(CurriculumType):
+    def __init__(self, *args, **kwargs):
+        self.sections = [
+            {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
+            {"id": "overview", "class": AboutThis, "menu_name": "overview"},
             {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
             {"id": "info", "class": Copyright, "menu_name": "info"},
         ]
@@ -510,9 +529,10 @@ class CollectionSection(object):
     def get_local_video_urls(self):
         urls = set([])
         local_videos_page = self.body.find_all(lambda tag: tag.name == "a" and\
-            tag.attrs.get("href", "").find("video") != -1)
+            tag.attrs.get("href", "").find("video") != -1 and\
+            (tag.attrs.get("href", "").startswith("/") or tag.attrs.get("href", "").find(BASE_URL) != -1))
         for link in local_videos_page:
-            urls.add(urljoin(BASE_URL, link.get("href", "")).strip())
+                urls.add(urljoin(BASE_URL, link.get("href", "")).strip())
         return urls
 
     def build_videos_info(self, path, license=None):
@@ -530,13 +550,16 @@ class CollectionSection(object):
             if resource.resource_file is not None:
                 videos_list.append(resource.resource_file)
 
+        video_resources = set([])
         for i, page_url in enumerate(local_videos_urls):
             urls = self.find_video_url(page_url)
             for url in urls:
-                resource = LocalVideoResource(url, lang=self.lang)
-                resource.to_file(filepath=VIDEOS_DATA_DIR)
-                if resource.resource_file is not None:
-                    videos_list.append(resource.resource_file)
+                if url not in video_resources:
+                    resource = LocalVideoResource(url, lang=self.lang)
+                    resource.to_file(filepath=VIDEOS_DATA_DIR)
+                    video_resources.add(url)
+                    if resource.resource_file is not None:
+                        videos_list.append(resource.resource_file)
         return videos_list
 
     def find_video_url(self, page_url):
@@ -551,7 +574,8 @@ class CollectionSection(object):
             time.sleep(3)
         else:
             urls = set([])
-            for rs in re.findall(r"[/\w+]+\.mp4", str(document)):
+            for rs in re.findall(r':\s"/.+\.mp4"', str(document)):
+                rs = rs[3:-1]
                 if rs.startswith("/"):
                     urls.add(urljoin(BASE_URL, rs))
                 else:
@@ -599,6 +623,11 @@ class QuickLook(CollectionSection):
     
     def get_thumbnail(self):
         div = self.collection.page.find("div", class_="box-fade")
+        if div is None:
+            div = self.collection.page.find("div", class_="box-gray-d7-699")
+            if div is None:
+                div = self.collection.page.find("div", class_="box-aqua-695")
+
         img = div.find(lambda tag: tag.name == "img" and tag.findParent("p"))
         if img["src"].startswith("/"):
             return urljoin(BASE_URL, img["src"])
@@ -648,6 +677,24 @@ class OverView(CollectionSection):
         self.overview = node.text
 
 
+class AboutThis(CollectionSection):
+    def __init__(self, collection, filename=None, id_="overview", menu_name="overview"):
+        super(AboutThis, self).__init__(collection, filename=filename,
+                id_=id_, menu_name=menu_name)
+        self.get_overview()
+
+    def get_overview(self):
+        self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
+            tag.text == "About This Strategy Guide")
+        node = self.overview.findNext("div")
+        for i in range(5):
+            if node.text is None or len(node.text) < 2:
+                node = node.findNext("p")
+            else:
+                break
+        self.overview = node.text
+
+
 class Copyright(CollectionSection):
     def __init__(self, collection, filename=None, id_="copyright", menu_name="copyright"):
         super(Copyright, self).__init__(collection, filename=filename,
@@ -688,7 +735,9 @@ class PrintContainer(CollectionSection):
 
     def clean_page(self):
         self.body.find("p", id="page-url").decompose()
-        self.body.find("div", class_="table-tabs-back").decompose()
+        tabs = self.body.find("div", class_="table-tabs-back")
+        if tabs is not None:
+            tabs.decompose()
         self.body.find("span", class_="print-page-button").decompose()
         self.body.find("div", id="email-share-print").decompose()
         for p in self.body.find_all(lambda tag: tag.name == "p" and\
@@ -696,11 +745,12 @@ class PrintContainer(CollectionSection):
             p.decompose()
 
         comments = self.body.find(lambda tag: tag.name == "h3" and tag.text == "Comments")
-        for section in comments.find_all_next():
-            if section.name == "div" and section.attrs.get("id", "") == "footer":
-                break
-            section.decompose()
-        comments.decompose()
+        if comments is not None:
+            for section in comments.find_all_next():
+                if section.name == "div" and section.attrs.get("id", "") == "footer":
+                    break
+                section.decompose()
+            comments.decompose()
         remove_links(self.body)
 
     def write(self, content):
@@ -889,8 +939,8 @@ class ReadWriteThinkChef(JsonTreeChef):
         super(ReadWriteThinkChef, self).__init__()
 
     def pre_run(self, args, options):
-        self.crawl(args, options)
-        #self.scrape(args, options)
+        #self.crawl(args, options)
+        self.scrape(args, options)
 
     def crawl(self, args, options):
         web_resource_tree = dict(
@@ -901,7 +951,7 @@ class ReadWriteThinkChef(JsonTreeChef):
         crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR,                     
                                     ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
         resources_types = [(6, "Lesson Plans"), (70, "Activities & Projects"), 
-            (74, "Tips & Howtos")]
+            (74, "Tips & Howtos"), (56, "Strategy Guide")]
         for resource_id, resource_name in resources_types:
             curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?resource_type={}".format(resource_id))
             resource_browser = ResourceBrowser(curriculum_url)
@@ -918,8 +968,8 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        #channel_tree = test()
-        channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        channel_tree = test()
+        #channel_tree = self._build_scraping_json_tree(web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
@@ -941,13 +991,17 @@ class ReadWriteThinkChef(JsonTreeChef):
         )
         counter = 0
         for resource in web_resource_tree["children"]:
-            collection = Collection(resource["url"],
-                            source_id=resource["url"],
-                            type=resource["collection"],
-                            obj_id=resource["id"])
-            collection.to_file(channel_tree)
-            if counter == 20:
-                break
+            if resource["collection"] != "Lesson Plan":
+                continue
+            if 6 <= counter <= 6:
+                print(counter)
+                collection = Collection(resource["url"],
+                                source_id=resource["url"],
+                                type=resource["collection"],
+                                obj_id=resource["id"])
+                collection.to_file(channel_tree)
+            #if counter == 2:
+            #    break
             counter += 1
         return channel_tree
 
