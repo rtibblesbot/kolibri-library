@@ -42,7 +42,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = 1
@@ -71,14 +71,14 @@ def test():
     """
     #obj_id = "1121"
     #obj_id = "1166"
-    #obj_id = "31054"
-    obj_id = "30279"
+    obj_id = "31054"
+    #obj_id = "30279"
     collection_type = "Lesson Plan"
     #obj_id = "31023"
     #obj_id = "31034"
     #collection_type = "Strategy Guide"
-    obj_id = "31049"
-    collection_type = "Printout"
+    #obj_id = "31049"
+    #collection_type = "Printout"
     url = "http://www.readwritethink.org/resources/resource-print.html?id={}".format(obj_id)
     channel_tree = dict(
         source_domain="www.readwritethink.org",
@@ -96,7 +96,8 @@ def test():
             source_id="test",
             type=collection_type,
             obj_id=obj_id)
-        collection.to_file(channel_tree)
+        collection.to_file()
+        channel_tree["children"].append(collection.info)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
 
@@ -197,8 +198,6 @@ class Collection(object):
         self.page = self.download_page(url)
         if self.page is not False:
             self.title = self.clean_title(self.page.find("h1"))
-            if self.title is None:
-                self.title = title
             #self.contribution_by = None
             self.source_id = source_id
             self.resource_url = url
@@ -282,7 +281,7 @@ class Collection(object):
         else:
             return self.subjects_area
 
-    def to_file(self, channel_tree):
+    def to_file(self):
         from collections import namedtuple
         LOGGER.info(" + [{}]: {}".format(self.type, self.title))
         LOGGER.info("   - URL: {}".format(self.resource_url))
@@ -293,17 +292,19 @@ class Collection(object):
         Menu = namedtuple('Menu', ['filepath'])
         menu = Menu(filepath=filepath)
         sections = self.drop_null_sections(menu)
-        collection_info = sections["quick"].info()
+        self.info = sections["quick"].info()
         author = sections["quick"].plan_info.get("lesson author", "")
-        collection_info["description"] = sections["overview"].overview
+        self.info["description"] = sections["overview"].overview
         license = get_license(licenses.CC_BY, copyright_holder=sections["info"].copyright).as_dict()
-        collection_info["license"] = license
+        self.info["license"] = license
         pdfs_info = sections["print-container"].build_pdfs_info(base_path, license)
-        videos_info = sections["print-container"].build_videos_info(base_path, license)
+        #print("VIDEOS")
+        #videos_info = sections["print-container"].build_videos_info(base_path, license)
+        printouts_info = sections["print-container"].build_printouts_info()
         sections["print-container"].clean_page()
         sections["print-container"].to_file()
         html_info = sections["print-container"].html_info(license, 
-            collection_info["description"], collection_info["thumbnail"],
+            self.info["description"], self.info["thumbnail"],
             author)
 
         #for subject_area in ["TEST"]:
@@ -325,17 +326,13 @@ class Collection(object):
             #description = self.description()
             #curriculum_info["children"].append(menu.info(thumbnail_img, self.title, description))
         if html_info is not None:
-            collection_info["children"].append(html_info)
+            self.info["children"].append(html_info)
         if pdfs_info is not None:
-            collection_info["children"] += pdfs_info
-        if videos_info is not None:
-            collection_info["children"] += videos_info
-            #if topic_node is None:
-            #    topic_node = self.topic_info() #topic name
-            #    subject_area_topic_node["children"].append(topic_node)
-
-            #topic_node["children"].append(curriculum_info)
-        channel_tree["children"].append(collection_info)
+            self.info["children"] += pdfs_info
+        #if videos_info is not None:
+        #    self.info["children"] += videos_info
+        if printouts_info is not None:
+            self.info["children"] += printouts_info
 
 
 class CurriculumType(object):
@@ -368,6 +365,16 @@ class StrategyGuide(CurriculumType):
         self.sections = [
             {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
             {"id": "overview", "class": AboutThis, "menu_name": "overview"},
+            {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
+            {"id": "info", "class": Copyright, "menu_name": "info"},
+        ]
+
+
+class Printout(CurriculumType):
+    def __init__(self, *args, **kwargs):
+        self.sections = [
+            {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
+            {"id": "overview", "class": AboutThisPrintout, "menu_name": "overview"},
             {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
             {"id": "info", "class": Copyright, "menu_name": "info"},
         ]
@@ -421,6 +428,19 @@ class CollectionSection(object):
                     urls[abs_url] = (filename, link.text, abs_url)
             return urls.values()
 
+    def get_printouts(self):
+        urls = {}
+        if self.body is not None:
+            resource_links = self.body.find_all("a", href=re.compile("\/printouts\/"))
+            for link in resource_links:
+                if link["href"] not in urls and not link["href"].endswith(".pdf"):
+                    abs_url = urljoin(BASE_URL, link["href"])
+                    url_parts = list(urlparse.urlparse(abs_url))[:3]
+                    abs_url = urlparse.urlunparse(url_parts+['', '', ''])
+                    if abs_url.endswith(".html") and abs_url.find("printouts") != -1:
+                        urls[abs_url] = (link.text, abs_url)
+            return urls.values()
+
     def build_pdfs_info(self, path, license=None):
         pdfs_urls = self.get_pdfs()
         if len(pdfs_urls) == 0:
@@ -452,6 +472,24 @@ class CollectionSection(object):
                 LOGGER.info("Error: {}".format(e))
 
         return files_list
+
+    def build_printouts_info(self):
+        printouts_urls = self.get_printouts()
+        if len(printouts_urls) == 0:
+            return
+        
+        info = []
+        for name, url in printouts_urls:
+            print_page = PrintPage()
+            print_page.search_printpage_url(url)
+            print_page.get_type()
+            collection = Collection(url, 
+                source_id=url,
+                type=print_page.type,
+                obj_id=print_page.resource_id)
+            collection.to_file()
+            info.append(collection.info)
+        return info
 
     def get_domain_links(self):
         return set([link.get("href", "") for link in self.body.find_all("a") if link.get("href", "").startswith("/")])
@@ -686,6 +724,24 @@ class AboutThis(CollectionSection):
     def get_overview(self):
         self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
             tag.text == "About This Strategy Guide")
+        node = self.overview.findNext("div")
+        for i in range(5):
+            if node.text is None or len(node.text) < 2:
+                node = node.findNext("p")
+            else:
+                break
+        self.overview = node.text
+
+
+class AboutThisPrintout(CollectionSection):
+    def __init__(self, collection, filename=None, id_="overview", menu_name="overview"):
+        super(AboutThisPrintout, self).__init__(collection, filename=filename,
+                id_=id_, menu_name=menu_name)
+        self.get_overview()
+
+    def get_overview(self):
+        self.overview = self.collection.page.find(lambda tag: tag.name == "td" and\
+            tag.text == "ABOUT THIS PRINTOUT")
         node = self.overview.findNext("div")
         for i in range(5):
             if node.text is None or len(node.text) < 2:
@@ -999,7 +1055,8 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 source_id=resource["url"],
                                 type=resource["collection"],
                                 obj_id=resource["id"])
-                collection.to_file(channel_tree)
+                collection.to_file()
+                channel_tree["children"].append(collection.info)
             #if counter == 2:
             #    break
             counter += 1
