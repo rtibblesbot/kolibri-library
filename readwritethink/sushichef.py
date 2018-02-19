@@ -43,7 +43,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = 1
@@ -72,20 +72,21 @@ def test():
     """
     #obj_id = "1121"
     #obj_id = "1166"
-    obj_id = "31054"
+    #obj_id = "31054"
     #obj_id = "30279"
-    collection_type = "Lesson Plan"
+    #collection_type = "Lesson Plan"
     #obj_id = "31023"
     #obj_id = "31034"
     #collection_type = "Strategy Guide"
     #obj_id = "31049"
-    #collection_type = "Printout"
+    obj_id = "30654"
+    collection_type = "Printout"
     url = "http://www.readwritethink.org/resources/resource-print.html?id={}".format(obj_id)
     channel_tree = dict(
         source_domain="www.readwritethink.org",
         source_id='readwritethink',
         title='ReadWriteThink',
-        description="""----"""[:400], #400 UPPER LIMIT characters allowed 
+        description=""""Here at ReadWriteThink, our mission is to provide educators, parents, and afterschool professionals with access to the highest quality practices in reading and language arts instruction by offering the very best in free materials."""[:400], #400 UPPER LIMIT characters allowed 
         thumbnail=None,#"http://www.readwritethink.org/images/rwt-243.gif",
         language="en",
         children=[],
@@ -284,39 +285,23 @@ class Collection(object):
         license = get_license(licenses.CC_BY, copyright_holder=sections["info"].copyright).as_dict()
         self.info["license"] = license
         pdfs_info = sections["print-container"].build_pdfs_info(base_path, license)
-        #print("VIDEOS")
-        #videos_info = sections["print-container"].build_videos_info(base_path, license)
-        printouts_info = sections["print-container"].build_printouts_info()
+        videos_info = sections["print-container"].build_videos_info(base_path, license)
+        if self.type != "Printout": #To avoid nested printouts
+            printouts_info = sections["print-container"].build_printouts_info()
+        else:
+            printouts_info = None
         sections["print-container"].clean_page()
         sections["print-container"].to_file()
         html_info = sections["print-container"].html_info(license, 
             self.info["description"], self.info["thumbnail"],
             author)
 
-        #for subject_area in ["TEST"]:
-            #subject_area_topic_node = get_level_map(channel_tree, [subject_area])
-            #if subject_area_topic_node is None:
-            #    subject_area_topic_node = dict(
-            #        kind=content_kinds.TOPIC,
-            #        source_id=subject_area,
-            #        title=subject_area,
-            #        description="",
-            #        license=self.license,
-            #        children=[]
-            #    )
-            #    channel_tree["children"].append(subject_area_topic_node)
-
-            #topic_node = get_level_map(channel_tree, [subject_area, self.type])
-            #thumbnail_img = self.get_thumbnail(sections)
-            #curriculum_info = self.info(thumbnail_img) #curricular name
-            #description = self.description()
-            #curriculum_info["children"].append(menu.info(thumbnail_img, self.title, description))
         if html_info is not None:
             self.info["children"].append(html_info)
         if pdfs_info is not None:
             self.info["children"] += pdfs_info
-        #if videos_info is not None:
-        #    self.info["children"] += videos_info
+        if videos_info is not None:
+            self.info["children"] += videos_info
         if printouts_info is not None:
             self.info["children"] += printouts_info
 
@@ -531,14 +516,14 @@ class CollectionSection(object):
                 ### some links who are youtube resources have shorted thier ulrs
                 ### with session.head we can expand it
                 if check_shorter_url(a["href"]):
-                    resp = sess.head(a["href"], allow_redirects=True)
+                    resp = sess.head(a["href"], allow_redirects=True, timeout=2)
                     url = resp.url
                 else:
                     url = a["href"]
                 if YouTubeResource.is_youtube(url, get_channel=False):
                     urls.add(url.strip())
-            except requests.exceptions.MissingSchema:
-                pass
+            except (requests.exceptions.MissingSchema, requests.exceptions.ReadTimeout):
+                LOGGER.info("Connection error with: {}".format(a["href"]))
             except requests.exceptions.TooManyRedirects:
                 LOGGER.info("Too many redirections, skip resource: {}".format(a["href"]))
             except requests.exceptions.ConnectionError:
@@ -575,7 +560,6 @@ class CollectionSection(object):
 
         VIDEOS_DATA_DIR = build_path([path, 'videos'])
         videos_list = []
-
         for i, url in enumerate(videos_urls):
             resource = YouTubeResource(url, lang=self.lang)
             resource.to_file(filepath=VIDEOS_DATA_DIR)
@@ -645,10 +629,13 @@ class QuickLook(CollectionSection):
         super(QuickLook, self).__init__(collection, filename=filename,
                 id_=id_, menu_name=menu_name)
         img_src = self.get_thumbnail()
-        filename = get_name_from_url(img_src).lower()
-        filename_ext = filename.split(".")[-1]
-        if filename_ext in ["jpg", "jpeg", "png"]:
-            self.thumbnail = save_thumbnail(img_src, filename)
+        if img_src is not None:
+            filename = get_name_from_url(img_src).lower()
+            filename_ext = filename.split(".")[-1]
+            if filename_ext in ["jpg", "jpeg", "png"]:
+                self.thumbnail = save_thumbnail(img_src, filename)
+            else:
+                self.thumbnail = None
         else:
             self.thumbnail = None
         self.plan_info = self.get_plan_info()
@@ -659,12 +646,15 @@ class QuickLook(CollectionSection):
             div = self.collection.page.find("div", class_="box-gray-d7-699")
             if div is None:
                 div = self.collection.page.find("div", class_="box-aqua-695")
+                if div is None:
+                    div = self.collection.page.find("div", class_="box-salmon-695")
 
         img = div.find(lambda tag: tag.name == "img" and tag.findParent("p"))
-        if img["src"].startswith("/"):
-            return urljoin(BASE_URL, img["src"])
-        else:
-            return img["src"]
+        if img is not None:
+            if img["src"].startswith("/"):
+                return urljoin(BASE_URL, img["src"])
+            else:
+                return img["src"]
 
     def get_plan_info(self):
         table = self.collection.page.find("table", class_="plan-info")
@@ -735,8 +725,13 @@ class AboutThisPrintout(CollectionSection):
 
     def get_overview(self):
         self.overview = self.collection.page.find(lambda tag: tag.name == "td" and\
-            tag.text == "ABOUT THIS PRINTOUT")
-        node = self.overview.findNext("div")
+            tag.text.lower() == "about this printout")
+        if self.overview is not None:
+            node = self.overview.findNext("div")
+        elif self.overview is None:
+            self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
+                tag.text.lower() == "about this printout")
+            node = self.overview.findNext("p")        
         for i in range(5):
             if node.text is None or len(node.text) < 2:
                 node = node.findNext("p")
@@ -1018,8 +1013,8 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        channel_tree = test()
-        #channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        #channel_tree = test()
+        channel_tree = self._build_scraping_json_tree(web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
@@ -1033,7 +1028,7 @@ class ReadWriteThinkChef(JsonTreeChef):
             source_domain=ReadWriteThinkChef.HOSTNAME,
             source_id='readwritethink',
             title='ReadWriteThink',
-            description="""Here at ReadWriteThink, our mission is to provide educators, parents, and afterschool professionals with access to the highest quality practices in reading and language arts instruction by offering the very best in free materials.."""[:400], #400 UPPER LIMIT characters allowed 
+            description="""Here at ReadWriteThink, our mission is to provide educators, parents, and afterschool professionals with access to the highest quality practices in reading and language arts instruction by offering the very best in free materials."""[:400], #400 UPPER LIMIT characters allowed 
             thumbnail=None,#ReadWriteThinkChef.THUMBNAIL,
             language=LANG,
             children=[],
@@ -1043,7 +1038,7 @@ class ReadWriteThinkChef(JsonTreeChef):
         for resource in web_resource_tree["children"]:
             if resource["collection"] != "Lesson Plan":
                 continue
-            if 6 <= counter <= 6:
+            if 0 <= counter <= 46:
                 print(counter)
                 collection = Collection(resource["url"],
                                 source_id=resource["url"],
