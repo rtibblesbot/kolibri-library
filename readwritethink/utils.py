@@ -88,3 +88,14 @@ def check_shorter_url(url):
         domain = url[index_init+3:index_end+index_init+3]
         check = len(domain) < 12 or domain in shorters_urls
         return check
+
+
+def get_level_map(tree, levels):
+    actual_node = levels[0]
+    r_levels = levels[1:]
+    for children in tree.get("children", []):
+        if children["source_id"] == actual_node:
+            if len(r_levels) >= 1:
+                return get_level_map(children, r_levels)
+            else:
+                return children

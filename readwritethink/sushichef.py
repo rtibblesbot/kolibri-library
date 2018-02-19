@@ -26,6 +26,7 @@ from urllib.parse import urljoin, urlencode
 from utils import save_thumbnail, if_file_exists
 from utils import if_dir_exists, get_name_from_url, get_name_from_url_no_ext
 from utils import build_path, remove_links, remove_iframes, check_shorter_url
+from utils import get_level_map
 import urllib.parse as urlparse
 import youtube_dl
 
@@ -97,7 +98,8 @@ def test():
             type=collection_type,
             obj_id=obj_id)
         collection.to_file()
-        channel_tree["children"].append(collection.info)
+        node = collection.to_node(channel_tree)
+        channel_tree["children"].append(node)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
 
@@ -194,26 +196,18 @@ class PrintPage(object):
 
 
 class Collection(object):
-    def __init__(self, url, source_id, type, subjects_area=None, obj_id=None):
+    def __init__(self, url, source_id, type, obj_id=None):
         self.page = self.download_page(url)
         if self.page is not False:
             self.title = self.clean_title(self.page.find("h1"))
-            #self.contribution_by = None
             self.source_id = source_id
             self.resource_url = url
             self.type = type
             self.license = None
             self.lang = "en"
-            #self.subjects_area = subjects_area
             self.obj_id = obj_id
             
-            #if self.type == "MakerChallenges":
-            #    self.curriculum_type = MakerChallenge()
             if self.type == "Lesson Plan":
-                #p = self.page.find("p", id="footer-l")
-                #print(p.text, p.text.find("©"))
-                #print(self.title)
-                #print("LESSON")
                 self.curriculum_type = LessonPlan()
             #elif self.type == "Activities":
             #    self.curriculum_type = Activity()
@@ -258,7 +252,7 @@ class Collection(object):
                 source_id=self.type,
                 title=self.type,
                 description="",
-                license=self.license,
+                license=None,
                 children=[]
             )
 
@@ -272,14 +266,6 @@ class Collection(object):
                 license=get_license(licenses.CC_BY, copyright_holder="X").as_dict(),
                 children=[]
             )
-
-    def get_subjects_area(self):
-        if self.subjects_area is None:
-            copy_page = copy.copy(self.page)
-            ql = QuickLook(copy_page)
-            return ql.get_subject_area()
-        else:
-            return self.subjects_area
 
     def to_file(self):
         from collections import namedtuple
@@ -333,6 +319,13 @@ class Collection(object):
         #    self.info["children"] += videos_info
         if printouts_info is not None:
             self.info["children"] += printouts_info
+
+    def to_node(self, tree):
+        node = get_level_map(tree, [self.type])
+        if node is None:
+            node = self.topic_info()
+        node["children"].append(self.info)
+        return node
 
 
 class CurriculumType(object):
@@ -488,7 +481,8 @@ class CollectionSection(object):
                 type=print_page.type,
                 obj_id=print_page.resource_id)
             collection.to_file()
-            info.append(collection.info)
+            node = collection.to_node({})
+            info.append(node)
         return info
 
     def get_domain_links(self):
