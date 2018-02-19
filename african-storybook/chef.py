@@ -78,7 +78,7 @@ class AfricanStorybookChef(SushiChef):
             language= "en",
         )
 
-        #download_book("http://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", ["en"])
+        #download_book("http://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", "en")
 
         # Download the books into a dict {language: [list of books]}
         channel_tree = download_all()
@@ -131,26 +131,21 @@ def download_all():
             title = strip_level_from_title(html.unescape(book["title"]))
             description = html.unescape(book["summary"])
 
-            book, languages = download_book(book_url, book_id, title, author, description, languages)
+            for language in languages:
+                book = download_book(book_url, book_id, title, author, description, language)
 
-            if book:
-                print("... downloaded a Level %s %s book titled %s" % (
-                    level, "/".join(languages), title))
-                for language in languages:
+                if book:
+                    print("... downloaded a Level %s %s book titled %s" % (
+                        level, language, title))
                     channel_tree[language][level].append(book)
-            else:
-                print("... WARNING: book not found")
+                else:
+                    print("... WARNING: book not found")
 
     return channel_tree
 
 
-def download_book(book_url, book_id, title, author, description, languages):
-    """Downloads a single book from the African Storybook website given its URL.
-
-    Return a tuple of (
-        the downloaded book as an HTML5AppNode,
-        the languages of the book as a list of strings).
-    """
+def download_book(book_url, book_id, title, author, description, language):
+    """Downloads a single book from African Storybook website given its URL."""
     # -- 0. Parse --
 
     doc = get_parsed_html_from_url(book_url)
@@ -162,12 +157,6 @@ def download_book(book_url, book_id, title, author, description, languages):
 
     # Extract copyright holder.
     copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
-
-    # Extract the language if we didn't get it already.
-    if not languages:
-        author_text_lines = replace_br_with_newlines(doc.select_one(".bookcover_author")).split("\n")
-        language_raw = next(l for l in author_text_lines if l.startswith("Language"))
-        languages = [language_raw.strip("Language").strip(" -")]
 
     # -- 2. Modify and write files --
 
@@ -198,7 +187,7 @@ def download_book(book_url, book_id, title, author, description, languages):
 
     zip_path = create_predictable_zip(destination)
     return nodes.HTML5AppNode(
-        source_id=book_url,
+        source_id="%s|%s" % (book_id, language),
         title=truncate_metadata(title),
         license=licenses.CC_BYLicense(
             copyright_holder=truncate_metadata(copyright_holder)),
@@ -206,8 +195,8 @@ def download_book(book_url, book_id, title, author, description, languages):
         author=truncate_metadata(author),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
-        language=getlang_by_name(languages[0]),
-    ), languages
+        language=getlang_by_name(language),
+    )
 
 
 def strip_level_from_title(title):
