@@ -74,13 +74,14 @@ def test():
     #obj_id = "1166"
     #obj_id = "31054"
     #obj_id = "30279"
-    #collection_type = "Lesson Plan"
+    obj_id = "30636"
+    collection_type = "Lesson Plan"
     #obj_id = "31023"
     #obj_id = "31034"
     #collection_type = "Strategy Guide"
     #obj_id = "31049"
-    obj_id = "30654"
-    collection_type = "Printout"
+    #obj_id = "30654"
+    #collection_type = "Printout"
     url = "http://www.readwritethink.org/resources/resource-print.html?id={}".format(obj_id)
     channel_tree = dict(
         source_domain="www.readwritethink.org",
@@ -98,7 +99,7 @@ def test():
             source_id="test",
             type=collection_type,
             obj_id=obj_id)
-        collection.to_file()
+        collection.to_file(channel_tree)
         node = collection.to_node(channel_tree)
         channel_tree["children"].append(node)
     except requests.exceptions.HTTPError as e:
@@ -268,7 +269,7 @@ class Collection(object):
                 children=[]
             )
 
-    def to_file(self):
+    def to_file(self, channel_tree):
         from collections import namedtuple
         LOGGER.info(" + [{}]: {}".format(self.type, self.title))
         LOGGER.info("   - URL: {}".format(self.resource_url))
@@ -287,7 +288,7 @@ class Collection(object):
         pdfs_info = sections["print-container"].build_pdfs_info(base_path, license)
         videos_info = sections["print-container"].build_videos_info(base_path, license)
         if self.type != "Printout": #To avoid nested printouts
-            printouts_info = sections["print-container"].build_printouts_info()
+            printouts_info = sections["print-container"].build_printouts_info(channel_tree)
         else:
             printouts_info = None
         sections["print-container"].clean_page()
@@ -411,7 +412,9 @@ class CollectionSection(object):
         if self.body is not None:
             resource_links = self.body.find_all("a", href=re.compile("\/printouts\/"))
             for link in resource_links:
-                if link["href"] not in urls and not link["href"].endswith(".pdf"):
+                related_rs = link.findPrevious(lambda tag: tag.name == "h3" and\
+                                            tag.text.lower() == "related resources")
+                if related_rs is None and link["href"] not in urls and not link["href"].endswith(".pdf"):
                     abs_url = urljoin(BASE_URL, link["href"])
                     url_parts = list(urlparse.urlparse(abs_url))[:3]
                     abs_url = urlparse.urlunparse(url_parts+['', '', ''])
@@ -451,22 +454,23 @@ class CollectionSection(object):
 
         return files_list
 
-    def build_printouts_info(self):
+    def build_printouts_info(self, channel_tree):
         printouts_urls = self.get_printouts()
         if len(printouts_urls) == 0:
             return
         
         info = []
+        node = {}
         for name, url in printouts_urls:
             print_page = PrintPage()
             print_page.search_printpage_url(url)
             print_page.get_type()
-            collection = Collection(url, 
+            collection = Collection(print_page.url, 
                 source_id=url,
                 type=print_page.type,
                 obj_id=print_page.resource_id)
-            collection.to_file()
-            node = collection.to_node({})
+            collection.to_file({})
+            node = collection.to_node(node)
             info.append(node)
         return info
 
@@ -728,10 +732,10 @@ class AboutThisPrintout(CollectionSection):
             tag.text.lower() == "about this printout")
         if self.overview is not None:
             node = self.overview.findNext("div")
-        elif self.overview is None:
+        elif self.overview is None: 
             self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
                 tag.text.lower() == "about this printout")
-            node = self.overview.findNext("p")        
+            node = self.overview.findNext("p")
         for i in range(5):
             if node.text is None or len(node.text) < 2:
                 node = node.findNext("p")
@@ -1013,8 +1017,8 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        #channel_tree = test()
-        channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        channel_tree = test()
+        #channel_tree = self._build_scraping_json_tree(web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
@@ -1044,7 +1048,7 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 source_id=resource["url"],
                                 type=resource["collection"],
                                 obj_id=resource["id"])
-                collection.to_file()
+                collection.to_file(channel_tree)
                 channel_tree["children"].append(collection.info)
             #if counter == 2:
             #    break
