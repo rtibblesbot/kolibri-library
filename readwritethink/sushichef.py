@@ -43,7 +43,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = 1
@@ -211,12 +211,14 @@ class Collection(object):
             
             if self.type == "Lesson Plan":
                 self.curriculum_type = LessonPlan()
-            #elif self.type == "Activities":
-            #    self.curriculum_type = Activity()
+            elif self.type == "Activity":
+                self.curriculum_type = Activity()
             elif self.type == "Strategy Guide":
                 self.curriculum_type = StrategyGuide()
             elif self.type == "Printout":
                 self.curriculum_type = Printout()
+            elif self.type == "Tip":
+                self.curriculum_type = Tip()
 
     def download_page(self, url):
         tries = 0
@@ -357,6 +359,26 @@ class Printout(CurriculumType):
         self.sections = [
             {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
             {"id": "overview", "class": AboutThisPrintout, "menu_name": "overview"},
+            {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
+            {"id": "info", "class": Copyright, "menu_name": "info"},
+        ]
+
+
+class Activity(CurriculumType):
+    def __init__(self, *args, **kwargs):
+        self.sections = [
+            {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
+            {"id": "overview", "class": OverView, "menu_name": "overview"},
+            {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
+            {"id": "info", "class": Copyright, "menu_name": "info"},
+        ]
+
+
+class Tip(CurriculumType):
+    def __init__(self, *args, **kwargs):
+        self.sections = [
+            {"id": "quick", "class": QuickLook, "menu_name": "quick_look"},
+            {"id": "overview", "class": WhyUseTip, "menu_name": "overview"},
             {"id": "print-container", "class": PrintContainer, "menu_name": "body"},
             {"id": "info", "class": Copyright, "menu_name": "info"},
         ]
@@ -653,6 +675,8 @@ class QuickLook(CollectionSection):
                 div = self.collection.page.find("div", class_="box-aqua-695")
                 if div is None:
                     div = self.collection.page.find("div", class_="box-salmon-695")
+                    if div is None:
+                        div = self.collection.page.find("div", class_="box-purple-695")
 
         img = div.find(lambda tag: tag.name == "img" and tag.findParent("p"))
         if img is not None:
@@ -737,6 +761,29 @@ class AboutThisPrintout(CollectionSection):
             self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
                 tag.text.lower() == "about this printout")
             node = self.overview.findNext("p")
+        for i in range(5):
+            if node.text is None or len(node.text) < 2:
+                node = node.findNext("p")
+            else:
+                break
+        self.overview = node.text
+
+
+class WhyUseTip(CollectionSection):
+    def __init__(self, collection, filename=None, id_="overview", menu_name="overview"):
+        super(WhyUseTip, self).__init__(collection, filename=filename,
+                id_=id_, menu_name=menu_name)
+        self.get_overview()
+
+    def get_overview(self):
+        self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
+            tag.text.lower() == "why use this tip")
+        #if self.overview is not None:
+        #    node = self.overview.findNext("div")
+        #elif self.overview is None: 
+        #    self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
+        #        tag.text.lower() == "about this printout")
+        node = self.overview.findNext("p")
         for i in range(5):
             if node.text is None or len(node.text) < 2:
                 node = node.findNext("p")
@@ -1042,9 +1089,9 @@ class ReadWriteThinkChef(JsonTreeChef):
         counter = 0
         types = set([])
         for resource in web_resource_tree["children"]:
-            if resource["collection"] != "Lesson Plan":
+            if resource["collection"] != "Tip":#"Lesson Plan":
                 continue
-            if 0 <= counter <= 49:
+            if 0 <= counter <= 2:
                 print(counter)
                 collection = Collection(resource["url"],
                                 source_id=resource["url"],
