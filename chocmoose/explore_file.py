@@ -13,10 +13,6 @@ if not os.path.exists('chocmoose_info.pickle'):
 with open('chocmoose_info.pickle', 'rb') as handle:
     info = pickle.load(handle)
 
-# LOOK AROUND
-########################################################################
-#print(info.keys())
-
 # non-entries keys
 keys = ['extractor', 'extractor_key', 'title', '_type', 'webpage_url', 'id', 'webpage_url_basename']
 for key in keys:
@@ -26,12 +22,6 @@ for key in keys:
 print("\n\nlen(info['entries']) = ", len(info['entries']) )
 
 # sample entry
-#pp = pprint.PrettyPrinter()
-#vinfo=info['entries'][5].copy()
-#del vinfo['formats']  # to keep from printing 100+ lines
-#del vinfo['requested_formats']  # to keep from printing 100+ lines
-#pp.pprint(vinfo)
-
 projects =  [
         { 'pattern': re.compile('.*[EÉI|Ȧŋi]bola.*'),
           'section': "Ebola A Poem For The Living" },
@@ -164,9 +154,15 @@ def manual_lang_tag_from_video(vid):
         if language['pattern'].match(vid['title']):
             return language['lang'] 
 
+
+def video_from_url(url):
+    return list(filter(lambda video: video['webpage_url'] == url, info['entries']))[0]
+
+# Assign section for the video
 for vid in info['entries']:
     vid['project_name'] = section_from_title(vid['title'])
 
+# Look for video without project/section 
 remaining = 0
 for vid in info['entries']:
     project = vid['project_name']
@@ -177,12 +173,14 @@ for vid in info['entries']:
 
 print("Remaining videos:", remaining)
 
-
+# Assign language tag for video
+# If it can be assigned directly, it should be used "the manual way"
 for vid in info['entries']:
     vid['lang_tag'] = lang_from_video(vid)
     if not vid['lang_tag']:
        vid['lang_tag'] = manual_lang_tag_from_video(vid)
 
+# Look for video without language assigned
 remaining = 0
 for vid in info['entries']:
     lang = vid['lang_tag']
@@ -193,6 +191,58 @@ for vid in info['entries']:
 
 print("Remaining videos without language:", remaining)
 
-#for key, group in groupby(info['eitries'], lambda x: x['lang_tag']):
-#    print(key) 
-#    print(list(group)[0]['title'])
+# Search repeated videos based on title
+# If the video is "unique" the repeated url-videos would be on 'repeated' key 
+for index, vid in enumerate(info['entries']):
+    vid['repeated'] = set()
+    vid['repeated'].add(vid['webpage_url'])
+    if vid.get('marked'):
+        continue
+    repeated = 0 
+    for index2, vid2 in enumerate(info['entries']): 
+        # TODO: Improve the way to select duplicated files
+        # Currently: if title is the same and the url is different
+        if (vid['title'] == vid2['title']) and (vid['webpage_url'].strip() != vid2['webpage_url'].strip()): 
+            vid2['marked'] = True
+            vid['repeated'].add(vid2['webpage_url'])
+            repeated += 1
+
+# Count unique elements
+counter = 0
+for vid in info['entries']:
+    if not vid.get('marked'):
+        print("Video:", vid['title'], "Repeated: ", len(vid['repeated']),"times")
+        counter += 1
+
+print(counter, 'unique elements')
+
+def highest_resolution_from_video(vid):
+    highest_resolution = 0
+    for f in vid['formats']:
+        if 'http' in f['format_id']:
+            resolution = int(re.findall('\d+',f['format_id'])[0])
+            if resolution > highest_resolution:
+               highest_resolution = resolution
+    return highest_resolution
+
+
+# Select the highest resolution
+for vid in info['entries']:
+    if not vid.get('marked'):
+        print("Video:", vid['title'], " |  Repeated: ", len(vid['repeated']),"times")
+        max_resolution = 0
+        max_resolution_video = None
+        for url in vid.get('repeated'):
+            vid2 = video_from_url(url)
+            resolution = highest_resolution_from_video(vid2)
+            if resolution > max_resolution:
+                max_resolution_video = vid2
+                max_resolution = resolution
+            elif resolution == max_resolution:
+                if vid2['timestamp'] > max_resolution_video['timestamp']:
+                  max_resolution_video = vid2
+                  max_resolution = resolution
+        vid['max_resolution_url'] =  max_resolution_video['webpage_url']
+
+
+#  
