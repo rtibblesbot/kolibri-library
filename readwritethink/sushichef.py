@@ -43,7 +43,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = 1
@@ -99,7 +99,7 @@ def test():
             source_id="test",
             type=collection_type,
             obj_id=obj_id)
-        collection.to_file(channel_tree)
+        collection.to_file()
         node = collection.to_node(channel_tree)
         channel_tree["children"].append(node)
     except requests.exceptions.HTTPError as e:
@@ -269,7 +269,7 @@ class Collection(object):
                 children=[]
             )
 
-    def to_file(self, channel_tree):
+    def to_file(self):
         from collections import namedtuple
         LOGGER.info(" + [{}]: {}".format(self.type, self.title))
         LOGGER.info("   - URL: {}".format(self.resource_url))
@@ -288,7 +288,7 @@ class Collection(object):
         pdfs_info = sections["print-container"].build_pdfs_info(base_path, license)
         videos_info = sections["print-container"].build_videos_info(base_path, license)
         if self.type != "Printout": #To avoid nested printouts
-            printouts_info = sections["print-container"].build_printouts_info(channel_tree)
+            printouts_info = sections["print-container"].build_printouts_info()
         else:
             printouts_info = None
         sections["print-container"].clean_page()
@@ -307,7 +307,10 @@ class Collection(object):
             self.info["children"] += printouts_info
 
     def to_node(self, tree):
-        node = get_level_map(tree, [self.type])
+        if tree.get("source_id", None) != self.type:
+            node = get_level_map(tree, [self.type])
+        else:
+            node = tree
         if node is None:
             node = self.topic_info()
         node["children"].append(self.info)
@@ -454,12 +457,11 @@ class CollectionSection(object):
 
         return files_list
 
-    def build_printouts_info(self, channel_tree):
+    def build_printouts_info(self):
         printouts_urls = self.get_printouts()
         if len(printouts_urls) == 0:
             return
         
-        info = []
         node = {}
         for name, url in printouts_urls:
             print_page = PrintPage()
@@ -469,10 +471,9 @@ class CollectionSection(object):
                 source_id=url,
                 type=print_page.type,
                 obj_id=print_page.resource_id)
-            collection.to_file({})
+            collection.to_file()
             node = collection.to_node(node)
-            info.append(node)
-        return info
+        return [node]
 
     def get_domain_links(self):
         return set([link.get("href", "") for link in self.body.find_all("a") if link.get("href", "").startswith("/")])
@@ -1017,8 +1018,8 @@ class ReadWriteThinkChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
-        channel_tree = test()
-        #channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        #channel_tree = test()
+        channel_tree = self._build_scraping_json_tree(web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
@@ -1039,19 +1040,21 @@ class ReadWriteThinkChef(JsonTreeChef):
             license=ReadWriteThinkChef.LICENSE,
         )
         counter = 0
+        types = set([])
         for resource in web_resource_tree["children"]:
             if resource["collection"] != "Lesson Plan":
                 continue
-            if 0 <= counter <= 46:
+            if 0 <= counter <= 49:
                 print(counter)
                 collection = Collection(resource["url"],
                                 source_id=resource["url"],
                                 type=resource["collection"],
                                 obj_id=resource["id"])
-                collection.to_file(channel_tree)
-                channel_tree["children"].append(collection.info)
-            #if counter == 2:
-            #    break
+                collection.to_file()
+                node = collection.to_node(channel_tree)
+                if collection.type not in types:
+                    channel_tree["children"].append(node)
+                    types.add(collection.type)
             counter += 1
         return channel_tree
 
