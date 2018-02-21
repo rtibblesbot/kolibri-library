@@ -108,6 +108,8 @@ class AfricanStorybookChef(SushiChef):
 
 
 def download_all():
+    scraped_ids = set()
+
     with WebDriver("http://www.africanstorybook.org/", delay=20000) as driver:
         books = driver.execute_script("return bookItems;")
         total_books = len(books)
@@ -121,6 +123,10 @@ def download_all():
         channel_tree = defaultdict(lambda: defaultdict(list))
         for i, book in enumerate(books):
             book_id = book["id"]
+            if book_id in scraped_ids:
+                continue
+            scraped_ids.add(book_id)
+
             book_url = "http://www.africanstorybook.org/reader.php?id=%s" % book_id
             print("Downloading book %s of %s with url %s" % (i + 1, total_books, book_url))
 
