@@ -343,7 +343,7 @@ class Collection(object):
             _, subtopic_node = self.topic_info()
             if subtopic_node is not None:
                 subtopic_node["children"].append(self.info)
-            node["children"].append(subtopic_node)
+                node["children"].append(subtopic_node)
         else:
             subnode["children"].append(self.info)
         return node
@@ -1123,7 +1123,7 @@ class ReadWriteThinkChef(JsonTreeChef):
         for resource in web_resource_tree["children"]:
             #if resource["collection"] != "Lesson Plan":
             #    continue
-            if 0 <= counter <= 500:
+            if 0 <= counter <= 100:
                 LOGGER.info(counter)
                 collection = Collection(source_id=resource["url"],
                                 type=resource["collection"],
@@ -1131,7 +1131,7 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 subtype=resource["sub_type"])
                 collection.to_file()
                 node = collection.to_node(channel_tree)
-                if collection.type not in types:
+                if collection.type not in types and node is not None:
                     channel_tree["children"].append(node)
                     types.add(collection.type)
             counter += 1
