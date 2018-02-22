@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import ntpath
@@ -103,3 +104,9 @@ def get_level_map(tree, levels):
                 return get_level_map(children, r_levels)
             else:
                 return children
+
+def load_tree(path):
+    with open(path, 'r') as f:
+        tree = json.load(f)
+    return tree
+    

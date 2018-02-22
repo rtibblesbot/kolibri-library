@@ -23,7 +23,7 @@ import sys
 import time
 from urllib.error import URLError
 from urllib.parse import urljoin, urlencode
-from utils import save_thumbnail, if_file_exists
+from utils import save_thumbnail, if_file_exists, load_tree
 from utils import if_dir_exists, get_name_from_url, get_name_from_url_no_ext
 from utils import build_path, remove_links, remove_iframes, check_shorter_url
 from utils import get_level_map
@@ -43,10 +43,10 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
-TIME_SLEEP = 1
+TIME_SLEEP = .6
 
 DATA_DIR = "chefdata"
 
@@ -76,7 +76,10 @@ def test():
     #obj_id = "30279"
     #obj_id = "30636"
     #obj_id = "30837"
-    obj_id = "31046"
+    #obj_id = "31046"
+    #obj_id = "1075" #--
+    obj_id = "411"
+    #obj_id = "30721"
     collection_type = "Lesson Plan"
     #obj_id = "31023"
     #obj_id = "31034"
@@ -132,6 +135,7 @@ class ResourceBrowser(object):
         page_number = 1
         total_items = None
         counter = 0
+        urls = set([])
         while total_items is None or counter < total_items:
             url = self.build_pagination_url(page_number)
             try:
@@ -140,17 +144,17 @@ class ResourceBrowser(object):
                 LOGGER.info("Error: {}".format(e))
             else:
                 LOGGER.info("CRAWLING : URL {}".format(url))
-                page = BeautifulSoup(page_contents, 'html.parser')
+                page = BeautifulSoup(page_contents, 'html5lib')
                 browser = page.find("ol", class_="results")
                 if total_items is None:
                     results = page.find("h2", class_="results-hdr-l")
                     total_items = self.get_total_items(results.text)
                 for a in browser.find_all(lambda tag: tag.name == "a"):
-                    counter += 1
                     url = urljoin(BASE_URL, a["href"])
                     print_page = PrintPage()
                     print_page.search_printpage_url(url)
                     print_page.get_type()
+                    counter += 1
                     yield dict(url=print_page.url, 
                         collection=print_page.type,
                         id=print_page.resource_id,
@@ -344,6 +348,8 @@ class Collection(object):
             if subtopic_node is not None:
                 subtopic_node["children"].append(self.info)
                 node["children"].append(subtopic_node)
+            else:
+                node["children"].append(self.info)
         else:
             subnode["children"].append(self.info)
         return node
@@ -458,7 +464,7 @@ class CollectionSection(object):
             for link in resource_links:
                 if link["href"].endswith(".pdf") and link["href"] not in urls:
                     filename = get_name_from_url(link["href"])
-                    abs_url = urljoin(BASE_URL, link["href"])
+                    abs_url = urljoin(BASE_URL, link["href"].strip())
                     urls[abs_url] = (filename, link.text, abs_url)
             return urls.values()
 
@@ -470,7 +476,7 @@ class CollectionSection(object):
                 related_rs = link.findPrevious(lambda tag: tag.name == "h3" and\
                                             tag.text.lower() == "related resources")
                 if related_rs is None and link["href"] not in urls and not link["href"].endswith(".pdf"):
-                    abs_url = urljoin(BASE_URL, link["href"])
+                    abs_url = urljoin(BASE_URL, link["href"].strip())
                     url_parts = list(urlparse.urlparse(abs_url))[:3]
                     abs_url = urlparse.urlunparse(url_parts+['', '', ''])
                     if abs_url.endswith(".html") and abs_url.find("printouts") != -1:
@@ -638,6 +644,7 @@ class CollectionSection(object):
         return videos_list
 
     def find_video_url(self, page_url):
+        urls = set([])
         try:
             document = downloader.read(page_url, loadjs=False, session=sess)
         except requests.exceptions.HTTPError as e:
@@ -648,7 +655,6 @@ class CollectionSection(object):
             LOGGER.info("Connection error, the resource will be scraped in 5s...")
             time.sleep(3)
         else:
-            urls = set([])
             for rs in re.findall(r':\s"/.+\.mp4"', str(document)):
                 rs = rs[3:-1]
                 if rs.startswith("/"):
@@ -656,7 +662,7 @@ class CollectionSection(object):
                 else:
                     start = rs.find("/")
                     urls.add(urljoin(BASE_URL, rs[start:]))
-            return urls
+        return urls
 
     def write(self, filename, content):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
@@ -1064,18 +1070,23 @@ class ReadWriteThinkChef(JsonTreeChef):
 
     def __init__(self):
         build_path([ReadWriteThinkChef.TREES_DATA_DIR])
+        self.scrape_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
+                                ReadWriteThinkChef.SCRAPING_STAGE_OUTPUT_TPL)
+        self.crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
+                                ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
         #self.thumbnail = save_thumbnail()
         super(ReadWriteThinkChef, self).__init__()
 
     def pre_run(self, args, options):
         #self.crawl(args, options)
-        self.scrape(args, options)
+        #self.scrape(args, options)
+        pass
 
     def crawl(self, args, options):
         web_resource_tree = dict(
             kind='ReadWriteThinkResourceTree',
             title='ReadWriteThink',
-            children=[]
+            children=OrderedDict()
         )
         crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR,                     
                                     ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
@@ -1085,46 +1096,44 @@ class ReadWriteThinkChef(JsonTreeChef):
             curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?resource_type={}".format(resource_id))
             resource_browser = ResourceBrowser(curriculum_url)
             for data in resource_browser.run(limit_page=None):
-                web_resource_tree["children"].append(data)
+                web_resource_tree["children"][data["url"]] = data
+        web_resource_tree["children"] = web_resource_tree["children"].values()
         with open(crawling_stage, 'w') as f:
             json.dump(web_resource_tree, f, indent=2)
         return web_resource_tree
 
     def scrape(self, args, options):
-        crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
-                                ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
-        with open(crawling_stage, 'r') as f:
+        cache_tree = options.get('cache_tree', '1')
+        
+        with open(self.crawling_stage, 'r') as f:
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
          
         #channel_tree = test()
-        channel_tree = self._build_scraping_json_tree(web_resource_tree)
+        channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
-        scrape_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
-                                ReadWriteThinkChef.SCRAPING_STAGE_OUTPUT_TPL)
-        write_tree_to_json_tree(scrape_stage, channel_tree)
+        write_tree_to_json_tree(self.scrape_stage, channel_tree)
 
-    def _build_scraping_json_tree(self, web_resource_tree):
+    def _build_scraping_json_tree(self, cache_tree, web_resource_tree):
         LANG = 'en'
         channel_tree = dict(
-            source_domain=ReadWriteThinkChef.HOSTNAME,
-            source_id='readwritethink',
-            title='ReadWriteThink',
-            description="""Here at ReadWriteThink, our mission is to provide educators, parents, and afterschool professionals with access to the highest quality practices in reading and language arts instruction by offering the very best in free materials."""[:400], #400 UPPER LIMIT characters allowed 
-            thumbnail=None,#ReadWriteThinkChef.THUMBNAIL,
-            language=LANG,
-            children=[],
-            license=ReadWriteThinkChef.LICENSE,
-        )
+                source_domain=ReadWriteThinkChef.HOSTNAME,
+                source_id='readwritethink',
+                title='ReadWriteThink',
+                description="""Here at ReadWriteThink, our mission is to provide educators, parents, and afterschool professionals with access to the highest quality practices in reading and language arts instruction by offering the very best in free materials."""[:400], #400 UPPER LIMIT characters allowed 
+                thumbnail=None,#ReadWriteThinkChef.THUMBNAIL,
+                language=LANG,
+                children=[],
+                license=ReadWriteThinkChef.LICENSE,
+            )
         counter = 0
         types = set([])
-        for resource in web_resource_tree["children"]:
-            #if resource["collection"] != "Lesson Plan":
-            #    continue
-            if 0 <= counter <= 100:
-                LOGGER.info(counter)
+        total_size = len(web_resource_tree["children"])
+        for resource in web_resource_tree["children"].values():
+            if 0 <= counter <= total_size:
+                LOGGER.info("{} of {}".format(counter, total_size))
                 collection = Collection(source_id=resource["url"],
                                 type=resource["collection"],
                                 obj_id=resource["id"],
