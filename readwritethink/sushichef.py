@@ -74,7 +74,9 @@ def test():
     #obj_id = "1166"
     #obj_id = "31054"
     #obj_id = "30279"
-    obj_id = "30636"
+    #obj_id = "30636"
+    #obj_id = "30837"
+    obj_id = "31046"
     collection_type = "Lesson Plan"
     #obj_id = "31023"
     #obj_id = "31034"
@@ -95,8 +97,7 @@ def test():
     )
 
     try:
-        collection = Collection(url, 
-            source_id="test",
+        collection = Collection(source_id=url,
             type=collection_type,
             obj_id=obj_id)
         collection.to_file()
@@ -198,16 +199,16 @@ class PrintPage(object):
 
 
 class Collection(object):
-    def __init__(self, url, source_id, type, obj_id=None):
-        self.page = self.download_page(url)
+    def __init__(self, source_id, type, obj_id=None, subtype=None):
+        self.page = self.download_page(source_id)
         if self.page is not False:
             self.title = self.clean_title(self.page.find("h1"))
             self.source_id = source_id
-            self.resource_url = url
             self.type = type
             self.license = None
             self.lang = "en"
             self.obj_id = obj_id
+            self.subtype = subtype
             
             if self.type == "Lesson Plan":
                 self.curriculum_type = LessonPlan()
@@ -239,7 +240,7 @@ class Collection(object):
 
     def clean_title(self, title):
         if title is not None:
-            text = title.text.replace("\t", " ")
+            text = title.text.replace("\t", " ").replace("/", "-")
             return text.strip()
 
     def drop_null_sections(self, menu):
@@ -251,14 +252,27 @@ class Collection(object):
 
     ##activities, lessons, etc
     def topic_info(self):
-        return dict(
+        topic_node = dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.type,
+            title=self.type,
+            description="",
+            license=None,
+            children=[]
+        )
+        if self.subtype is not None:
+            subtopic_node = dict(
                 kind=content_kinds.TOPIC,
-                source_id=self.type,
-                title=self.type,
+                source_id=self.subtype,
+                title=self.subtype,
                 description="",
                 license=None,
                 children=[]
             )
+            topic_node["children"].append(subtopic_node)
+        else:
+            subtopic_node = None
+        return topic_node, subtopic_node
 
     def empty_info(self, url):
         return dict(
@@ -273,8 +287,8 @@ class Collection(object):
 
     def to_file(self):
         from collections import namedtuple
-        LOGGER.info(" + [{}]: {}".format(self.type, self.title))
-        LOGGER.info("   - URL: {}".format(self.resource_url))
+        LOGGER.info(" + [{}|{}]: {}".format(self.type, self.subtype, self.title))
+        LOGGER.info("   - URL: {}".format(self.source_id))
         copy_page = copy.copy(self.page)
         base_path = build_path([DATA_DIR, self.type, self.obj_id])
         filepath = "{path}/{title}.zip".format(path=base_path, 
@@ -309,13 +323,29 @@ class Collection(object):
             self.info["children"] += printouts_info
 
     def to_node(self, tree):
-        if tree.get("source_id", None) != self.type:
+        if tree is not None and tree.get("source_id", None) != self.type and self.subtype is not None:
+            subnode = get_level_map(tree, [self.type, self.subtype])
             node = get_level_map(tree, [self.type])
+        elif tree is not None and tree.get("source_id", None) != self.type:
+            node = get_level_map(tree, [self.type])
+            subnode = None
         else:
             node = tree
+            subnode = None
+
         if node is None:
-            node = self.topic_info()
-        node["children"].append(self.info)
+            node, subtopic_node = self.topic_info()
+            if subtopic_node is not None:
+                subtopic_node["children"].append(self.info)
+            else:
+                node["children"].append(self.info)
+        elif node is not None and subnode is None:
+            _, subtopic_node = self.topic_info()
+            if subtopic_node is not None:
+                subtopic_node["children"].append(self.info)
+            node["children"].append(subtopic_node)
+        else:
+            subnode["children"].append(self.info)
         return node
 
 
@@ -476,6 +506,8 @@ class CollectionSection(object):
                 LOGGER.info("Error: {}".format(e))
             except requests.exceptions.ConnectionError as e:
                 LOGGER.info("Error: {}".format(e))
+            except requests.exceptions.TooManyRedirects as e:
+                LOGGER.info("Error: {}".format(e))
 
         return files_list
 
@@ -484,13 +516,13 @@ class CollectionSection(object):
         if len(printouts_urls) == 0:
             return
         
-        node = {}
+        node = None
         for name, url in printouts_urls:
             print_page = PrintPage()
             print_page.search_printpage_url(url)
             print_page.get_type()
-            collection = Collection(print_page.url, 
-                source_id=url,
+            collection = Collection(
+                source_id=print_page.url,
                 type=print_page.type,
                 obj_id=print_page.resource_id)
             collection.to_file()
@@ -1048,7 +1080,7 @@ class ReadWriteThinkChef(JsonTreeChef):
         crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR,                     
                                     ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
         resources_types = [(6, "Lesson Plans"), (70, "Activities & Projects"), 
-            (74, "Tips & Howtos"), (56, "Strategy Guide")]
+            (74, "Tips & Howtos"), (56, "Strategy Guide"), (18, "Printouts")]
         for resource_id, resource_name in resources_types:
             curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?resource_type={}".format(resource_id))
             resource_browser = ResourceBrowser(curriculum_url)
@@ -1089,14 +1121,14 @@ class ReadWriteThinkChef(JsonTreeChef):
         counter = 0
         types = set([])
         for resource in web_resource_tree["children"]:
-            if resource["collection"] != "Tip":#"Lesson Plan":
-                continue
-            if 0 <= counter <= 2:
-                print(counter)
-                collection = Collection(resource["url"],
-                                source_id=resource["url"],
+            #if resource["collection"] != "Lesson Plan":
+            #    continue
+            if 0 <= counter <= 500:
+                LOGGER.info(counter)
+                collection = Collection(source_id=resource["url"],
                                 type=resource["collection"],
-                                obj_id=resource["id"])
+                                obj_id=resource["id"],
+                                subtype=resource["sub_type"])
                 collection.to_file()
                 node = collection.to_node(channel_tree)
                 if collection.type not in types:

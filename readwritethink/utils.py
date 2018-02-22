@@ -21,10 +21,14 @@ sess.mount(BASE_URL, forever_adapter)
 def save_thumbnail(url, save_as):
     THUMB_DATA_DIR = build_path([DATA_DIR, 'thumbnail'])
     filepath = os.path.join(THUMB_DATA_DIR, save_as)
-    document = downloader.read(url, loadjs=False, session=sess)        
-    with open(filepath, 'wb') as f:
-        f.write(document)
-        return filepath
+    try:
+        document = downloader.read(url, loadjs=False, session=sess)
+    except requests.exceptions.ConnectionError as e:
+        return None
+    else:
+        with open(filepath, 'wb') as f:
+            f.write(document)
+            return filepath
 
 
 def if_file_exists(filepath):
