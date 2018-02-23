@@ -43,7 +43,7 @@ BASE_URL = "http://www.readwritethink.org"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .6
@@ -462,10 +462,11 @@ class CollectionSection(object):
         if self.body is not None:
             resource_links = self.body.find_all("a", href=re.compile("\.pdf$"))
             for link in resource_links:
-                if link["href"].endswith(".pdf") and link["href"] not in urls:
+                if link["href"] not in urls:
                     filename = get_name_from_url(link["href"])
                     abs_url = urljoin(BASE_URL, link["href"].strip())
-                    urls[abs_url] = (filename, link.text, abs_url)
+                    if filename.endswith(".pdf"):
+                        urls[abs_url] = (filename, link.text, abs_url)
             return urls.values()
 
     def get_printouts(self):
@@ -496,6 +497,7 @@ class CollectionSection(object):
                 pdf_filepath = os.path.join(PDFS_DATA_DIR, filename)
                 with open(pdf_filepath, 'wb') as f:
                     f.write(response)
+                LOGGER.info("   - File: {}".format(filename))
                 files = dict(
                     kind=content_kinds.DOCUMENT,
                     source_id=pdf_url,
@@ -816,11 +818,6 @@ class WhyUseTip(CollectionSection):
     def get_overview(self):
         self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
             tag.text.lower() == "why use this tip")
-        #if self.overview is not None:
-        #    node = self.overview.findNext("div")
-        #elif self.overview is None: 
-        #    self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
-        #        tag.text.lower() == "about this printout")
         node = self.overview.findNext("p")
         for i in range(5):
             if node.text is None or len(node.text) < 2:
@@ -1078,9 +1075,8 @@ class ReadWriteThinkChef(JsonTreeChef):
         super(ReadWriteThinkChef, self).__init__()
 
     def pre_run(self, args, options):
-        #self.crawl(args, options)
-        #self.scrape(args, options)
-        pass
+        self.crawl(args, options)
+        self.scrape(args, options)
 
     def crawl(self, args, options):
         web_resource_tree = dict(
@@ -1097,7 +1093,7 @@ class ReadWriteThinkChef(JsonTreeChef):
             resource_browser = ResourceBrowser(curriculum_url)
             for data in resource_browser.run(limit_page=None):
                 web_resource_tree["children"][data["url"]] = data
-        web_resource_tree["children"] = web_resource_tree["children"].values()
+        web_resource_tree["children"] = list(web_resource_tree["children"].values())
         with open(crawling_stage, 'w') as f:
             json.dump(web_resource_tree, f, indent=2)
         return web_resource_tree
@@ -1131,7 +1127,7 @@ class ReadWriteThinkChef(JsonTreeChef):
         counter = 0
         types = set([])
         total_size = len(web_resource_tree["children"])
-        for resource in web_resource_tree["children"].values():
+        for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
                 collection = Collection(source_id=resource["url"],
