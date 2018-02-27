@@ -6,6 +6,7 @@ import os
 import requests_cache
 import codecs
 import shutil
+from mime import mime
 
 requests_cache.install_cache()
 
@@ -47,6 +48,11 @@ def guess_extension(filename):
     if "/" in ext:
         return ""
     return ext
+
+def ext_from_mime_type(mime_type):
+    if mime_type not in mime:
+        return ""
+    return mime[mime_type][0]
 
 def get_resources(soup):
     def is_valid_tag(tag):
@@ -90,12 +96,17 @@ def make_local(soup, page_url):
     url_list = [full_url(url) for url in url_list]
     
     # replace URLs
-    required_resources = set()
+    resource_filenames = {}
+    
+    # download content
+    # todo: don't download offsite a's?
     
     for resource in resources:
         for attribute in LINK_ATTRIBUTES:
             attribute_value = full_url(resource.attrs.get(attribute))
             if attribute_value and attribute_value in url_list:
+                if attribute_value.startswith("mailto"):
+                    continue
                 if resource.name == "a" and urlparse(attribute_value).netloc not in (DOMAIN, "", "www.kennedy-center.org"):
                     print (urlparse(attribute_value).netloc)
                     print ("rewriting non-local URL {} in {}".format(attribute_value, resource.name))
@@ -108,27 +119,44 @@ def make_local(soup, page_url):
                     continue
 
                 else:
-                    if attribute_value.startswith("mailto:"):
-                        continue
-                    required_resources.add(attribute_value)
-                    resource.attrs[attribute] = hashed_url(attribute_value)
+                    if attribute_value not in resource_filenames:
+                        try:
+                            r = requests.get(attribute_value, verify=False)
+                        except requests.exceptions.InvalidURL:
+                            continue
+                        content = r.content
+                        try:
+                            content_type = r.headers['Content-Type'].split(";")[0].strip()
+                        except KeyError:
+                            content_type = ""
+                        extension = ext_from_mime_type(content_type)
+                        filename = hashed_url(attribute_value)+extension
+                        
+                        with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
+                            try:
+                                f.write(content)
+                            except requests.exceptions.InvalidURL:
+                                pass    
+                                            
+                        resource_filenames[attribute_value] = filename
+                    
+                    resource.attrs[attribute] = resource_filenames[attribute_value]
                     continue
 
     html = nice_html(soup)
-
-    # download content
-    # todo: don't download offsite a's?
-    for url in required_resources:
-        filename = hashed_url(url)
-        with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
-            f.write(requests.get(url, verify=False).content)
 
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "wb") as f:
         f.write(html)
         
     # create zip file
-    return shutil.make_archive("__"+DOWNLOAD_FOLDER, "zip", # automatically adds .zip extension!
+    zipfile_name = shutil.make_archive("__"+DOWNLOAD_FOLDER+"/"+hashed_url(page_url), "zip", # automatically adds .zip extension!
                         DOWNLOAD_FOLDER)    
+    
+    # delete contents of downloadfolder
+    assert "downloads" in DOWNLOAD_FOLDER
+    shutil.rmtree(DOWNLOAD_FOLDER)
+    
+    return zipfile_name
 
 
 def nice_html(soup):
@@ -160,4 +188,5 @@ def nice_html(soup):
     return b"\n\n<!-- dragon -->\n\n".join(output)
 
 
-print (make_local(soup, sample_url))
+if __name__ == "__main__":
+    print (make_local(soup, sample_url))
