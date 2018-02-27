@@ -1,4 +1,4 @@
-{
+mime = {
 "Application/xml": ['.filters', '.vcproj', '.vcxproj'],
 "application/PowerShell": ['.psc1'],
 "application/atom+xml": ['.atom'],
