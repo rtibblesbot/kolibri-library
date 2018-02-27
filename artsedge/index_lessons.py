@@ -1,5 +1,7 @@
 import requests
 import re
+import requests_cache
+requests_cache.install_cache()
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag
@@ -16,8 +18,10 @@ class Lesson(object):
         self.subject = subject.text
         self.other_subject = other_subject.text
 
-        anchor = main.find("a")
+        anchors = main.find_all("a")
+        anchor, = [x for x in anchors if x.text]
         self.title = anchor.text
+        assert(self.title)
         self.link = anchor.attrs["href"]
         
         contents = main.find("p").contents
