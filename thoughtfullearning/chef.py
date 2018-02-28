@@ -15,6 +15,7 @@ from urllib.parse import urlparse, parse_qs
 import uuid
 
 from bs4 import BeautifulSoup
+import youtube_dl
 
 import le_utils.constants
 from ricecooker.chefs import SushiChef
@@ -31,8 +32,17 @@ sess = requests.Session()
 cache = FileCache('.webcache')
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
+ydl = youtube_dl.YoutubeDL({
+    'quiet': True,
+    'no_warnings': True,
+    'writesubtitles': True,
+    'allsubtitles': True,
+})
+
 sess.mount('https://k12.thoughtfullearning.com', forever_adapter)
 sess.mount('http://fonts.googleapis.com', forever_adapter)
+sess.mount('https://apis.google.com', forever_adapter)
+sess.mount('http://ajax.googleapis.com', forever_adapter)
 
 
 headers = {
@@ -71,243 +81,376 @@ class ThoughtfulLearningChef(SushiChef):
             language = "en",
         )
 
-        download_all_minilessons(channel)
+        print()
+        print("-" * 80)
+        print("Downloading all minilesson")
+        channel.add_child(download_all_minilessons())
+
+        print()
+        print("-" * 80)
+        print("Downloading all student models")
+        channel.add_child(download_all_student_models())
+
+        print()
+        print("-" * 80)
+        print("Downloading all writing topics")
+        channel.add_child(download_all_writing_topics())
+
+        print()
+        print("-" * 80)
+        print("Downloading all writing assessments")
+        channel.add_child(download_all_writing_assessments())
+
         return channel
 
 
-def download_all_minilessons(channel):
+################################################################################
+# Minilessons
+
+
+minilesson_thumbnail = "https://k12.thoughtfullearning.com/sites/k12/files/images/minilessonResources.png"
+
+
+def download_all_minilessons():
+    topic_node = nodes.TopicNode(
+        source_id="minilesson",
+        title="Minilessons",
+        language="en",
+        thumbnail=minilesson_thumbnail,
+    )
+
     doc = get_parsed_html_from_url(
             'https://k12.thoughtfullearning.com/resources/minilessons')
-    for pane in doc.select('panel-pane .pane-views-panes'):
-        title = pane.select_one('view-header').text.strip()
-        topic_node = nodes.TopicNode(source_id=title, title=title, language="en")
-        download_minilesson_topic(topic_node, doc)
-        channel.add_child(topic_node)
+    for pane in doc.select('.pane-views-panes'):
+        title = pane.select_one('.view-header').text.strip()
+        category_node = nodes.TopicNode(source_id=title, title=title, language="en")
+        print("Downloading minilesson category %s" % title)
+        download_minilesson_category(category_node, pane)
+        topic_node.add_child(category_node)
+
+    return topic_node
 
 
-def download_minilesson_topic(topic_node, doc):
-    for row in doc.select('.views-row'):
-        thumbnail = row.select('.views-field-field-minilesson-screenshot img')['src']
-        title = row.select('.views-field-title').text.strip()
-        url = make_fully_qualified_url(row.select('.views-field-title a')['href'])
-        description = row.select('.views-field-field-minilesson-summary').text.strip()
-        node = download_minilesson(url, title, thumbnail, description)
-        topic_node.add_child(node)
+def download_minilesson_category(category_node, category_doc):
+    scraped_urls = set()
+
+    for row in category_doc.select('.views-row'):
+        screenshot = row.select_one('.views-field-field-minilesson-screenshot img')
+        if screenshot:
+            thumbnail = screenshot['src']
+        else:
+            thumbnail = row.select_one('.views-field-field-minilesson-video img')['src']
+
+        title = row.select_one('.views-field-title').text.strip()
+
+        url = make_fully_qualified_url(row.select_one('.views-field-title a')['href'])
+        if url in scraped_urls:
+            print('url %s is repeated', url)
+            continue
+        scraped_urls.add(url)
+
+        description = row.select_one('.views-field-field-minilesson-summary').text.strip()
+        print("    Downloading minilesson %s from %s" % (title, url))
+        download_content_node(category_node, url, title, thumbnail, description)
 
 
-def download_minilesson(url, title, thumbnail, description):
+################################################################################
+# Student models
+
+
+student_model_thumbnail = "https://k12.thoughtfullearning.com/sites/k12/files/images/studentModelResources.png"
+
+
+def download_all_student_models():
+    topic_node = nodes.TopicNode(
+        source_id="student-models",
+        title="Student Models",
+        language="en",
+        thumbnail=student_model_thumbnail,
+    )
+
+    doc = get_parsed_html_from_url(
+            'https://k12.thoughtfullearning.com/resources/studentmodels')
+    for level in doc.select('.view-content .view-grouping'):
+        title = level.select_one('.view-grouping-header').contents[0].strip()
+        level_node = nodes.TopicNode(source_id=title, title=title, language="en")
+        print("Downloading student model level: %s" % title)
+        download_student_model_level(level_node, level.select_one('.view-grouping-content'))
+        topic_node.add_child(level_node)
+
+    return topic_node
+
+
+def download_student_model_level(level_node, level_doc):
+    for category in level_doc.select('.item-list'):
+        title = category.select_one('h3').text.strip()
+        category_node = nodes.TopicNode(
+            source_id="%s|%s" % (level_node.source_id, title),
+            title=title,
+            language="en",
+            thumbnail=student_model_thumbnail,
+        )
+        print("    Downloading student model category: %s" % title)
+        download_student_model_category(category_node, category)
+        level_node.add_child(category_node)
+
+
+def download_student_model_category(category_node, category_doc):
+    for article in category_doc.select('ul li'):
+        title = article.select_one('.views-field-title').text.strip()
+        form = article.select_one('.views-field-field-form').text.strip()
+        combined_title = "%s (%s)" % (title, form)
+        url = make_fully_qualified_url(article.select_one('.views-field-title a')['href'])
+        print("        Downloading student model article: %s" % combined_title)
+        download_content_node(category_node, url, combined_title, student_model_thumbnail)
+
+
+################################################################################
+# Writing topics
+
+
+writing_topic_thumbnail = "https://k12.thoughtfullearning.com/sites/k12/files/images/writingTopicResources.png"
+
+
+def download_all_writing_topics():
+    topic_node = nodes.TopicNode(
+        source_id="writing-topic",
+        title="Writing Topics",
+        language="en",
+        thumbnail=writing_topic_thumbnail,
+        description=("Do you want to inspire your students to write great"
+            " narratives, essays, and reports? Check out these grade-specific"
+            " writing topics organized by mode (explanatory, creative, and so on)."),
+    )
+
+    doc = get_parsed_html_from_url(
+            'https://k12.thoughtfullearning.com/resources/writingtopics')
+    for level in doc.select('.view-content .view-grouping'):
+        title = level.select_one('.view-grouping-header').contents[0].strip()
+        level_node = nodes.TopicNode(source_id=title, title=title, language="en")
+        print("Downloading writing topic level: %s" % title)
+        download_writing_topic_level(level_node, level.select_one('.view-grouping-content'))
+        topic_node.add_child(level_node)
+
+    return topic_node
+
+
+def download_writing_topic_level(level_node, level_doc):
+    for category in level_doc.select('.item-list'):
+        title = category.select_one('h3').text.strip()
+        print("    Downloading writing topic category: %s" % title)
+        node = download_writing_topic_category(category, title, level_node.source_id)
+        level_node.add_child(node)
+
+
+def download_writing_topic_category(category_doc, title, level_id):
+    destination = tempfile.mkdtemp()
+
+    # Download a font
+    font_url = make_fully_qualified_url(
+            '//fonts.googleapis.com/css?family=Roboto:400,300,300italic,400italic,700,700italic')
+    download_file(font_url, destination, request_fn=make_request, filename='roboto.css')
+
+    # Write out the HTML source, based on CSS formatting from
+    # https://k12.thoughtfullearning.com/resources/writingtopics
+
+    topics = (("<li>%s</li>" % topic.text) for topic in category_doc.select('.views-row'))
+    html_source = """
+        <!DOCTYPE html>
+        <head>
+            <link href='roboto.css' rel='stylesheet' type='text/css'>
+            <style>
+                ul {
+                    margin: 0 0 0 40px;
+                    padding: 0;
+                }
+                li {
+                    font-family: "Roboto", sans-serif;
+                    font-weight: 300;
+                    font-size: 19.2px;
+                    line-height: 24.96px;
+                    color: #202020;
+                    margin-top: 10px;
+                }
+            </style>
+        </head>
+        <body>
+            <ul>%s</ul>
+        </body>
+    """ % ''.join(topics)
+
+    with open(os.path.join(destination, "index.html"), "w") as f:
+        f.write(html_source)
+
+    print("    ... downloaded to %s" % destination)
+    #preview_in_browser(destination)
+
+    zip_path = create_predictable_zip(destination)
+    return nodes.HTML5AppNode(
+        source_id="%s|%s" % (level_id, title),
+        title=truncate_metadata(title),
+        license=licenses.CC_BY_NC_SALicense(
+            copyright_holder=truncate_metadata('Thoughtful Learning')),
+        files=[files.HTMLZipFile(zip_path)],
+        language="en",
+        thumbnail=writing_topic_thumbnail,
+    )
+
+
+################################################################################
+# Writing assessments
+
+
+writing_assessment_thumbnail = "https://k12.thoughtfullearning.com/sites/k12/files/images/assessmentModelResources.png"
+
+
+def download_all_writing_assessments():
+    topic_node = nodes.TopicNode(
+        source_id="writing-assessment",
+        title="Writing Assessments",
+        language="en",
+        thumbnail=writing_assessment_thumbnail,
+    )
+
+    doc = get_parsed_html_from_url(
+            'https://k12.thoughtfullearning.com/resources/writingassessment')
+    for grade in doc.select('.view-writing-assessment-silo'):
+        title = grade.select_one('.view-grouping-header').contents[0].strip()
+        grade_node = nodes.TopicNode(source_id=title, title=title, language="en")
+        print("Downloading writing assessment grade: %s" % title)
+        download_writing_assessment_grade(grade_node, grade.select_one('.view-content'))
+        topic_node.add_child(grade_node)
+
+    return topic_node
+
+
+def download_writing_assessment_grade(grade_node, grade_doc):
+    for category in grade_doc.select('.item-list'):
+        title = category.select_one('h3').text.strip()
+        category_node = nodes.TopicNode(
+            source_id="%s|%s" % (grade_node.source_id, title),
+            title=title,
+            language="en",
+            thumbnail=writing_assessment_thumbnail,
+        )
+        print("    Downloading writing assessment category: %s" % title)
+        download_writing_assessment_category(category_node, category)
+        grade_node.add_child(category_node)
+
+
+def download_writing_assessment_category(category_node, category_doc):
+    for article in category_doc.select('ul li .views-field'):
+        title = article.select_one('a').contents[0].strip()
+        form = article.select_one('.assessmentModelListForm').text.strip()
+        rating = article.select_one('.assessmentModelListRating').text.strip()
+        combined_title = "%s: %s (%s)" % (form, title, rating)
+        url = make_fully_qualified_url(article.select_one('a')['href'])
+        print("        Downloading writing assessment: %s" % combined_title)
+        download_content_node(category_node, url, combined_title, writing_assessment_thumbnail)
+
+
+################################################################################
+# General helpers
+
+
+def download_content_node(category_node, url, title, thumbnail=None, description=None):
     doc = get_parsed_html_from_url(url)
-    lesson = doc.select_one('.node-minilesson')
 
     destination = tempfile.mkdtemp()
     download_static_assets(doc, destination)
+
+    remove_node(doc, '#header')
+    remove_node(doc, '.subMenuBarContainer')
+    remove_node(doc, '.breadbookmarkcontainer')
+    remove_node(doc, '.resourcePageTypeTitle')
+    remove_node(doc, '.sharethis-wrapper')
+    remove_node(doc, '.ccBlock')
+    remove_node(doc, '#block-views-resource-info-block-block-1')
+    remove_node(doc, '#block-views-resource-info-block-block-1')
+    remove_node(doc, '#block-views-resource-info-block-block')
+    remove_node(doc, '.productSuggestionContainer')
+    remove_node(doc, 'footer')
+
+    # For writing assessments
+    remove_node(doc, '.assessmentTGLink')
+    remove_node(doc, '.assessmentModelRubrics')
+    remove_node(doc, '.view-display-id-attachment_1')
 
     # Write out the HTML source.
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
 
-    print("    Downloaded minilesson \"%s\" from %s to %s" % (
-        title, url, destination))
-    preview_in_browser(destination)
+    print("    ... downloaded to %s" % destination)
+    #preview_in_browser(destination)
+
+    thumbnail_path = None
+    if thumbnail:
+        # Manually download the thumbnail and use it so we can lowercase the
+        # extension to be accepted by Ricecooker.
+        thumbnail_filename = derive_filename(thumbnail)
+        thumbnail_path = os.path.join(destination, thumbnail_filename)
+        download_file(thumbnail, destination, request_fn=make_request,
+                filename=thumbnail_filename)
+
+    # If there is an embedded video in the page source grab it as a video node.
+    video_node = None
+    iframe = doc.select_one('.embedded-video iframe')
+    if iframe:
+        youtube_url = iframe['src']
+        youtube_id = get_youtube_id_from_url(youtube_url)
+        info = ydl.extract_info(youtube_url, download=False)
+        video_title = info['title']
+        print("    ... and with video titled %s from www.youtube.com/watch?v=%s" % (
+                video_title, youtube_id))
+        video_node = nodes.VideoNode(
+            source_id=youtube_id,
+            title=truncate_metadata(info['title']),
+            license=licenses.CC_BY_NC_SALicense(
+                copyright_holder=truncate_metadata('Thoughtful Learning')),
+            description=info['description'],
+            language="en",
+            derive_thumbnail=True,
+            files=[files.YouTubeVideoFile(youtube_id)],
+        )
+        category_node.add_child(video_node)
 
     zip_path = create_predictable_zip(destination)
-    return nodes.HTML5AppNode(
+    app_node = nodes.HTML5AppNode(
         source_id=url,
         title=truncate_metadata(title),
         license=licenses.CC_BY_NC_SALicense(
             copyright_holder=truncate_metadata('Thoughtful Learning')),
         description=description,
-        thumbnail=thumbnail,
+        thumbnail=thumbnail_path,
         files=[files.HTMLZipFile(zip_path)],
         language="en",
     )
 
-
-def download_all_languages(channel):
-    """Download all available languages from Blockly."""
-    languages = []
-
-    with WebDriver("https://blockly-games.appspot.com", delay=1000) as driver:
-        for option in driver.find_elements_by_css_selector('#languageMenu option'):
-            blockly_language_code = option.get_attribute('value')
-            language_title = option.text
-            le_language_code = blockly_language_code
-
-            # There are some obscure languages that Blockly supports that we
-            # don't yet know about in le-utils. Skip those for now.
-            # TODO(davidhu): Add these language codes to le-utils
-            if le_language_code in ['hrx', 'pms', 'sco', 'be-tarask']:
-                continue
-
-            # ... and sometimes we do know about the language but our language
-            # code is different than Blockly's.
-            # TODO(davidhu): Add these special cases to le-utils
-            if le_language_code == 'pt-br':
-                le_language_code = 'pt-BR'
-            elif le_language_code == 'zh-hant':
-                le_language_code = 'zh-TW'
-            elif le_language_code == 'zh-hans':
-                le_language_code = 'zh-CN'
-
-            topic = nodes.TopicNode(
-                source_id=le_language_code,
-                title=language_title,
-                language=le_language_code,
-            )
-            languages.append((topic, blockly_language_code, le_language_code))
-
-    for topic, blockly_language_code, le_language_code in languages:
-        print('Downloading puzzles for language %s (from https://blockly-games.appspot.com/?lang=%s)' % (
-            topic.title, blockly_language_code))
-        download_puzzles_for_language(topic, blockly_language_code, le_language_code)
-        channel.add_child(topic)
+    category_node.add_child(app_node)
 
 
-def download_puzzles_for_language(topic_node, blockly_language_code, le_language_code):
-    """Download all puzzles given for a given language."""
-    puzzles = []
-    descriptions = []
-
-    with WebDriver("https://blockly-games.appspot.com/?lang=%s" % blockly_language_code, delay=1000) as driver:
-        # Fetch puzzle metadata
-        for i, icon in enumerate(driver.find_elements_by_css_selector('.icon')):
-            title = icon.find_element_by_css_selector('text').text
-            image_src = icon.find_element_by_css_selector('image').get_attribute('xlink:href')
-            thumbnail = make_fully_qualified_url(image_src)
-            puzzle_url = icon.find_element_by_css_selector('a').get_attribute('xlink:href')
-
-            # For some reason Selenium always gives us an empty string for the
-            # title of the last puzzle, even though it's there in the HTML, so
-            # we're just going to grab it from the translations JSON file on
-            # GitHub.
-            if puzzle_url.split('?')[0] == 'pond-duck':
-                github_url = ('https://raw.githubusercontent.com/google/blockly-games/master/json/%s.json' %
-                        blockly_language_code.lower())
-                response_json = make_request(github_url).json()
-                title = response_json.get('Games.pond', 'Pond')
-
-            puzzles.append((title, thumbnail, puzzle_url))
-
-        # Fetch puzzle descriptions
-        driver.get('https://blockly-games.appspot.com/about?lang=%s' % blockly_language_code)
-        for tr in driver.find_elements_by_css_selector('table tr'):
-            descriptions.append(tr.text)
-
-    for (title, thumbnail, puzzle_url), description in zip(puzzles, descriptions):
-        print('    Downloading puzzle "%s": %s (from https://blockly-games.appspot.com/%s)' %
-                (title, description, puzzle_url))
-        topic_node.add_child(download_puzzle(
-                puzzle_url, title, description, thumbnail, le_language_code,
-                blockly_language_code))
-
-
-def download_puzzle(puzzle_url, title, description, thumbnail,
-        le_language_code, blockly_language_code):
-    """Download a single puzzle and return an HTML5 app node."""
-    with WebDriver("https://blockly-games.appspot.com/%s" % puzzle_url, delay=1000) as driver:
-        doc = BeautifulSoup(driver.page_source, "html.parser")
-
-    # Create a temporary folder to download all the files for a puzzle.
-    destination = tempfile.mkdtemp()
-
-    # Download all the JS/CSS/images/audio/etc we can get from scraping the
-    # page source.
-    doc = download_static_assets(doc, destination)
-
-    # Download other files not picked up by the above generic assets fetching,
-    # e.g. from GitHub.
-    puzzle_name = puzzle_url.split('?')[0]
-    download_additional_assets(destination, puzzle_name)
-
-    # Make some modifications to the HTML source -- hide some elements.
-    remove_node(doc, '#languageMenu')
-    remove_node(doc, '#title')
-
-    # Copy over some of our own JS/CSS files and then add links to them in the
-    # page source.
-    copy_tree("static", os.path.join(destination, "static"))
-
-    chef_body_script = doc.new_tag("script", src="static/chef_end_of_body.js")
-    doc.select_one('body').append(chef_body_script)
-
-    chef_head_script = doc.new_tag("script")
-    chef_head_script.string = 'window["BlocklyGamesLang"] = "%s";' % blockly_language_code
-    doc.select_one('head').insert(0, chef_head_script)
-
-    # Write out the HTML source.
-    with open(os.path.join(destination, "index.html"), "w") as f:
-        f.write(str(doc))
-
-    print("    Downloaded puzzle %s titled \"%s\" (thumbnail %s) to destination %s" % (
-        puzzle_url, title, thumbnail, destination))
-    #preview_in_browser(destination)
-
-    zip_path = create_predictable_zip(destination)
-    return nodes.HTML5AppNode(
-        source_id=puzzle_url,
-        title=truncate_metadata(title),
-        description=description,
-        license=licenses.PublicDomainLicense(copyright_holder='Google'),
-        thumbnail=thumbnail,
-        files=[files.HTMLZipFile(zip_path)],
-        language=le_language_code,
-    )
-
-
-def download_additional_assets(destination, puzzle_name):
-    url = make_fully_qualified_url('/third-party/JS-Interpreter/compiled.js')
-    download_file(url, os.path.join(destination, 'third-party/JS-Interpreter'),
-            request_fn=make_request, filename='compiled.js')
-
-    dir_name = puzzle_name
-    if dir_name == 'pond-tutor' or dir_name == 'pond-duck':
-        dir_name = 'pond'
-
-        url = make_fully_qualified_url('/pond/docs/generated/en/compressed.js')
-        download_file(url, os.path.join(destination, 'pond/docs/generated/en'),
-                request_fn=make_request, filename='compressed.js')
-
-        url = make_fully_qualified_url('third-party/ace/worker-javascript.js')
-        download_file(url, destination, request_fn=make_request, filename='worker-javascript.js')
-
-        download_assets_from_github(
-                'google/blockly-games',
-                'appengine/pond/docs',
-                os.path.join(destination, 'pond/docs'))
-
-    download_assets_from_github(
-            'google/blockly-games',
-            'appengine/%s' % dir_name,
-            os.path.join(destination, dir_name))
-    download_assets_from_github('google/blockly-games',
-            'appengine/%s' % dir_name,
-            destination)
-    download_assets_from_github('google/blockly-games',
-            'appengine/common', os.path.join(destination, 'common'))
-    download_assets_from_github('google/blockly', 'media', destination)
-    download_assets_from_github('google/blockly', 'media',
-            os.path.join(destination, 'third-party/blockly/media'))
-
-
-def download_assets_from_github(repo_name, repo_path, destination):
-    print('        Downloading files from GitHub repo %s/%s ...' % (
-        repo_name, repo_path))
-
-    access_token_param = ''
-    if _GITHUB_API_TOKEN:
-        access_token_param = '&access_token=%s' % _GITHUB_API_TOKEN
-
-    url = 'https://api.github.com/repos/%s/contents/%s?ref=master%s' % (
-            repo_name, repo_path, access_token_param)
-    response = make_request(url)
-
-    for item in response.json():
-        if item['type'] == 'file':
-            filename = item['name']
-            download_url = item['download_url']
-            print('        Downloading %s' % download_url)
-            download_file(download_url, destination, request_fn=make_request,
-                    filename=filename)
+# From https://stackoverflow.com/a/7936523
+def get_youtube_id_from_url(value):
+    """
+    Examples:
+    - http://youtu.be/SA2iWivDJiE
+    - http://www.youtube.com/watch?v=_oPAwA_Udwc&feature=feedu
+    - http://www.youtube.com/embed/SA2iWivDJiE
+    - http://www.youtube.com/v/SA2iWivDJiE?version=3&amp;hl=en_US
+    """
+    query = urlparse(value)
+    if query.hostname == 'youtu.be':
+        return query.path[1:]
+    if query.hostname in ('www.youtube.com', 'youtube.com'):
+        if query.path == '/watch':
+            p = parse_qs(query.query)
+            return p['v'][0]
+        if query.path[:7] == '/embed/':
+            return query.path.split('/')[2]
+        if query.path[:3] == '/v/':
+            return query.path.split('/')[2]
+    # fail?
+    return None
 
 
 def remove_node(doc, selector):
@@ -369,6 +512,10 @@ def download_static_assets(doc, destination):
         # Download all images referenced in JS files
         for img in IMAGES_IN_JS_RE.findall(content):
             url = make_fully_qualified_url('/images/%s' % img)
+            if is_blacklisted(url):
+                print('        Skipping downloading blacklisted url', url)
+                continue
+
             print("        Downloading", url, "to filename", img)
             download_file(url, destination, subpath="images",
                     request_fn=make_request, filename=img)
@@ -395,6 +542,11 @@ def download_static_assets(doc, destination):
             if src.startswith('data:'):
                 return match.group(0)
             src_url = make_fully_qualified_url(os.path.join(file_dir, src))
+
+            if is_blacklisted(src_url):
+                print('        Skipping downloading blacklisted url', src_url)
+                return 'url()'
+
             derived_filename = derive_filename(src_url)
             download_file(src_url, destination, request_fn=make_request,
                     filename=derived_filename)
@@ -425,14 +577,41 @@ def download_static_assets(doc, destination):
 
 url_blacklist = [
     'analytics.js',
+    'infocusbackground.png',
+    'menuicon.svg',
+    'elaspan.png',
+    'selspan.png',
+    '21cspan.png',
+    'js_gwq7iqjiqf3enczoxfuyelw46y9cqcl0duc3fh2kku8.js',
+    'writersexpressbackground.png',
+    'newsletterdino.png',
+    'inquirecoverspan.png',
+    'jquery.min.js',
+    'tlstudents.jpg',
+    'buttons.js',
+    'inquireplane.png',
+    'platform.js',
+    'processedit.png',
+    'js_blxotns2yt7yglf9qri9l9amfdnkqfnn-_adbtw3sie.js',
+    'processprewrite.png',
+    'writersexpressfish.png',
+    'elastudent.jpg',
+    'opener_chpt3.jpg',
+    'inquiresky.png',
+    'processpublish.png',
+    'processwrite.png',
+    'processrevise.png',
+    'opener_chpt1.jpg',
+    'inquireto.png',
 ]
 
 def is_blacklisted(url):
-    return any((item in url) for item in url_blacklist)
+    return any((item in url.lower()) for item in url_blacklist)
 
 
 def derive_filename(url):
-    return "%s.%s" % (uuid.uuid4().hex, os.path.basename(urlparse(url).path))
+    name = os.path.basename(urlparse(url).path).replace('%', '_')
+    return ("%s.%s" % (uuid.uuid4().hex, name)).lower()
 
 
 def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
@@ -465,7 +644,7 @@ def get_parsed_html_from_url(url, *args, **kwargs):
 
 
 def make_fully_qualified_url(url):
-    base = 'https://blockly-games.appspot.com'
+    base = 'https://k12.thoughtfullearning.com'
     if url.startswith("../images"):
         return base + url[2:]
     if url.startswith("../scripts"):
