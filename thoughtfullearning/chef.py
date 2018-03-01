@@ -117,6 +117,7 @@ def download_all_minilessons():
         title="Minilessons",
         language="en",
         thumbnail=minilesson_thumbnail,
+        description="Do you want quick lessons that teach concepts or skills? Each 10-15 minute minilesson presents a concept and engages students in an activity.",
     )
 
     doc = get_parsed_html_from_url(
@@ -167,6 +168,7 @@ def download_all_student_models():
         title="Student Models",
         language="en",
         thumbnail=student_model_thumbnail,
+        description="When you need an example written by a student, check out our vast collection of free student models.",
     )
 
     doc = get_parsed_html_from_url(
@@ -310,6 +312,7 @@ def download_all_writing_assessments():
         title="Writing Assessments",
         language="en",
         thumbnail=writing_assessment_thumbnail,
+        description="When you want students to understand how writing is graded, turn to our vast selection of assessment examples. You'll find elementary and middle school models in all of the major modes of writing, along with rubrics that assess each example as \"Strong,\" \"Good,\" \"Okay,\" or \"Poor.\"",
     )
 
     doc = get_parsed_html_from_url(
