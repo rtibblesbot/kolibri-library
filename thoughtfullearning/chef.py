@@ -371,6 +371,9 @@ def download_content_node(category_node, url, title, thumbnail=None, description
     remove_node(doc, '.productSuggestionContainer')
     remove_node(doc, 'footer')
 
+    # For minilessons
+    remove_node(doc, '.field-name-field-minilesson-downloadables')
+
     # For writing assessments
     remove_node(doc, '.assessmentTGLink')
     remove_node(doc, '.assessmentModelRubrics')
