@@ -5,7 +5,10 @@ import re
 import le_utils
 import json
 import pkgutil 
-from itertools import groupby
+import itertools
+from operator import itemgetter
+
+import pathlib
 
 if not os.path.exists('chocmoose_info.pickle'):
     print("error, missing chocmoose_info.pickle, please download and unzip in current dir.")
@@ -62,7 +65,7 @@ projects =  [
         { 'pattern': re.compile('.*Cartoons for Children.*'),
           'section': "Cartoons For Children's Rights"},
         { 'pattern': re.compile('.*Nature For All.*'),
-          'section': "Nature For All"},
+          'section': "Nature for All"},
         { 'pattern': re.compile('.*Biodiver.*'),
           'section': "Biodiversity Is Us"},
         { 'pattern': re.compile('.*cyber-security.*'),
@@ -73,6 +76,7 @@ projects =  [
           'section': "The Power of Animation and Humour"},
         ] 
 
+# TODO: This could be replaced with a more generic solution using: iso369 library
 LANGS_LOOKUP = [
         { 'pattern': re.compile('.*Mandarin.*'),
           'lang': 'zh'  },
@@ -191,6 +195,15 @@ for vid in info['entries']:
 
 print("Remaining videos without language:", remaining)
 
+def match_video(vid1, vid2):
+    if vid1.lower() == vid2.lower():
+        return True
+    if ''.join(vid1.lower().split()) == ''.join(vid2.lower().split()):
+        return True
+    if ''.join(vid1.lower().split()).replace(" ","") == ''.join(vid2.lower().split()).replace(" ", ""):
+        return True
+    return False
+    
 # Search repeated videos based on title
 # If the video is "unique" the repeated url-videos would be on 'repeated' key 
 for index, vid in enumerate(info['entries']):
@@ -202,16 +215,16 @@ for index, vid in enumerate(info['entries']):
     for index2, vid2 in enumerate(info['entries']): 
         # TODO: Improve the way to select duplicated files
         # Currently: if title is the same and the url is different
-        if (vid['title'] == vid2['title']) and (vid['webpage_url'].strip() != vid2['webpage_url'].strip()): 
+        if match_video(vid['title'], vid2['title']) and (vid['webpage_url'].strip() != vid2['webpage_url'].strip()): 
             vid2['marked'] = True
             vid['repeated'].add(vid2['webpage_url'])
             repeated += 1
+
 
 # Count unique elements
 counter = 0
 for vid in info['entries']:
     if not vid.get('marked'):
-        print("Video:", vid['title'], "Repeated: ", len(vid['repeated']),"times")
         counter += 1
 
 print(counter, 'unique elements')
@@ -229,7 +242,7 @@ def highest_resolution_from_video(vid):
 # Select the highest resolution
 for vid in info['entries']:
     if not vid.get('marked'):
-        print("Video:", vid['title'], " |  Repeated: ", len(vid['repeated']),"times")
+       # print("Video:", vid['title'], " |  Repeated: ", len(vid['repeated']),"times")
         max_resolution = 0
         max_resolution_video = None
         for url in vid.get('repeated'):
@@ -244,5 +257,50 @@ for vid in info['entries']:
                   max_resolution = resolution
         vid['max_resolution_url'] =  max_resolution_video['webpage_url']
 
+projects = dict()
+for vid in info['entries']:
+    if not vid.get('marked'):
+        if not projects.get(vid.get('project_name')):
+            projects[vid.get('project_name')] = dict()
+        if not projects[vid.get('project_name')].get(vid.get('lang_tag')):
+            projects[vid.get('project_name')][vid.get('lang_tag')] = { 'number': 0, 'videos': [ ] }  
+        projects[vid.get('project_name')][vid.get('lang_tag')]['number'] += 1
+        projects[vid.get('project_name')][vid.get('lang_tag')]['videos'].append(vid) 
 
+for project, values in projects.items():
+    print(project)
+    for lang, info in values.items(): 
+        print("\t", lang, " - ", info['number'])
+        #for vid in info['videos']:
+        #   print("\t", vid.get('title'))
+
+def all_with_one_video(values):
+    for lang, info in values:
+        if not info['number'] == 1:
+            return False
+    return True
+
+def category_a(project, values):
+    pathlib.Path(os.path.join("ChocMoose",project)).mkdir(parents=True, exist_ok=True) 
+    for lang, info in values.items():
+      for vid in info['videos']:
+          open(os.path.join("ChocMoose", project,vid['title']), 'a').close()
+
+for project, values in projects.items():
+    print(project)
+    if len(values.keys()) == 1:
+        category_a(project, values)
+    elif all_with_one_video(values.items()):
+        category_a(project, values)
+    else:
+        print("Category B")
+
+
+#sorted_by_language = sorted(info['entries'], key=itemgetter('lang_tag'))
+#for key, value in itertools.groupby(sorted_by_language, key=itemgetter('lang_tag')):
+#    print(key)
+#    for i in value:
+#        print("\t", i.get('title'))
+
+#sorted_by_lang = sorted(info['entries'], key=itemgetter('lang_tag'))
 #  
