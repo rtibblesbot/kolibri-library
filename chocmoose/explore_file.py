@@ -280,7 +280,7 @@ def all_with_one_video(values):
             return False
     return True
 
-def category_a(project, values):
+def category_b(project, values):
     pathlib.Path(os.path.join("ChocMoose",project)).mkdir(parents=True, exist_ok=True) 
     for lang, info in values.items():
       for vid in info['videos']:
@@ -289,11 +289,11 @@ def category_a(project, values):
 for project, values in projects.items():
     print(project)
     if len(values.keys()) == 1:
-        category_a(project, values)
+        category_b(project, values)
     elif all_with_one_video(values.items()):
-        category_a(project, values)
+        category_b(project, values)
     else:
-        print("Category B")
+        print("Category A")
 
 
 #sorted_by_language = sorted(info['entries'], key=itemgetter('lang_tag'))
