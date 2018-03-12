@@ -22,27 +22,30 @@ soup = BeautifulSoup(html_bytes, "html5lib")
 
 small_slick_replace, large_slick_replace = soup.findAll("divreplace")
 
-large_slick = soup.new_tag("placeholder")
-for filename in filenames:
+
+
+def add_image(parent_tag, imgsrc, thumbnail=False):
     div_tag = soup.new_tag("div")
     img_tag = soup.new_tag("img")
-    img_tag.attrs['src'] = filename # TODO fix /~/
+    img_tag.attrs['src'] = imgsrc
+    if thumbnail:
+        img_tag.attrs['width'] = 100
+        img_tag.attrs['height'] = 100
     div_tag.insert(0, img_tag)
-    large_slick.insert(0, div_tag)
+    parent_tag.insert(0, div_tag)
+
+
+large_slick = soup.new_tag("placeholder")
+for filename in reversed(filenames):
+    add_image(large_slick, filename)
 
 
 small_slick = soup.new_tag("placeholder")
-for filename in filenames:
-    div_tag = soup.new_tag("div")
-    img_tag = soup.new_tag("img")
-    img_tag.attrs['src'] = filename # TODO fix /~/
-    img_tag.attrs['width'] = 100
-    img_tag.attrs['height'] = 100
-    div_tag.insert(0, img_tag)
-    small_slick.insert(0, div_tag)
+for filename in reversed(filenames):
+    add_image(small_slick, filename, thumbnail=True)
 
 large_slick_replace.replace_with(large_slick)
-small_slick_replace.replace_with(small_slick) # TODO make small_slick different.
+small_slick_replace.replace_with(small_slick)
 large_slick.replaceWithChildren()
 small_slick.replaceWithChildren()
 
