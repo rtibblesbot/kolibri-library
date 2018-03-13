@@ -43,6 +43,7 @@ def create_carousel(filenames, captions=[]):
         div_tag.insert(0, img_tag)
         if not thumbnail and caption:
             div_tag.insert(0, NavigableString(caption))
+            img_tag.attrs['alt'] = caption
         parent_tag.insert(0, div_tag)
 
     # this could probably be tidied to remove the <placeholder> tag.
