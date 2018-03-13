@@ -7,7 +7,8 @@ import requests_cache
 import codecs
 import shutil
 from mime import mime
-
+import urllib3
+urllib3.disable_warnings()
 requests_cache.install_cache()
 
 DOMAIN = "artsedge.kennedy-center.org"
@@ -79,10 +80,10 @@ def make_local(soup, page_url):
             return urljoin(page_url, url)
         else:
             return url
-        
+
     def hashed_url(url):
         return hashlib.sha1(full_url(url).encode('utf-8')).hexdigest() + guess_extension(full_url(url))
-     
+
     make_links_absolute(soup, page_url)
     resources = get_resources(soup)
 
@@ -90,17 +91,17 @@ def make_local(soup, page_url):
         os.mkdir(DOWNLOAD_FOLDER)
     except FileExistsError:
         pass
-    
+
     raw_url_list = [resource.attrs.get('href') or resource.attrs.get('src') for resource in resources if "mailto:"]
     url_list = [x for x in raw_url_list if not x.startswith("mailto:")]
     url_list = [full_url(url) for url in url_list]
-    
+
     # replace URLs
     resource_filenames = {}
-    
+
     # download content
     # todo: don't download offsite a's?
-    
+
     for resource in resources:
         for attribute in LINK_ATTRIBUTES:
             attribute_value = full_url(resource.attrs.get(attribute))
@@ -131,15 +132,15 @@ def make_local(soup, page_url):
                             content_type = ""
                         extension = ext_from_mime_type(content_type)
                         filename = hashed_url(attribute_value)+extension
-                        
+
                         with open(DOWNLOAD_FOLDER+"/"+filename, "wb") as f:
                             try:
                                 f.write(content)
                             except requests.exceptions.InvalidURL:
-                                pass    
-                                            
+                                pass
+
                         resource_filenames[attribute_value] = filename
-                    
+
                     resource.attrs[attribute] = resource_filenames[attribute_value]
                     continue
 
@@ -147,15 +148,15 @@ def make_local(soup, page_url):
 
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "wb") as f:
         f.write(html)
-        
+
     # create zip file
     zipfile_name = shutil.make_archive("__"+DOWNLOAD_FOLDER+"/"+hashed_url(page_url), "zip", # automatically adds .zip extension!
-                        DOWNLOAD_FOLDER)    
-    
+                        DOWNLOAD_FOLDER)
+
     # delete contents of downloadfolder
     assert "downloads" in DOWNLOAD_FOLDER
     shutil.rmtree(DOWNLOAD_FOLDER)
-    
+
     return zipfile_name
 
 
@@ -177,8 +178,8 @@ def nice_html(soup):
     </div></div></div>
     </body>
     </html>"""
-    
-    
+
+
 
     output = []
     output.append(prefix)
