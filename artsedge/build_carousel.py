@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup, NavigableString
 from bs4.element import Tag
 from urllib.parse import urlsplit
 from itertools import zip_longest
+import localise
 
 filenames = """
    https://artsedge.kennedy-center.org/~/media/ArtsEdge/Images/LessonArt/grade-3-4/youre-invited-to-a-ceili-exploring-irish-dance.jpg
@@ -18,7 +19,13 @@ filenames = """
 filenames = [x.strip() for x in filenames]
 captions = filenames
 
-def create_carousel(filenames, captions=[]):
+def localised_carousel(filenames, captions=[], base_url=None):
+    # no base_url, no rewriting of URLs
+    soup = create_carousel_soup(filenames, captions)
+    zipfilename = localise.make_local(soup, base_url)
+    print (zipfilename)
+
+def create_carousel_soup(filenames, captions=[]):
     """Take a list of filenames and create a HTML5App.
        It is not the job of this function to convert URLs to filenames!"""
 
@@ -60,7 +67,12 @@ def create_carousel(filenames, captions=[]):
     large_slick.replaceWithChildren()
     small_slick.replaceWithChildren()
 
+    return soup
+
+def create_carousel(filenames, captions=[]):
+    soup = create_carousel_soup(filenames, captions)
     with open("html/play_output.html", "w") as f:
         f.write(soup.prettify())
 
-create_carousel(filenames, captions)
+localised_carousel(filenames, captions)
+#create_carousel(filenames, captions)
