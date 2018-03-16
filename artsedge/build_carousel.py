@@ -2,7 +2,10 @@ from bs4 import BeautifulSoup, NavigableString
 from bs4.element import Tag
 from urllib.parse import urlsplit
 from itertools import zip_longest
-import localise
+from localise import DOWNLOAD_FOLDER, requests
+import hashlib
+import shutil
+import os
 
 filenames = """
    https://artsedge.kennedy-center.org/~/media/ArtsEdge/Images/LessonArt/grade-3-4/youre-invited-to-a-ceili-exploring-irish-dance.jpg
@@ -19,17 +22,75 @@ filenames = """
 filenames = [x.strip() for x in filenames]
 captions = filenames
 
-def localised_carousel(filenames, captions=[], base_url=None):
-    # no base_url, no rewriting of URLs
-    soup = create_carousel_soup(filenames, captions)
-    zipfilename = localise.make_local(soup, base_url)
-    print (zipfilename)
+            #if not urlparse(url).netloc:
+                #url = urljoin(url, urlparse(base_url).netloc)
+            #if not urlparse(url).scheme:
+                #url = urljoin(url, urlparse(base_url).scheme)
+
+
+def get_url(url, filename):
+    r = requests.get(url, verify=False)
+    content = r.content
+    #try:
+        #content_type = r.headers['Content-Type'].split(";")[0].strip()
+    #except KeyError:
+        #content_type = ""
+    #extension = ext_from_mime_type(content_type)
+    #filename = hashed_url(attribute_value)+extension
+    
+    with open(filename, "wb") as f:
+        try:
+            f.write(content)
+        except requests.exceptions.InvalidURL:
+            pass    
+    
+def create_carousel_zip(filenames, captions=[]):
+    # download files and get disk filenames
+    
+    def hash_url(url):  
+        return hashlib.sha1((url).encode('utf-8')).hexdigest() + ".jpg"
+    
+    hashed_filenames = [hash_url(filename) for filename in filenames]
+    hashed_pathnames = [DOWNLOAD_FOLDER + "/" + x for x in hashed_filenames]
+
+    # copy over js/css
+    # has to go first because it needs DOWNLOAD_FOLDER to not exist
+    assert "downloads" in DOWNLOAD_FOLDER
+    shutil.rmtree(DOWNLOAD_FOLDER)
+    
+    
+    shutil.copytree("html", DOWNLOAD_FOLDER)
+    
+    # shouldn't be necessary any more
+    #try:
+    #    os.mkdir(DOWNLOAD_FOLDER)
+    #except FileExistsError:
+    #    pass
+    
+    # create html/index.html
+    create_carousel(hashed_filenames, captions)
+    
+    for url, path in zip(filenames, hashed_pathnames):
+        get_url(url, path) # TODO - write function
+    
+    #shutil.copy("html", DOWNLOAD_FOLDER)
+    
+    # create zip file
+    ziphash = hash_url(str(filenames))
+    zipfile_name = shutil.make_archive("__"+DOWNLOAD_FOLDER+"/"+ziphash, "zip", # automatically adds .zip extension!
+                        DOWNLOAD_FOLDER)
+
+    # delete contents of downloadfolder
+    assert "downloads" in DOWNLOAD_FOLDER
+    shutil.rmtree(DOWNLOAD_FOLDER)
+
+    return zipfile_name    
 
 def create_carousel_soup(filenames, captions=[]):
     """Take a list of filenames and create a HTML5App.
        It is not the job of this function to convert URLs to filenames!"""
 
-    with open("html/play_template.html", "rb") as f:
+    with open("play_template.html", "rb") as f:
         html_bytes = f.read()
 
     if captions:
@@ -71,8 +132,8 @@ def create_carousel_soup(filenames, captions=[]):
 
 def create_carousel(filenames, captions=[]):
     soup = create_carousel_soup(filenames, captions)
-    with open("html/play_output.html", "w") as f:
+    with open(DOWNLOAD_FOLDER+"/index.html", "w") as f:
         f.write(soup.prettify())
 
-localised_carousel(filenames, captions)
+create_carousel_zip(filenames, captions)
 #create_carousel(filenames, captions)

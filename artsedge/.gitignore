@@ -1,3 +1,7 @@
 downloads/
 cache.sqlite
 __*
+restore
+stash
+storage
+.ricecookerfilecache
