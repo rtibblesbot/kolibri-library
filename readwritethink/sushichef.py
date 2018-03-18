@@ -233,7 +233,7 @@ class Collection(object):
             except requests.exceptions.HTTPError as e:
                 LOGGER.info("Error: {}".format(e))
             except requests.exceptions.ConnectionError:
-                ### this is a weird error, may be it's raised when teachengineering's webpage
+                ### this is a weird error, may be it's raised when the webpage
                 ### is slow to respond requested resources
                 LOGGER.info("Connection error, the resource will be scraped in 5s...")
                 time.sleep(3)
@@ -594,7 +594,7 @@ class CollectionSection(object):
             except requests.exceptions.TooManyRedirects:
                 LOGGER.info("Too many redirections, skip resource: {}".format(a["href"]))
             except requests.exceptions.ConnectionError:
-                ### this is a weird error, perhaps it's raised when teachengineering's webpage
+                ### this is a weird error, perhaps it's raised when the webpage
                 ### is slow to respond requested resources
                 LOGGER.info(a["href"])
                 num_tries += 1
@@ -652,7 +652,7 @@ class CollectionSection(object):
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
         except requests.exceptions.ConnectionError:
-            ### this is a weird error, may be it's raised when teachengineering's webpage
+            ### this is a weird error, may be it's raised when the webpage
             ### is slow to respond requested resources
             LOGGER.info("Connection error, the resource will be scraped in 5s...")
             time.sleep(3)
@@ -989,7 +989,7 @@ class YouTubeResource(ResourceType):
                 description='',
                 files=files,
                 language=self.lang,
-                license=get_license(licenses.CC_BY, copyright_holder="TeachEngineering").as_dict()))
+                license=get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict()))
 
     #youtubedl has some troubles downloading videos in youtube,
     #sometimes raises connection error
@@ -1038,7 +1038,7 @@ class LocalVideoResource(ResourceType):
                 description='',
                 files=files,
                 language=self.lang,
-                license=get_license(licenses.CC_BY, copyright_holder="TeachEngineering").as_dict()))
+                license=get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict()))
 
     def video_download(self, download_to):
         r = requests.get(self.resource_url, stream=True)
@@ -1062,7 +1062,6 @@ class ReadWriteThinkChef(JsonTreeChef):
     CRAWLING_STAGE_OUTPUT_TPL = 'web_resource_tree.json'
     SCRAPING_STAGE_OUTPUT_TPL = 'ricecooker_json_tree.json'
     LICENSE = get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict()
-    #THUMBNAIL = 'https://www.teachengineering.org/images/logos/v-636511398960000000/TELogoNew.png'
     THUMBNAIL = "http://www.readwritethink.org/images/rwt-243.gif"
 
     def __init__(self):
@@ -1071,7 +1070,6 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 ReadWriteThinkChef.SCRAPING_STAGE_OUTPUT_TPL)
         self.crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR, 
                                 ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
-        #self.thumbnail = save_thumbnail()
         super(ReadWriteThinkChef, self).__init__()
 
     def pre_run(self, args, options):
