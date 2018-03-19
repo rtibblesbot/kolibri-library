@@ -23,10 +23,10 @@ import sys
 import time
 from urllib.error import URLError
 from urllib.parse import urljoin, urlencode
-#from utils import save_thumbnail, if_file_exists, load_tree
-#from utils import if_dir_exists, get_name_from_url, get_name_from_url_no_ext
+from utils import save_thumbnail, if_file_exists, load_tree
+from utils import if_dir_exists, get_name_from_url, get_name_from_url_no_ext
 from utils import build_path, remove_links, remove_iframes, check_shorter_url
-#from utils import get_level_map
+from utils import get_level_map
 import urllib.parse as urlparse
 import youtube_dl
 
@@ -191,9 +191,9 @@ class Resource(object):
         self.state = state
         self.subject = subject
         self.level = level
-        self.get_resources()
+        self.scrape()
 
-    def get_resources(self):
+    def scrape(self):
         try:
             page_contents = downloader.read(self.source_id, loadjs=False)
         except requests.exceptions.HTTPError as e:
@@ -203,9 +203,107 @@ class Resource(object):
             for material in page.findAll("div", class_=["node-learning-material"]):
                 resource = material.find(lambda tag: tag.name == "a" and tag.findParent("h2"))
                 if resource is not None:
-                    print(resource["href"], resource.text)
+                    lesson_name = resource.text
+                    lesson_url = resource["href"]
                 else:
-                    print(material.find("h2").text)
+                    lesson_name = material.find("h2").text
+                    lesson_url = material.attrs.get("about", "")
+                extra_resources = material.findAll(lambda tag: tag.name == "a" and \
+                    tag.findParent("div", class_=["lmat-download"]))
+                extra_resources_urls = set([])
+                for extra_resource in extra_resources:
+                    extra_resources_urls.add(extra_resource["href"])
+                lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
+                    extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
+                lesson.download()
+                lesson.to_node()
+                
+
+class Lesson(object):
+    def __init__(self, name=None, key_resource_id=None, extra_resources=None, path=None):
+        self.key_resource_id = urljoin(BASE_URL, key_resource_id.strip())
+        self.name = name
+        self.path = path
+        self.file = None
+        LOGGER.info("Collecting: {}".format(self.key_resource_id))
+        LOGGER.info("   - Name: {}".format(self.name))        
+        if extra_resources is not None:
+            LOGGER.info("   - Extra resources: {}".format(len(extra_resources)))
+            self.set_extra_resources(extra_resources)
+
+    def set_extra_resources(self, extra_resources):
+        for resource in extra_resources:
+            resource = urljoin(BASE_URL, resource.strip())
+            LOGGER.info("   - Resource: {}".format(resource))
+            if resource.endswith(".pdf"):
+                self.file = File(resource)
+            elif resource.endswith(".doc") or resource.endswith(".docx"):
+                pass
+            elif resource != self.key_resource_id:
+                self.video_resource_id = resource
+
+    def download_resource_file(self):
+        if self.path[-1] is None:
+            path = build_path([DATA_DIR] + self.path[:-1] + [self.name])
+        else:
+            path = build_path([DATA_DIR] + self.path + [self.name])
+        self.file.download_file(path)
+
+    def download(self):
+        self.download_resource_file()
+
+    def to_node(self):
+        filenode = self.file.to_node()
+        topic_node = dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.key_resource_id,
+            title=self.name,
+            description="",
+            license=None,
+            children=[]
+        )
+        if filenode is not None:
+            topic_node["children"].append(filenode)
+
+        return topic_node
+        
+
+class File(object):
+    def __init__(self, source_id, lang="en", lincese=None):
+        self.filename = get_name_from_url(source_id)
+        self.source_id = source_id
+        self.filepath = None
+        self.lang = lang
+        self.license = license
+
+    def download_file(self, path):
+        PDFS_DATA_DIR = build_path([path, 'pdfs'])
+        try:
+            response = downloader.read(self.source_id)
+            self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
+            with open(self.filepath, 'wb') as f:
+                f.write(response)
+            LOGGER.info("   - Get file: {}".format(self.filename))
+        except requests.exceptions.HTTPError as e:
+                LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.ConnectionError as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.TooManyRedirects as e:
+            LOGGER.info("Error: {}".format(e))
+
+    def to_node(self):
+        node = dict(
+            kind=content_kinds.DOCUMENT,
+            source_id=self.source_id,
+            title=self.filename,
+            description='',
+            files=[dict(
+                file_type=content_kinds.DOCUMENT,
+                path=self.filepath
+            )],
+            language=self.lang,
+            license=self.license)
+        return node
 
 
 class TESSIndiaChef(JsonTreeChef):
