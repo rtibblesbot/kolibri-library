@@ -49,7 +49,7 @@ DOWNLOAD_VIDEOS = True
 TIME_SLEEP = .8
 
 DATA_DIR = "chefdata"
-COPYRIGHT_HOLDER = "TESSIndia"
+COPYRIGHT_HOLDER = "The Open University"
 
 #Curricular units with its lessons
 CURRICULAR_UNITS_MAP = defaultdict(OrderedDict)
@@ -217,23 +217,28 @@ class Resource(object):
                     extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
                 lesson.download()
                 lesson.to_node()
+                break
                 
 
 class Lesson(object):
     def __init__(self, name=None, key_resource_id=None, extra_resources=None, path=None):
         self.key_resource_id = urljoin(BASE_URL, key_resource_id.strip())
         self.name = name
-        self.path = path
+        self.path_levels = path
         self.file = None
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
-        LOGGER.info("   - Name: {}".format(self.name))        
+        LOGGER.info("   - Name: {}".format(self.name))
+        self.html = HTMLLesson(self.key_resource_id)
+        if self.path_levels[-1] is None:
+            self.base_path = build_path([DATA_DIR] + self.path_levels[:-1] + [self.name])
+        else:
+            self.base_path = build_path([DATA_DIR] + self.path_levels + [self.name])
         if extra_resources is not None:
             LOGGER.info("   - Extra resources: {}".format(len(extra_resources)))
             self.set_extra_resources(extra_resources)
 
     def set_extra_resources(self, extra_resources):
         for resource in extra_resources:
-            resource = urljoin(BASE_URL, resource.strip())
             LOGGER.info("   - Resource: {}".format(resource))
             if resource.endswith(".pdf"):
                 self.file = File(resource)
@@ -242,15 +247,9 @@ class Lesson(object):
             elif resource != self.key_resource_id:
                 self.video_resource_id = resource
 
-    def download_resource_file(self):
-        if self.path[-1] is None:
-            path = build_path([DATA_DIR] + self.path[:-1] + [self.name])
-        else:
-            path = build_path([DATA_DIR] + self.path + [self.name])
-        self.file.download_file(path)
-
     def download(self):
-        self.download_resource_file()
+        self.html.scrape(self.base_path)
+        #self.file.download(self.base_path)
 
     def to_node(self):
         filenode = self.file.to_node()
@@ -276,7 +275,7 @@ class File(object):
         self.lang = lang
         self.license = license
 
-    def download_file(self, path):
+    def download(self, path):
         PDFS_DATA_DIR = build_path([path, 'pdfs'])
         try:
             response = downloader.read(self.source_id)
@@ -306,12 +305,118 @@ class File(object):
         return node
 
 
+class HTMLLesson(object):
+    def __init__(self, source_id):
+        self.source_id = source_id
+        self.menu = Menu()
+
+    def sections_to_menu(self):
+        page = download(self.source_id)
+        if page:
+            content = page.find("main", class_="content-main")
+            ul = content.find(lambda tag: tag.name == "ul" and tag.findParent("div", class_="content"))
+            self.menu.index_content = ul
+            for link in content.findAll("a"):
+                href = link.get("href", "")
+                links_class = link.get("class", [])
+                if href and "active" not in links_class:
+                    self.menu.add_item(title=link.text, url=urljoin(self.source_id, href))
+
+    def scrape(self, base_path):
+        filepath = "{path}/htmlapp.zip".format(path=base_path)
+        links = self.sections_to_menu()
+        self.menu.to_file(filepath)
+
+
+class Menu(object):
+    def __init__(self):
+        self.items = []
+        self.index_content = None
+        self.filepath = None
+
+    def build_index(self, directory="files/"):
+        items = iter(self.items)
+        for li in self.index_content:
+            for a in li.findAll("a"):
+                item = next(items)
+                a["href"] = "{}{}".format(directory, item["filename"])
+        return str(self.index_content)
+
+    def add_item(self, title=None, url=None):
+        filename = self.item_to_filename(title)
+        content = self.get_sections_content(url)
+        self.items.append({"title": title, "filename": filename, "content": content})
+
+    def clean_content(self, content):
+        content.find("div", class_="addthis").decompose()
+
+    def pager(self, content, index):
+        ul = content.find("ul", class_="pager")
+        first_page = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-first"))
+        last_page = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-last"))
+        previous = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-previous"))
+        next = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-next"))
+        first_page["href"] = "../index.html"
+        last_page["href"] = self.items[-1]["filename"]
+        if index     > 0:
+            previous["href"] = self.items[index - 1]["filename"]
+        else:
+            previous["href"] = first_page["href"]
+
+        if index < len(self.items) - 1:
+            next["href"] = self.items[index + 1]["filename"]
+        else:
+            next["href"] = last_page["href"]
+
+    def get_sections_content(self, url):
+        page = download(url)
+        content = page.find("section", class_="main-content")
+        return content
+
+    def write_index(self, filepath, content):
+        with html_writer.HTMLWriter(filepath, "w") as zipper:
+            zipper.write_index_contents(content)
+
+    def write_contents(self, filepath_index, filename, content, directory="files"):
+        with html_writer.HTMLWriter(filepath_index, "a") as zipper:
+            zipper.write_contents(filename, content, directory=directory)
+
+    def item_to_filename(self, name):
+        return "{}.html".format("_".join(name.lower().split(" ")))
+
+    def to_file(self, filepath):
+        content_index = self.build_index()
+        self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+content_index+'</body></html>')
+        for i, item in enumerate(self.items):
+            self.pager(item["content"], i)
+            self.clean_content(item["content"])
+            self.write_contents(filepath, item["filename"], str(item["content"]))
+
+
+def download(source_id):
+    tries = 0
+    while tries < 4:
+        try:
+            document = downloader.read(source_id, loadjs=False, session=sess)
+        except requests.exceptions.HTTPError as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.ConnectionError:
+            ### this is a weird error, may be it's raised when the webpage
+            ### is slow to respond requested resources
+            LOGGER.info("Connection error, the resource will be scraped in 5s...")
+            time.sleep(3)
+        else:
+            return BeautifulSoup(document, 'html.parser') #html5lib
+        tries += 1
+    return False
+
+
 class TESSIndiaChef(JsonTreeChef):
     HOSTNAME = BASE_URL
     TREES_DATA_DIR = os.path.join(DATA_DIR, 'trees')
     CRAWLING_STAGE_OUTPUT_TPL = 'web_resource_tree.json'
     SCRAPING_STAGE_OUTPUT_TPL = 'ricecooker_json_tree.json'
-    LICENSE = get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+    LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
     THUMBNAIL = ""
 
     def __init__(self):
