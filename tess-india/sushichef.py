@@ -226,6 +226,7 @@ class Lesson(object):
         self.name = name
         self.path_levels = path
         self.file = None
+        self.video_resource_id = None
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
         LOGGER.info("   - Name: {}".format(self.name))
         self.html = HTMLLesson(self.key_resource_id)
@@ -248,8 +249,12 @@ class Lesson(object):
                 self.video_resource_id = resource
 
     def download(self):
-        self.html.scrape(self.base_path)
-        #self.file.download(self.base_path)
+        #self.html.scrape(self.base_path)
+        #self.html.scrape()
+        #if self.file:
+            #self.file.download(self.base_path)
+        if self.video_resource_id:
+            print("VV", self.video_resource_id)
 
     def to_node(self):
         filenode = self.file.to_node()
@@ -316,26 +321,35 @@ class HTMLLesson(object):
             content = page.find("main", class_="content-main")
             ul = content.find(lambda tag: tag.name == "ul" and tag.findParent("div", class_="content"))
             self.menu.index_content = ul
+            href = None
             for link in content.findAll("a"):
                 href = link.get("href", "")
                 links_class = link.get("class", [])
-                if href and "active" not in links_class:
+                if href:# and "active" not in links_class:
                     self.menu.add_item(title=link.text, url=urljoin(self.source_id, href))
+            
+    #def add(self, url):
+    #    url_parts = list(urlparse.urlparse(url))
+    #    query = dict(urlparse.parse_qsl(url_parts[4]))
+    #    print(query)
+        #query.update(params)
+        #url_parts[4] = urlencode(query)
+        #return urlparse.urlunparse(url_parts)
 
     def scrape(self, base_path):
         filepath = "{path}/htmlapp.zip".format(path=base_path)
-        links = self.sections_to_menu()
+        self.sections_to_menu()
         self.menu.to_file(filepath)
 
 
 class Menu(object):
     def __init__(self):
-        self.items = []
+        self.items = OrderedDict()
         self.index_content = None
-        self.filepath = None
+        self.images = {}
 
     def build_index(self, directory="files/"):
-        items = iter(self.items)
+        items = iter(self.items.values())
         for li in self.index_content:
             for a in li.findAll("a"):
                 item = next(items)
@@ -344,11 +358,16 @@ class Menu(object):
 
     def add_item(self, title=None, url=None):
         filename = self.item_to_filename(title)
-        content = self.get_sections_content(url)
-        self.items.append({"title": title, "filename": filename, "content": content})
+        if url not in self.items:
+            content = self.get_sections_content(url)
+            self.items[url] = {"title": title, "filename": filename, "content": content}
 
     def clean_content(self, content):
         content.find("div", class_="addthis").decompose()
+        if content is not None:
+            for link in content.find_all("a"):
+                if "active" not in link.attrs.get("class", []):
+                    link.replaceWithChildren()
 
     def pager(self, content, index):
         ul = content.find("ul", class_="pager")
@@ -356,22 +375,37 @@ class Menu(object):
         last_page = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-last"))
         previous = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-previous"))
         next = ul.find(lambda tag: tag.name == "a" and tag.findParent("li", class_="pager-next"))
-        first_page["href"] = "../index.html"
-        last_page["href"] = self.items[-1]["filename"]
-        if index     > 0:
-            previous["href"] = self.items[index - 1]["filename"]
-        else:
-            previous["href"] = first_page["href"]
-
-        if index < len(self.items) - 1:
-            next["href"] = self.items[index + 1]["filename"]
-        else:
-            next["href"] = last_page["href"]
+        if first_page is not None:
+            first_page["href"] = "../index.html"
+        items = list(self.items.values())
+        if last_page is not None:
+            last_page["href"] = items[-1]["filename"]
+        if previous is not None:
+            if index > 0:
+                previous["href"] = items[index - 1]["filename"]
+            else:
+                previous["href"] = first_page["href"]
+        if next is not None:
+            if index < len(items) - 1:
+                next["href"] = items[index + 1]["filename"]
+            else:
+                next["href"] = last_page["href"]
 
     def get_sections_content(self, url):
         page = download(url)
         content = page.find("section", class_="main-content")
         return content
+
+    def get_images(self, content):
+        for img in content.findAll("img"):
+            if img["src"].startswith("/"):
+                img_src = urljoin(BASE_URL, img["src"])
+            else:
+                img_src = img["src"]
+            filename = get_name_from_url(img_src)
+            if img_src not in self.images:
+                img["src"] = filename
+                self.images[img_src] = filename
 
     def write_index(self, filepath, content):
         with html_writer.HTMLWriter(filepath, "w") as zipper:
@@ -380,6 +414,12 @@ class Menu(object):
     def write_contents(self, filepath_index, filename, content, directory="files"):
         with html_writer.HTMLWriter(filepath_index, "a") as zipper:
             zipper.write_contents(filename, content, directory=directory)
+    
+    def write_images(self, filepath, content):
+        self.get_images(content)
+        with html_writer.HTMLWriter(filepath, "a") as zipper:
+            for img_src, img_filename in self.images.items():
+                zipper.write_url(img_src, img_filename, directory="files")
 
     def item_to_filename(self, name):
         return "{}.html".format("_".join(name.lower().split(" ")))
@@ -387,7 +427,8 @@ class Menu(object):
     def to_file(self, filepath):
         content_index = self.build_index()
         self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+content_index+'</body></html>')
-        for i, item in enumerate(self.items):
+        for i, item in enumerate(self.items.values()):
+            self.write_images(filepath, item["content"])
             self.pager(item["content"], i)
             self.clean_content(item["content"])
             self.write_contents(filepath, item["filename"], str(item["content"]))
