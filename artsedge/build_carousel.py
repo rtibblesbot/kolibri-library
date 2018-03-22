@@ -2,10 +2,13 @@ from bs4 import BeautifulSoup, NavigableString
 from bs4.element import Tag
 from urllib.parse import urlsplit
 from itertools import zip_longest
-from localise import DOWNLOAD_FOLDER, requests
+from localise import requests
 import hashlib
 import shutil
 import os
+import add_file
+
+DOWNLOAD_FOLDER = "carousel_downloads"
 
 filenames = """
    https://artsedge.kennedy-center.org/~/media/ArtsEdge/Images/LessonArt/grade-3-4/youre-invited-to-a-ceili-exploring-irish-dance.jpg
@@ -56,7 +59,10 @@ def create_carousel_zip(filenames, captions=[]):
     # copy over js/css
     # has to go first because it needs DOWNLOAD_FOLDER to not exist
     assert "downloads" in DOWNLOAD_FOLDER
-    shutil.rmtree(DOWNLOAD_FOLDER)
+    try:
+        shutil.rmtree(DOWNLOAD_FOLDER)
+    except: # ignore if not present
+        pass 
     
     
     shutil.copytree("html", DOWNLOAD_FOLDER)
@@ -114,12 +120,20 @@ def create_carousel_soup(filenames, captions=[]):
             img_tag.attrs['alt'] = caption
         parent_tag.insert(0, div_tag)
 
-    # this could probably be tidied to remove the <placeholder> tag.
     large_slick = soup.new_tag("placeholder")
+    small_slick = soup.new_tag("placeholder")
+
+    fake_images = 6-len(filenames)
+    if fake_images == 5: fake_images = 0  # ignore single image case
+    for i in range(fake_images):
+        add_image(large_slick, "")
+        add_image(small_slick, "")
+
+
+    # this could probably be tidied to remove the <placeholder> tag.
     for filename, caption in combined_data:
         add_image(large_slick, filename, caption)
 
-    small_slick = soup.new_tag("placeholder")
     for filename, caption in combined_data:
         add_image(small_slick, filename, caption, thumbnail=True)
 
@@ -135,5 +149,12 @@ def create_carousel(filenames, captions=[]):
     with open(DOWNLOAD_FOLDER+"/index.html", "w") as f:
         f.write(soup.prettify())
 
-create_carousel_zip(filenames, captions)
-#create_carousel(filenames, captions)
+def create_carousel_node(filenames, captions=[], **metadata):
+    zip_filename = create_carousel_zip(filenames, captions)
+    print(zip_filename)
+    return add_file.create_node(add_file.HTMLZipFile, filename=zip_filename, **metadata)
+
+
+if __name__ == "main":
+    create_carousel_zip(filenames, captions)
+    #create_carousel(filenames, captions)
