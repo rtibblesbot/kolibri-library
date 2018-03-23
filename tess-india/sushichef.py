@@ -245,19 +245,23 @@ class Lesson(object):
                 self.file = File(resource)
             elif resource.endswith(".doc") or resource.endswith(".docx"):
                 pass
-            elif resource != self.key_resource_id:
-                self.video_resource_id = resource
+            else:
+                resource = urljoin(BASE_URL, resource.strip())
+                if resource != self.key_resource_id:
+                    self.video_resource_id = resource.strip()
 
     def download(self):
-        #self.html.scrape(self.base_path)
-        #self.html.scrape()
+        #self.html.scrape(self.base_path, name="index")
         #if self.file:
             #self.file.download(self.base_path)
         if self.video_resource_id:
-            print("VV", self.video_resource_id)
+            video_lessons = HTMLLesson(self.video_resource_id)
+            video_lessons.scrape(self.base_path, name="video")
 
     def to_node(self):
-        filenode = self.file.to_node()
+        file_node = self.file.to_node()
+        #html_node = self.html.to_node()
+        #video_node = self.video_to_node()
         topic_node = dict(
             kind=content_kinds.TOPIC,
             source_id=self.key_resource_id,
@@ -266,8 +270,11 @@ class Lesson(object):
             license=None,
             children=[]
         )
-        if filenode is not None:
-            topic_node["children"].append(filenode)
+        topic_node["children"].append(html_node)
+        if file_node is not None:
+            topic_node["children"].append(file_node)
+        if video_node is not None:
+            topic_node["children"].append(video_node)
 
         return topic_node
         
@@ -275,13 +282,13 @@ class Lesson(object):
 class File(object):
     def __init__(self, source_id, lang="en", lincese=None):
         self.filename = get_name_from_url(source_id)
-        self.source_id = source_id
+        self.source_id = urljoin(BASE_URL, source_id) if source_id.startswith("/") else source_id
         self.filepath = None
         self.lang = lang
         self.license = license
 
-    def download(self, path):
-        PDFS_DATA_DIR = build_path([path, 'pdfs'])
+    def download(self, base_path):
+        PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
         try:
             response = downloader.read(self.source_id)
             self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
@@ -336,10 +343,10 @@ class HTMLLesson(object):
         #url_parts[4] = urlencode(query)
         #return urlparse.urlunparse(url_parts)
 
-    def scrape(self, base_path):
-        filepath = "{path}/htmlapp.zip".format(path=base_path)
+    def scrape(self, base_path, name="htmlapp"):
+        filepath = "{path}/{name}.zip".format(path=base_path, name=name)
         self.sections_to_menu()
-        self.menu.to_file(filepath)
+        self.menu.to_file(filepath, base_path)
 
 
 class Menu(object):
@@ -347,6 +354,8 @@ class Menu(object):
         self.items = OrderedDict()
         self.index_content = None
         self.images = {}
+        self.pdfs_url = set([])
+        self.node = None
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
@@ -407,6 +416,30 @@ class Menu(object):
                 img["src"] = filename
                 self.images[img_src] = filename
 
+    def write_pdfs(self, base_path, content):
+        for tag_a in content.findAll(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
+            if tag_a.get("href", "") not in self.pdfs_url and tag_a.get("href", ""):
+                self.pdfs_url.add(tag_a.get("href", ""))
+                pdf_file = File(tag_a.get("href", ""))
+                pdf_file.download(base_path)
+                print(pdf_file.to_node())
+
+    def write_video(self, base_path, content):
+        #for tag_a in content.findAll(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
+        #transcripts = content.find_all(lambda tag: tag.name == "a" and tag.text == "transcript")
+        #for transcript in transcripts:
+        #    resp = sess.head(transcript["href"], allow_redirects=True, timeout=2)
+        #    print(resp.url)
+        #    break
+        videos = content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").find("youtube") != -1 or tag.attrs.get("href", "").find("youtu.be") != -1 or tag.text.lower() == "youtube")
+        VIDEOS_DATA_DIR = build_path([base_path, 'videos'])
+        for video in videos:
+            youtube = YouTubeResource(video.get("href", ""))
+            youtube.to_file(filepath=VIDEOS_DATA_DIR)
+            if youtube.resource_file is not None:
+                print(youtube.resource_file)
+                break
+
     def write_index(self, filepath, content):
         with html_writer.HTMLWriter(filepath, "w") as zipper:
             zipper.write_index_contents(content)
@@ -424,14 +457,135 @@ class Menu(object):
     def item_to_filename(self, name):
         return "{}.html".format("_".join(name.lower().split(" ")))
 
-    def to_file(self, filepath):
+    def to_file(self, filepath, base_path):
         content_index = self.build_index()
         self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+content_index+'</body></html>')
         for i, item in enumerate(self.items.values()):
             self.write_images(filepath, item["content"])
+            file_nodes = self.write_pdfs(base_path, item["content"])
+            #video_nodes = self.write_video(base_path, item["content"])
             self.pager(item["content"], i)
             self.clean_content(item["content"])
             self.write_contents(filepath, item["filename"], str(item["content"]))
+
+    def to_node(self):
+        return self.node
+
+
+class ResourceType(object):
+    """
+        Base class for File, WebPage, Video, Audio resources
+    """
+    def __init__(self, type_name=None):
+        LOGGER.info("Resource Type: "+type_name)
+        self.type_name = type_name
+        self.resource_file = None
+
+    def to_file(self, filepath=None):
+        pass
+
+    def add_resource_file(self, info):
+        self.resource_file = info
+
+
+class YouTubeResource(ResourceType):
+    def __init__(self, resource_url, type_name="Youtube", lang="en"):
+        super(YouTubeResource, self).__init__(type_name=type_name)
+        self.resource_url = self.clean_url(resource_url)
+        self.file_format = file_formats.MP4
+        self.lang = lang
+
+    def clean_url(self, url):
+        if url[-1] == "/":
+            url = url[:-1]
+        return url.strip()
+
+    @classmethod
+    def is_youtube(self, url, get_channel=False):
+        youtube = url.find("youtube") != -1 or url.find("youtu.be") != -1
+        if get_channel is False:
+            youtube = youtube and url.find("user") == -1 and url.find("/c/") == -1
+        return youtube
+
+    @classmethod
+    def transform_embed(self, url):
+        url = "".join(url.split("?")[:1])
+        return url.replace("embed/", "watch?v=").strip()
+
+    def get_video_info(self):
+        ydl_options = {
+                'writesubtitles': True,
+                'allsubtitles': True,
+                'no_warnings': True,
+                'restrictfilenames':True,
+                'continuedl': True,
+                'quiet': False,
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='720')
+            }
+
+        with youtube_dl.YoutubeDL(ydl_options) as ydl:
+            try:
+                ydl.add_default_info_extractors()
+                info = ydl.extract_info(self.resource_url, download=False)
+                return info
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError) as e:
+                LOGGER.info('An error occured ' + str(e))
+                LOGGER.info(self.resource_url)
+            except KeyError as e:
+                LOGGER.info(str(e))
+
+    def subtitles_dict(self):
+        video_info = self.get_video_info()
+        video_id = video_info["id"]
+        subs = []
+        if 'subtitles' in video_info:
+            subtitles_info = video_info["subtitles"]
+            for language in subtitles_info.keys():
+                subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
+        return subs
+
+    def process_file(self, download=False, filepath=None):
+        if download is True:
+            video_filepath = self.video_download(download_to=filepath)
+        else:
+            video_filepath = None
+
+        if video_filepath is not None:
+            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
+            files += self.subtitles_dict()
+
+            self.add_resource_file(dict(
+                kind=content_kinds.VIDEO,
+                source_id=self.resource_url,
+                title=get_name_from_url_no_ext(video_filepath),
+                description='',
+                files=files,
+                language=self.lang,
+                license=get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict()))
+
+    #youtubedl has some troubles downloading videos in youtube,
+    #sometimes raises connection error
+    #for that I choose pafy for downloading
+    def video_download(self, download_to="/tmp/"):
+        for try_number in range(10):
+            try:
+                video = pafy.new(self.resource_url)
+                best = video.getbest(preftype="mp4")
+                video_filepath = best.download(filepath=download_to)
+            except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
+                LOGGER.info(e)
+                LOGGER.info("Download retry:"+str(try_number))
+                time.sleep(.8)
+            except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError, OSError) as e:
+                LOGGER.info("An error ocurred, may be the video is not available.")
+                return
+            else:
+                return video_filepath
+
+    def to_file(self, filepath=None):
+        self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
 
 
 def download(source_id):
