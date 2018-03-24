@@ -43,7 +43,7 @@ BASE_URL = "http://www.tess-india.edu.in/learning-materials"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .8
@@ -88,9 +88,8 @@ def test():
             state="All India - English",
             subject="English",
             level="Elementary")
-        #resource.to_file()
-        #node = resource.to_node(channel_tree)
-        #channel_tree["children"].append(node)
+        resource.scrape()
+        channel_tree["children"] = resource.to_nodes()
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
@@ -191,33 +190,61 @@ class Resource(object):
         self.state = state
         self.subject = subject
         self.level = level
-        self.scrape()
+        self.nodes = []
 
     def scrape(self):
-        try:
-            page_contents = downloader.read(self.source_id, loadjs=False)
-        except requests.exceptions.HTTPError as e:
-            LOGGER.info("Error: {}".format(e))
-        else:
-            page = BeautifulSoup(page_contents, 'html.parser')
-            for material in page.findAll("div", class_=["node-learning-material"]):
-                resource = material.find(lambda tag: tag.name == "a" and tag.findParent("h2"))
-                if resource is not None:
-                    lesson_name = resource.text
-                    lesson_url = resource["href"]
-                else:
-                    lesson_name = material.find("h2").text
-                    lesson_url = material.attrs.get("about", "")
-                extra_resources = material.findAll(lambda tag: tag.name == "a" and \
-                    tag.findParent("div", class_=["lmat-download"]))
-                extra_resources_urls = set([])
-                for extra_resource in extra_resources:
-                    extra_resources_urls.add(extra_resource["href"])
-                lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
-                    extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
-                lesson.download()
-                lesson.to_node()
-                break
+        page = download(self.source_id)
+        for material in page.findAll("div", class_=["node-learning-material"]):
+            resource = material.find(lambda tag: tag.name == "a" and tag.findParent("h2"))
+            if resource is not None:
+                lesson_name = resource.text
+                lesson_url = resource["href"]
+            else:
+                lesson_name = material.find("h2").text
+                lesson_url = material.attrs.get("about", "")
+            extra_resources = material.findAll(lambda tag: tag.name == "a" and \
+                tag.findParent("div", class_=["lmat-download"]))
+            extra_resources_urls = set([])
+            for extra_resource in extra_resources:
+                extra_resources_urls.add(extra_resource["href"])
+            lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
+                extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
+            lesson.download()
+            self.nodes.append(lesson.to_nodes())
+            break
+
+    def empty_state_node(self):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.state,
+            title=self.state,
+            description="",
+            license=None,
+            children=[]
+        )
+
+    def empty_subject_node(self):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.subject,
+            title=self.subject,
+            description="",
+            license=None,
+            children=[]
+        )
+
+    def empty_level_node(self):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.level,
+            title=self.level,
+            description="",
+            license=None,
+            children=[]
+        )
+
+    def to_nodes(self):
+        return self.nodes
                 
 
 class Lesson(object):
@@ -227,9 +254,10 @@ class Lesson(object):
         self.path_levels = path
         self.file = None
         self.video_resource_id = None
+        self.video = None
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
         LOGGER.info("   - Name: {}".format(self.name))
-        self.html = HTMLLesson(self.key_resource_id)
+        self.html = HTMLLesson(source_id=self.key_resource_id, name=self.name)
         if self.path_levels[-1] is None:
             self.base_path = build_path([DATA_DIR] + self.path_levels[:-1] + [self.name])
         else:
@@ -248,20 +276,19 @@ class Lesson(object):
             else:
                 resource = urljoin(BASE_URL, resource.strip())
                 if resource != self.key_resource_id:
-                    self.video_resource_id = resource.strip()
+                    self.video = HTMLLesson(source_id=resource, name=self.name)
 
     def download(self):
-        #self.html.scrape(self.base_path, name="index")
-        #if self.file:
-            #self.file.download(self.base_path)
-        if self.video_resource_id:
-            video_lessons = HTMLLesson(self.video_resource_id)
-            video_lessons.scrape(self.base_path, name="video")
+        self.html.scrape(self.base_path, name="index")
+        if self.file:
+            self.file.download(self.base_path)
+        if self.video:
+            self.video.scrape(self.base_path, name="video")
 
-    def to_node(self):
+    def to_nodes(self):
         file_node = self.file.to_node()
-        #html_node = self.html.to_node()
-        #video_node = self.video_to_node()
+        html_node = self.html.to_nodes()
+        video_node = self.video.to_nodes()
         topic_node = dict(
             kind=content_kinds.TOPIC,
             source_id=self.key_resource_id,
@@ -270,13 +297,12 @@ class Lesson(object):
             license=None,
             children=[]
         )
-        topic_node["children"].append(html_node)
+        nodes = html_node
         if file_node is not None:
-            topic_node["children"].append(file_node)
-        if video_node is not None:
-            topic_node["children"].append(video_node)
-
-        return topic_node
+            nodes.append(file_node)
+        if len(video_node) > 0:
+            nodes.extend(video_node)
+        return nodes
         
 
 class File(object):
@@ -303,23 +329,26 @@ class File(object):
             LOGGER.info("Error: {}".format(e))
 
     def to_node(self):
-        node = dict(
-            kind=content_kinds.DOCUMENT,
-            source_id=self.source_id,
-            title=self.filename,
-            description='',
-            files=[dict(
-                file_type=content_kinds.DOCUMENT,
-                path=self.filepath
-            )],
-            language=self.lang,
-            license=self.license)
-        return node
+        if self.filepath is not None:
+            node = dict(
+                kind=content_kinds.DOCUMENT,
+                source_id=self.source_id,
+                title=self.filename,
+                description='',
+                files=[dict(
+                    file_type=content_kinds.DOCUMENT,
+                    path=self.filepath
+                )],
+                language=self.lang,
+                license=self.license)
+            return node
 
 
 class HTMLLesson(object):
-    def __init__(self, source_id):
+    def __init__(self, source_id=None, name=None):
         self.source_id = source_id
+        self.filepath = None
+        self.name = name
         self.menu = Menu()
 
     def sections_to_menu(self):
@@ -334,19 +363,31 @@ class HTMLLesson(object):
                 links_class = link.get("class", [])
                 if href:# and "active" not in links_class:
                     self.menu.add_item(title=link.text, url=urljoin(self.source_id, href))
-            
-    #def add(self, url):
-    #    url_parts = list(urlparse.urlparse(url))
-    #    query = dict(urlparse.parse_qsl(url_parts[4]))
-    #    print(query)
-        #query.update(params)
-        #url_parts[4] = urlencode(query)
-        #return urlparse.urlunparse(url_parts)
 
     def scrape(self, base_path, name="htmlapp"):
-        filepath = "{path}/{name}.zip".format(path=base_path, name=name)
+        self.filepath = "{path}/{name}.zip".format(path=base_path, name=name)
         self.sections_to_menu()
-        self.menu.to_file(filepath, base_path)
+        self.menu.to_file(self.filepath, base_path)
+
+    def to_nodes(self):
+        menu_node = self.menu.to_nodes()
+        if self.filepath is not None:
+            node = dict(
+                kind=content_kinds.HTML5,
+                source_id=self.source_id,
+                title=self.name,
+                description="",
+                thumbnail="",
+                author="",
+                files=[dict(
+                    file_type=content_kinds.HTML5,
+                    path=self.filepath
+                )],
+                language="",
+                license="")
+            return [node] + menu_node
+        else:
+            return []
 
 
 class Menu(object):
@@ -355,7 +396,7 @@ class Menu(object):
         self.index_content = None
         self.images = {}
         self.pdfs_url = set([])
-        self.node = None
+        self.nodes = []
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
@@ -422,7 +463,7 @@ class Menu(object):
                 self.pdfs_url.add(tag_a.get("href", ""))
                 pdf_file = File(tag_a.get("href", ""))
                 pdf_file.download(base_path)
-                print(pdf_file.to_node())
+                self.nodes.append(pdf_file.to_node())
 
     def write_video(self, base_path, content):
         #for tag_a in content.findAll(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
@@ -463,13 +504,13 @@ class Menu(object):
         for i, item in enumerate(self.items.values()):
             self.write_images(filepath, item["content"])
             file_nodes = self.write_pdfs(base_path, item["content"])
-            #video_nodes = self.write_video(base_path, item["content"])
+            video_nodes = self.write_video(base_path, item["content"])
             self.pager(item["content"], i)
             self.clean_content(item["content"])
             self.write_contents(filepath, item["filename"], str(item["content"]))
 
-    def to_node(self):
-        return self.node
+    def to_nodes(self):
+        return self.nodes
 
 
 class ResourceType(object):
@@ -626,7 +667,7 @@ class TESSIndiaChef(JsonTreeChef):
     def pre_run(self, args, options):
         #self.crawl(args, options)
         #self.scrape(args, options)
-        test()
+        print(test())
 
     def crawl(self, args, options):
         web_resource_tree = dict(
