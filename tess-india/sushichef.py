@@ -89,7 +89,7 @@ def test():
             subject="English",
             level="Elementary")
         resource.scrape()
-        channel_tree["children"] = resource.to_nodes()
+        channel_tree["children"].append(resource.to_nodes())
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
@@ -210,7 +210,7 @@ class Resource(object):
             lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
                 extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
             lesson.download()
-            self.nodes.append(lesson.to_nodes())
+            self.nodes.extend(lesson.to_nodes())
             break
 
     def empty_state_node(self):
@@ -243,8 +243,20 @@ class Resource(object):
             children=[]
         )
 
+    def build_tree(self, nodes):
+        root = self.empty_state_node()
+        subject = self.empty_subject_node()
+        if self.level is not None:
+            level = self.empty_level_node()
+            level["children"].extend(nodes)
+            subject["children"].append(level)
+        else:
+            subject["children"].extend(nodes)
+        root["children"].append(subject)
+        return root
+
     def to_nodes(self):
-        return self.nodes
+        return self.build_tree(self.nodes)
                 
 
 class Lesson(object):
@@ -276,7 +288,7 @@ class Lesson(object):
             else:
                 resource = urljoin(BASE_URL, resource.strip())
                 if resource != self.key_resource_id:
-                    self.video = HTMLLesson(source_id=resource, name=self.name)
+                    self.video = HTMLLesson(source_id=resource, name=self.name + " - Videos")
 
     def download(self):
         self.html.scrape(self.base_path, name="index")
@@ -306,12 +318,12 @@ class Lesson(object):
         
 
 class File(object):
-    def __init__(self, source_id, lang="en", lincese=None):
+    def __init__(self, source_id, lang="en", lincese=""):
         self.filename = get_name_from_url(source_id)
         self.source_id = urljoin(BASE_URL, source_id) if source_id.startswith("/") else source_id
         self.filepath = None
         self.lang = lang
-        self.license = license
+        self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
@@ -350,6 +362,7 @@ class HTMLLesson(object):
         self.filepath = None
         self.name = name
         self.menu = Menu()
+        self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def sections_to_menu(self):
         page = download(self.source_id)
@@ -377,14 +390,14 @@ class HTMLLesson(object):
                 source_id=self.source_id,
                 title=self.name,
                 description="",
-                thumbnail="",
+                thumbnail=None,
                 author="",
                 files=[dict(
                     file_type=content_kinds.HTML5,
                     path=self.filepath
                 )],
-                language="",
-                license="")
+                language="en",
+                license=self.license)
             return [node] + menu_node
         else:
             return []
@@ -470,8 +483,6 @@ class Menu(object):
         #transcripts = content.find_all(lambda tag: tag.name == "a" and tag.text == "transcript")
         #for transcript in transcripts:
         #    resp = sess.head(transcript["href"], allow_redirects=True, timeout=2)
-        #    print(resp.url)
-        #    break
         videos = content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").find("youtube") != -1 or tag.attrs.get("href", "").find("youtu.be") != -1 or tag.text.lower() == "youtube")
         VIDEOS_DATA_DIR = build_path([base_path, 'videos'])
         for video in videos:
@@ -487,6 +498,8 @@ class Menu(object):
 
     def write_contents(self, filepath_index, filename, content, directory="files"):
         with html_writer.HTMLWriter(filepath_index, "a") as zipper:
+            content = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
+                content)
             zipper.write_contents(filename, content, directory=directory)
     
     def write_images(self, filepath, content):
@@ -603,7 +616,7 @@ class YouTubeResource(ResourceType):
                 description='',
                 files=files,
                 language=self.lang,
-                license=get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict()))
+                license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict()))
 
     #youtubedl has some troubles downloading videos in youtube,
     #sometimes raises connection error
@@ -666,8 +679,7 @@ class TESSIndiaChef(JsonTreeChef):
 
     def pre_run(self, args, options):
         #self.crawl(args, options)
-        #self.scrape(args, options)
-        print(test())
+        self.scrape(args, options)
 
     def crawl(self, args, options):
         web_resource_tree = dict(
@@ -691,8 +703,8 @@ class TESSIndiaChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'TESSIndiaResourceTree'
          
-        #channel_tree = test()
-        channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
+        channel_tree = test()
+        #channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
