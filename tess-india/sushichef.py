@@ -43,7 +43,7 @@ BASE_URL = "http://www.tess-india.edu.in/learning-materials"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .8
@@ -489,7 +489,7 @@ class Menu(object):
             youtube = YouTubeResource(video.get("href", ""))
             youtube.to_file(filepath=VIDEOS_DATA_DIR)
             if youtube.resource_file is not None:
-                print(youtube.resource_file)
+                self.nodes.append(youtube.resource_file)
                 break
 
     def write_index(self, filepath, content):
