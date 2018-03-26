@@ -43,7 +43,7 @@ BASE_URL = "http://www.tess-india.edu.in/learning-materials"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .8
@@ -89,7 +89,14 @@ def test():
             subject="English",
             level="Elementary")
         resource.scrape()
-        channel_tree["children"].append(resource.to_nodes())
+        resource.to_tree(channel_tree)
+        #resource = Resource(source_id=url,
+        #    lang="en",
+        #    state="All India - English",
+        #    subject="English",
+        #    level="Secondary")
+        #resource.scrape()
+        #resource.to_tree(channel_tree)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
@@ -210,8 +217,7 @@ class Resource(object):
             lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
                 extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
             lesson.download()
-            self.nodes.extend(lesson.to_nodes())
-            break
+            self.nodes.append(lesson.to_node())
 
     def empty_state_node(self):
         return dict(
@@ -255,8 +261,9 @@ class Resource(object):
         root["children"].append(subject)
         return root
 
-    def to_nodes(self):
-        return self.build_tree(self.nodes)
+    def to_tree(self, channel_tree):
+        tree = self.build_tree(self.nodes)
+        channel_tree["children"].append(tree)
                 
 
 class Lesson(object):
@@ -265,7 +272,6 @@ class Lesson(object):
         self.name = name
         self.path_levels = path
         self.file = None
-        self.video_resource_id = None
         self.video = None
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
         LOGGER.info("   - Name: {}".format(self.name))
@@ -297,10 +303,7 @@ class Lesson(object):
         if self.video:
             self.video.scrape(self.base_path, name="video")
 
-    def to_nodes(self):
-        file_node = self.file.to_node()
-        html_node = self.html.to_nodes()
-        video_node = self.video.to_nodes()
+    def to_node(self):
         topic_node = dict(
             kind=content_kinds.TOPIC,
             source_id=self.key_resource_id,
@@ -309,12 +312,17 @@ class Lesson(object):
             license=None,
             children=[]
         )
-        nodes = html_node
-        if file_node is not None:
-            nodes.append(file_node)
-        if len(video_node) > 0:
-            nodes.extend(video_node)
-        return nodes
+
+        topic_node["children"].extend(self.html.to_nodes())
+        if self.file is not None:
+            file_node = self.file.to_node()
+            topic_node["children"].append(file_node)
+
+        if self.video is not None:
+            videos_nodes = self.video.to_nodes()
+            topic_node["children"].extend(videos_nodes)
+        
+        return topic_node
         
 
 class File(object):
@@ -413,10 +421,13 @@ class Menu(object):
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
-        for li in self.index_content:
-            for a in li.findAll("a"):
-                item = next(items)
-                a["href"] = "{}{}".format(directory, item["filename"])
+        for ul in self.index_content:
+            if hasattr(ul, 'findAll'):
+                for a in ul.findAll("a"):
+                    item = next(items)
+                    a["href"] = "{}{}".format(directory, item["filename"])
+            else:
+                return
         return str(self.index_content)
 
     def add_item(self, title=None, url=None):
@@ -472,7 +483,8 @@ class Menu(object):
 
     def write_pdfs(self, base_path, content):
         for tag_a in content.findAll(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
-            if tag_a.get("href", "") not in self.pdfs_url and tag_a.get("href", ""):
+            pdf_url = tag_a.get("href", "")
+            if pdf_url not in self.pdfs_url and pdf_url:
                 self.pdfs_url.add(tag_a.get("href", ""))
                 pdf_file = File(tag_a.get("href", ""))
                 pdf_file.download(base_path)
@@ -512,15 +524,17 @@ class Menu(object):
         return "{}.html".format("_".join(name.lower().split(" ")))
 
     def to_file(self, filepath, base_path):
-        content_index = self.build_index()
-        self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+content_index+'</body></html>')
-        for i, item in enumerate(self.items.values()):
-            self.write_images(filepath, item["content"])
-            file_nodes = self.write_pdfs(base_path, item["content"])
-            video_nodes = self.write_video(base_path, item["content"])
-            self.pager(item["content"], i)
-            self.clean_content(item["content"])
-            self.write_contents(filepath, item["filename"], str(item["content"]))
+        index_content = self.build_index()
+        if index_content is not None:
+            self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+\
+                index_content+'</body></html>')
+            for i, item in enumerate(self.items.values()):
+                self.write_images(filepath, item["content"])
+                file_nodes = self.write_pdfs(base_path, item["content"])
+                video_nodes = self.write_video(base_path, item["content"])
+                self.pager(item["content"], i)
+                self.clean_content(item["content"])
+                self.write_contents(filepath, item["filename"], str(item["content"]))
 
     def to_nodes(self):
         return self.nodes
@@ -711,7 +725,6 @@ class TESSIndiaChef(JsonTreeChef):
         write_tree_to_json_tree(self.scrape_stage, channel_tree)
 
     def _build_scraping_json_tree(self, cache_tree, web_resource_tree):
-        from collections import Counter
         LANG = 'en'
         channel_tree = dict(
                 source_domain=TESSIndiaChef.HOSTNAME,
@@ -725,27 +738,33 @@ class TESSIndiaChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = len(web_resource_tree["children"])
+        total_size = 3#len(web_resource_tree["children"])
         copyrights = []
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
-                try:
-                    page_contents = downloader.read(resource, loadjs=False)
-                except requests.exceptions.HTTPError as e:
-                    LOGGER.info("Error: {}".format(e))
-                else:
-                    LOGGER.info("+ {}".format(resource))
-                    page = BeautifulSoup(page_contents, 'html.parser')
-                    autor = page.find("div", class_="article-byline")
-                    copyright = autor.find("em")
-                    copyright = copyright.text.strip()
-                    LOGGER.info("   - Copyright: {}".format(copyright))
-                    copyrights.append(copyright)
-                    time.sleep(TIME_SLEEP)
+                print(resource)
+                #resource = Resource(source_id=resource,
+                #    lang="en",
+                #    state="All India - English",
+                #    subject="English",
+                #    level="Elementary")
+                #resource.scrape()
+                #channel_tree["children"].append(resource.to_nodes())
+                #try:
+                #    page_contents = downloader.read(resource, loadjs=False)
+                #except requests.exceptions.HTTPError as e:
+                #    LOGGER.info("Error: {}".format(e))
+                #else:
+                #    LOGGER.info("+ {}".format(resource))
+                #    page = BeautifulSoup(page_contents, 'html.parser')
+                #    autor = page.find("div", class_="article-byline")
+                #    copyright = autor.find("em")
+                #    copyright = copyright.text.strip()
+                #    LOGGER.info("   - Copyright: {}".format(copyright))
+                #    copyrights.append(copyright)
+                #    time.sleep(TIME_SLEEP)
             counter += 1
-        ct = Counter(copyrights)
-        print(ct)
         return channel_tree
 
 
