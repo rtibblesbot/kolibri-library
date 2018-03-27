@@ -27,7 +27,7 @@ from urllib.parse import urljoin, urlencode
 from utils import save_thumbnail, if_file_exists, load_tree
 from utils import if_dir_exists, get_name_from_url, get_name_from_url_no_ext
 from utils import build_path, remove_links, remove_iframes, check_shorter_url
-from utils import get_level_map
+from utils import get_level_map, get_node_from_channel
 import urllib.parse as urlparse
 import youtube_dl
 
@@ -44,7 +44,7 @@ BASE_URL = "http://www.tess-india.edu.in/learning-materials"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .8
@@ -451,14 +451,15 @@ class Menu(object):
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
-        for ul in self.index_content:
-            if hasattr(ul, 'findAll'):
-                for a in ul.findAll("a"):
-                    item = next(items)
-                    a["href"] = "{}{}".format(directory, item["filename"])
-            else:
-                return
-        return str(self.index_content)
+        if self.index_content is not None:
+            for ul in self.index_content:
+                if hasattr(ul, 'findAll'):
+                    for a in ul.findAll("a"):
+                        item = next(items)
+                        a["href"] = "{}{}".format(directory, item["filename"])
+                else:
+                    return
+            return str(self.index_content)
 
     def add_item(self, title=None, url=None):
         filename = self.item_to_filename(title)
@@ -531,13 +532,17 @@ class Menu(object):
         VIDEOS_DATA_DIR = build_path([base_path, 'videos'])
         for video in videos:
             youtube = YouTubeResource(video.get("href", ""))
-            youtube.to_file(filepath=VIDEOS_DATA_DIR)
-            if youtube.node is not None:
+            node = get_node_from_channel(youtube.resource_url, channel_tree)
+            if node is None:
+                youtube.to_file(filepath=VIDEOS_DATA_DIR)
+                node = youtube.node
+            else:
+                print("############# VIDEO CACHED ###############")
+
+            if node is not None:
                 if video.parent.name == 'li':
-                    video.parent.replace_with(youtube.node["title"])
-                    #video.parent.clear()
-                    #video.parent.insert(0, "HOLA")
-                self.nodes.append(youtube.node)
+                    video.parent.replace_with("Video name: " + node["title"])
+                self.nodes.append(node)
 
     def write_index(self, filepath, content):
         with html_writer.HTMLWriter(filepath, "w") as zipper:
@@ -638,20 +643,21 @@ class YouTubeResource(ResourceType):
                 LOGGER.info(str(e))
 
     def subtitles_dict(self):
-        video_info = self.get_video_info()
-        video_id = video_info["id"]
         subs = []
-        if 'subtitles' in video_info:
-            subtitles_info = video_info["subtitles"]
-            for language in subtitles_info.keys():
-                subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
+        video_info = self.get_video_info()
+        if video_info is not None:
+            video_id = video_info["id"]
+            if 'subtitles' in video_info:
+                subtitles_info = video_info["subtitles"]
+                for language in subtitles_info.keys():
+                    subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
         return subs
 
     def process_file(self, download=False, filepath=None):
         if download is True:
             video_filepath = self.video_download(download_to=filepath)
         else:
-            video_filepath = None
+            video_filepath = ""#None
 
         if video_filepath is not None:
             files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
@@ -753,8 +759,8 @@ class TESSIndiaChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'TESSIndiaResourceTree'
          
-        channel_tree = test()
-        #channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
+        #channel_tree = test()
+        channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
@@ -762,6 +768,7 @@ class TESSIndiaChef(JsonTreeChef):
 
     def _build_scraping_json_tree(self, cache_tree, web_resource_tree):
         LANG = 'en'
+        global channel_tree
         channel_tree = dict(
                 source_domain=TESSIndiaChef.HOSTNAME,
                 source_id='tessindia',
@@ -774,7 +781,7 @@ class TESSIndiaChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = 2#len(web_resource_tree["children"])
+        total_size = len(web_resource_tree["children"])
         copyrights = []
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
