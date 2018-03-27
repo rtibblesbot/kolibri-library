@@ -6,6 +6,7 @@ from collections import OrderedDict, defaultdict
 import copy
 from http import client
 import gettext
+import hashlib
 import json
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
@@ -90,13 +91,6 @@ def test():
             level="Elementary")
         resource.scrape()
         resource.to_tree(channel_tree)
-        #resource = Resource(source_id=url,
-        #    lang="en",
-        #    state="All India - English",
-        #    subject="English",
-        #    level="Secondary")
-        #resource.scrape()
-        #resource.to_tree(channel_tree)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
@@ -249,27 +243,55 @@ class Resource(object):
             children=[]
         )
 
-    def build_tree(self, nodes):
-        root = self.empty_state_node()
-        subject = self.empty_subject_node()
-        if self.level is not None:
-            level = self.empty_level_node()
+    def build_tree(self, nodes, subtree=None, tree_level=0):
+        if tree_level == 0:
+            if subtree is None:
+                root = self.empty_state_node()
+            else:
+                root = subtree
+            subject = self.empty_subject_node()
+            if self.level is not None:
+                level = self.empty_level_node()
+                level["children"].extend(nodes)
+                subject["children"].append(level)
+            else:
+                subject["children"].extend(nodes)
+            root["children"].append(subject)
+            return root
+        elif tree_level == 1:
+            subject = subtree
+            if self.level is not None:
+                level = self.empty_level_node()
+                level["children"].extend(nodes)
+                subject["children"].append(level)
+            else:
+                subject["children"].extend(nodes)
+        elif tree_level == 2:
+            level = subtree
             level["children"].extend(nodes)
-            subject["children"].append(level)
-        else:
-            subject["children"].extend(nodes)
-        root["children"].append(subject)
-        return root
+
+    def get_tree_level(self, channel_tree):
+        subtree = get_level_map(channel_tree, [self.state, self.subject, self.level])
+        level = 2
+        if subtree is None:
+            subtree = get_level_map(channel_tree, [self.state, self.subject])
+            level -= 1
+            if subtree is None:
+                subtree = get_level_map(channel_tree, [self.state])
+                level -= 1
+        return subtree, level
 
     def to_tree(self, channel_tree):
-        tree = self.build_tree(self.nodes)
-        channel_tree["children"].append(tree)
+        subtree, tree_level = self.get_tree_level(channel_tree)
+        root = self.build_tree(self.nodes, subtree, tree_level=tree_level)
+        if subtree is None and root is not None:
+            channel_tree["children"].append(root)
                 
 
 class Lesson(object):
     def __init__(self, name=None, key_resource_id=None, extra_resources=None, path=None):
         self.key_resource_id = urljoin(BASE_URL, key_resource_id.strip())
-        self.name = name
+        self.name = hashlib.sha1(name.encode("utf-8")).hexdigest()#name if len(name) < 80 else name[:80]
         self.path_levels = path
         self.file = None
         self.video = None
@@ -336,15 +358,22 @@ class File(object):
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
         try:
-            response = downloader.read(self.source_id)
-            self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
-            with open(self.filepath, 'wb') as f:
-                f.write(response)
-            LOGGER.info("   - Get file: {}".format(self.filename))
+            response = sess.get(self.source_id)
+            content_type = response.headers.get('content-type')
+            #response = downloader.read(self.source_id)
+            if 'application/pdf' in content_type:
+                self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
+                with open(self.filepath, 'wb') as f:
+                    for chunk in response.iter_content(10000):
+                        f.write(chunk)
+                LOGGER.info("   - Get file: {}".format(self.filename))
         except requests.exceptions.HTTPError as e:
-                LOGGER.info("Error: {}".format(e))
-        except requests.exceptions.ConnectionError as e:
             LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.ConnectionError:
+            ### this is a weird error, may be it's raised when the webpage
+            ### is slow to respond requested resources
+            LOGGER.info("Connection error, the resource will be scraped in 5s...")
+            time.sleep(3)
         except requests.exceptions.TooManyRedirects as e:
             LOGGER.info("Error: {}".format(e))
 
@@ -392,7 +421,7 @@ class HTMLLesson(object):
 
     def to_nodes(self):
         menu_node = self.menu.to_nodes()
-        if self.filepath is not None:
+        if len(self.menu.items) > 0:
             node = dict(
                 kind=content_kinds.HTML5,
                 source_id=self.source_id,
@@ -477,7 +506,7 @@ class Menu(object):
             else:
                 img_src = img["src"]
             filename = get_name_from_url(img_src)
-            if img_src not in self.images:
+            if img_src not in self.images and img_src:
                 img["src"] = filename
                 self.images[img_src] = filename
 
@@ -485,16 +514,14 @@ class Menu(object):
         for tag_a in content.findAll(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
             pdf_url = tag_a.get("href", "")
             if pdf_url not in self.pdfs_url and pdf_url:
-                self.pdfs_url.add(tag_a.get("href", ""))
-                pdf_file = File(tag_a.get("href", ""))
+                self.pdfs_url.add(pdf_url)
+                pdf_file = File(pdf_url)
                 pdf_file.download(base_path)
-                self.nodes.append(pdf_file.to_node())
+                node = pdf_file.to_node()
+                if node is not None:
+                    self.nodes.append(node)
 
     def write_video(self, base_path, content):
-        #for tag_a in content.findAll(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
-        #transcripts = content.find_all(lambda tag: tag.name == "a" and tag.text == "transcript")
-        #for transcript in transcripts:
-        #    resp = sess.head(transcript["href"], allow_redirects=True, timeout=2)
         videos = content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").find("youtube") != -1 or tag.attrs.get("href", "").find("youtu.be") != -1 or tag.text.lower() == "youtube")
         VIDEOS_DATA_DIR = build_path([base_path, 'videos'])
         for video in videos:
@@ -521,7 +548,9 @@ class Menu(object):
                 zipper.write_url(img_src, img_filename, directory="files")
 
     def item_to_filename(self, name):
-        return "{}.html".format("_".join(name.lower().split(" ")))
+        name = "_".join(name.lower().split(" "))
+        hash_name = hashlib.sha1(name.encode("utf-8")).hexdigest()
+        return "{}.html".format(hash_name)
 
     def to_file(self, filepath, base_path):
         index_content = self.build_index()
@@ -668,6 +697,8 @@ def download(source_id):
             ### is slow to respond requested resources
             LOGGER.info("Connection error, the resource will be scraped in 5s...")
             time.sleep(3)
+        except requests.exceptions.TooManyRedirects as e:
+            LOGGER.info("Error: {}".format(e))
         else:
             return BeautifulSoup(document, 'html.parser') #html5lib
         tries += 1
@@ -717,8 +748,8 @@ class TESSIndiaChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'TESSIndiaResourceTree'
          
-        channel_tree = test()
-        #channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
+        #channel_tree = test()
+        channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
@@ -738,32 +769,18 @@ class TESSIndiaChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = 3#len(web_resource_tree["children"])
+        total_size = 2#len(web_resource_tree["children"])
         copyrights = []
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
-                print(resource)
-                #resource = Resource(source_id=resource,
-                #    lang="en",
-                #    state="All India - English",
-                #    subject="English",
-                #    level="Elementary")
-                #resource.scrape()
-                #channel_tree["children"].append(resource.to_nodes())
-                #try:
-                #    page_contents = downloader.read(resource, loadjs=False)
-                #except requests.exceptions.HTTPError as e:
-                #    LOGGER.info("Error: {}".format(e))
-                #else:
-                #    LOGGER.info("+ {}".format(resource))
-                #    page = BeautifulSoup(page_contents, 'html.parser')
-                #    autor = page.find("div", class_="article-byline")
-                #    copyright = autor.find("em")
-                #    copyright = copyright.text.strip()
-                #    LOGGER.info("   - Copyright: {}".format(copyright))
-                #    copyrights.append(copyright)
-                #    time.sleep(TIME_SLEEP)
+                resource = Resource(source_id=resource["url"],
+                    lang="en",
+                    state=resource["state_lang"],
+                    subject=resource["subject_name"],
+                    level=resource["level_name"])
+                resource.scrape()
+                resource.to_tree(channel_tree)
             counter += 1
         return channel_tree
 

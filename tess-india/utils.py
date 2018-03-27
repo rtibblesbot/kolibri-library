@@ -76,6 +76,7 @@ def remove_links(content):
         for link in content.find_all("a"):
             link.replaceWithChildren()
 
+
 def remove_iframes(content):
     if content is not None:
         for iframe in content.find_all("iframe"):
@@ -104,6 +105,7 @@ def get_level_map(tree, levels):
                 return get_level_map(children, r_levels)
             else:
                 return children
+
 
 def load_tree(path):
     with open(path, 'r') as f:
