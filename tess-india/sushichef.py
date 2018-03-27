@@ -44,7 +44,7 @@ BASE_URL = "http://www.tess-india.edu.in/learning-materials"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .8
@@ -291,17 +291,18 @@ class Resource(object):
 class Lesson(object):
     def __init__(self, name=None, key_resource_id=None, extra_resources=None, path=None):
         self.key_resource_id = urljoin(BASE_URL, key_resource_id.strip())
-        self.name = hashlib.sha1(name.encode("utf-8")).hexdigest()#name if len(name) < 80 else name[:80]
+        self.filename = hashlib.sha1(name.encode("utf-8")).hexdigest()
+        self.title = name if len(name) < 80 else name[:80]
         self.path_levels = path
         self.file = None
         self.video = None
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
-        LOGGER.info("   - Name: {}".format(self.name))
-        self.html = HTMLLesson(source_id=self.key_resource_id, name=self.name)
+        LOGGER.info("   - Name: {}".format(self.title))
+        self.html = HTMLLesson(source_id=self.key_resource_id, name=self.title)
         if self.path_levels[-1] is None:
-            self.base_path = build_path([DATA_DIR] + self.path_levels[:-1] + [self.name])
+            self.base_path = build_path([DATA_DIR] + self.path_levels[:-1] + [self.filename])
         else:
-            self.base_path = build_path([DATA_DIR] + self.path_levels + [self.name])
+            self.base_path = build_path([DATA_DIR] + self.path_levels + [self.filename])
         if extra_resources is not None:
             LOGGER.info("   - Extra resources: {}".format(len(extra_resources)))
             self.set_extra_resources(extra_resources)
@@ -316,7 +317,7 @@ class Lesson(object):
             else:
                 resource = urljoin(BASE_URL, resource.strip())
                 if resource != self.key_resource_id:
-                    self.video = HTMLLesson(source_id=resource, name=self.name + " - Videos")
+                    self.video = HTMLLesson(source_id=resource, name=self.title + " - Videos")
 
     def download(self):
         self.html.scrape(self.base_path, name="index")
@@ -329,7 +330,7 @@ class Lesson(object):
         topic_node = dict(
             kind=content_kinds.TOPIC,
             source_id=self.key_resource_id,
-            title=self.name,
+            title=self.title,
             description="",
             license=None,
             children=[]
@@ -467,6 +468,10 @@ class Menu(object):
 
     def clean_content(self, content):
         content.find("div", class_="addthis").decompose()
+        obj_tags = content.find_all("div", class_="oucontent-media")#oucontent-embedtemplate")
+        if obj_tags is not None:
+            for obj_tag in obj_tags:
+                obj_tag.decompose()
         if content is not None:
             for link in content.find_all("a"):
                 if "active" not in link.attrs.get("class", []):
@@ -527,9 +532,12 @@ class Menu(object):
         for video in videos:
             youtube = YouTubeResource(video.get("href", ""))
             youtube.to_file(filepath=VIDEOS_DATA_DIR)
-            if youtube.resource_file is not None:
-                self.nodes.append(youtube.resource_file)
-                break
+            if youtube.node is not None:
+                if video.parent.name == 'li':
+                    video.parent.replace_with(youtube.node["title"])
+                    #video.parent.clear()
+                    #video.parent.insert(0, "HOLA")
+                self.nodes.append(youtube.node)
 
     def write_index(self, filepath, content):
         with html_writer.HTMLWriter(filepath, "w") as zipper:
@@ -576,13 +584,10 @@ class ResourceType(object):
     def __init__(self, type_name=None):
         LOGGER.info("Resource Type: "+type_name)
         self.type_name = type_name
-        self.resource_file = None
+        self.node = None
 
     def to_file(self, filepath=None):
         pass
-
-    def add_resource_file(self, info):
-        self.resource_file = info
 
 
 class YouTubeResource(ResourceType):
@@ -652,14 +657,14 @@ class YouTubeResource(ResourceType):
             files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
             files += self.subtitles_dict()
 
-            self.add_resource_file(dict(
+            self.node = dict(
                 kind=content_kinds.VIDEO,
                 source_id=self.resource_url,
                 title=get_name_from_url_no_ext(video_filepath),
                 description='',
                 files=files,
                 language=self.lang,
-                license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict()))
+                license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
 
     #youtubedl has some troubles downloading videos in youtube,
     #sometimes raises connection error
@@ -748,8 +753,8 @@ class TESSIndiaChef(JsonTreeChef):
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'TESSIndiaResourceTree'
          
-        #channel_tree = test()
-        channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
+        channel_tree = test()
+        #channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
     def write_tree_to_json(self, channel_tree, lang):
