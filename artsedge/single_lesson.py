@@ -11,12 +11,13 @@ def absolute_link(url):
 
 def handle_lesson(url="https://artsedge.kennedy-center.org/educators/lessons/grade-3-4/Exploring_Irish_Dance"):
     response = requests.get(url)
+    response.raise_for_status()
     soup = BeautifulSoup(response.content, "html5lib")
 
     pattern = " dataSrc: '([^']*)',"
     xml_url = "https://artsedge.kennedy-center.org" + re.search(pattern, response.text).group(1)
     xml_response = requests.get(xml_url)
-    handle_xml(xml_response.content)
+    return handle_xml(xml_response.content)
 
 
 
@@ -79,18 +80,31 @@ def handle_xml(xml_string):
             if urls:
                 yield (lesson_label, module_type, module_text, urls)
 
-def create_sous(xml_string):
-    
-    for lesson, module, text, urls in handle_xml(xml_string):
-        pass
+def get_lesson(url):
+    for item in handle_lesson(url):
+        lesson, module, text, urls = item
+        # TODO: off-site website links are problematic!
+        if "artsedge" not in url and module == "website":
+            print ("Skipping presumed offsite link ", url)
+            continue 
+        if "artsedge" not in urls[0]:
+            print ("Skipping ",urls)
+            continue
         
-        
-
-for item in handle_xml(xml_string):
-    lesson, module, text, urls = item
-    if module in ["gallery", "photo"]:
-        node = build_carousel.create_carousel_node(urls, title=text)
+        if module in ["gallery", "photo"]:
+            node = build_carousel.create_carousel_node(urls, title=text)
+        else:
+            try:
+                node = add_file.create_node(None, urls[0],
+                                            title=text, 
+                                            license=None, 
+                                            copyright_holder=None)
+            except:
+                print (item)
+                continue
+            
+        yield lesson, node
         print (node)
     # caption text doesn't need to go in    
-    print (item)
+    #print (item)
     
