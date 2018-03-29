@@ -34,12 +34,9 @@ def make_links_absolute(soup, base_url):
             url = old_url
             if not url:
                 continue
-            if not urlparse(url).netloc:
-                url = urljoin(url, urlparse(base_url).netloc)
-            if not urlparse(url).scheme:
-                url = urljoin(url, urlparse(base_url).scheme)
-            if url != old_url:
-                print ("Rewrote {} to {}".format(old_url, url))
+            url = urljoin(base_url, url)
+            #if url != old_url:
+            #    print ("Rewrote {} to {}".format(old_url, url))
             r.attrs[attr] = url
 
 def guess_extension(filename):
@@ -84,6 +81,12 @@ def make_local(soup, page_url):
     def hashed_url(url):
         return hashlib.sha1(full_url(url).encode('utf-8')).hexdigest() + guess_extension(full_url(url))
 
+
+    try:
+        shutil.rmtree(DOWNLOAD_FOLDER)
+    except:
+        pass
+
     make_links_absolute(soup, page_url)
     resources = get_resources(soup)
 
@@ -109,8 +112,8 @@ def make_local(soup, page_url):
                 if attribute_value.startswith("mailto"):
                     continue
                 if resource.name == "a" and urlparse(attribute_value).netloc not in (DOMAIN, "", "www.kennedy-center.org"):
-                    print (urlparse(attribute_value).netloc)
-                    print ("rewriting non-local URL {} in {}".format(attribute_value, resource.name))
+                    #print (urlparse(attribute_value).netloc)
+                    # print ("rewriting non-local URL {} in {}".format(attribute_value, resource.name))
                     new_tag = soup.new_tag("span")
                     u = soup.new_tag("u")
                     u.insert(0, resource.text)
@@ -156,6 +159,8 @@ def make_local(soup, page_url):
     # delete contents of downloadfolder
     assert "downloads" in DOWNLOAD_FOLDER
     shutil.rmtree(DOWNLOAD_FOLDER)
+    print(os.path.getsize(zipfile_name))
+    
 
     return zipfile_name
 
