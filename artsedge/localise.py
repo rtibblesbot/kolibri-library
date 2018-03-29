@@ -31,9 +31,10 @@ def make_links_absolute(soup, base_url):
     for r in get_resources(soup):
         for attr in LINK_ATTRIBUTES:
             old_url = r.attrs.get(attr, None)
-            url = old_url.strip()
+            url = old_url
             if not url:
                 continue
+            url = url.strip()
             url = urljoin(base_url, url)
             #if url != old_url:
             #    print ("Rewrote {} to {}".format(old_url, url))
@@ -151,6 +152,10 @@ def make_local(soup, page_url):
 
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "wb") as f:
         f.write(html)
+        
+    # add modified CSS file
+    os.mkdir(DOWNLOAD_FOLDER+"/resources")
+    shutil.copy("main.css", DOWNLOAD_FOLDER+"/resources")
 
     # create zip file
     zipfile_name = shutil.make_archive("__"+DOWNLOAD_FOLDER+"/"+hashed_url(page_url), "zip", # automatically adds .zip extension!
