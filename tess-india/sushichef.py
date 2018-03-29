@@ -558,7 +558,10 @@ class Menu(object):
         self.get_images(content)
         with html_writer.HTMLWriter(filepath, "a") as zipper:
             for img_src, img_filename in self.images.items():
-                zipper.write_url(img_src, img_filename, directory="files")
+                try:
+                    zipper.write_url(img_src, img_filename, directory="files")
+                except requests.exceptions.HTTPError:
+                    pass
 
     def item_to_filename(self, name):
         name = "_".join(name.lower().split(" "))
@@ -693,7 +696,8 @@ class YouTubeResource(ResourceType):
                 return video_filepath
 
     def to_file(self, filepath=None):
-        self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
+        if "watch?" in self.resource_url: 
+            self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
 
 
 def download(source_id):

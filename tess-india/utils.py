@@ -111,12 +111,12 @@ def get_node_from_channel(source_id, channel_tree, exclude=None):
     parent = channel_tree["children"]
     while len(parent) > 0:
         for children in parent:
-            if children["source_id"] == source_id:
+            if children is not None and children["source_id"] == source_id:
                 return children
         nparent = []
         for children in parent:
             try:
-                if children["title"] != exclude:
+                if children is not None and children["title"] != exclude:
                     nparent.extend(children["children"])
             except KeyError:
                 pass
