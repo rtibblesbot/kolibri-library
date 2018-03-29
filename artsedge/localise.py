@@ -31,7 +31,7 @@ def make_links_absolute(soup, base_url):
     for r in get_resources(soup):
         for attr in LINK_ATTRIBUTES:
             old_url = r.attrs.get(attr, None)
-            url = old_url
+            url = old_url.strip()
             if not url:
                 continue
             url = urljoin(base_url, url)
