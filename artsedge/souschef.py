@@ -62,10 +62,14 @@ class PBSChef(SushiChef):
         for item in lessons:
             topic = TopicNode("__"+item, item, "Resources for {} school students".format(item.lower()))
             channel.add_child(topic)
-            for lesson in lessons[item]: 
+            for lesson in lessons[item][:4]: 
                 print (lesson)
                 
-                lesson_node = TopicNode("__{}".format(_id), lesson.title, "")
+                if ':' in lesson.title:
+                    title = lesson.title.partition(":")[2]
+                else:
+                    title = lesson.title
+                lesson_node = TopicNode("__{}".format(_id), title, "")
                 _id = _id + 1
                 topic.add_child(lesson_node)
                 urls.add(lesson.link)
@@ -78,7 +82,7 @@ class PBSChef(SushiChef):
                 soup = BeautifulSoup(html_response.content, "html5lib")
                 zipfile_name = localise.make_local(soup, urljoin("https://artsedge.kennedy-center.org/", lesson.link))
                 print ("HTML Filesize: ", os.path.getsize(zipfile_name), os.path.abspath(zipfile_name))
-                html_node = add_file.create_node(HTMLZipFile, filename=zipfile_name, title="Discussion")
+                html_node = add_file.create_node(HTMLZipFile, filename=zipfile_name, title=title)
                 lesson_node.add_child(html_node)
                 
                 for text, node in get_lesson(urljoin("https://artsedge.kennedy-center.org/", lesson.link)):
