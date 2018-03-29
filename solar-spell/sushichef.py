@@ -1,13 +1,14 @@
 #!/usr/bin/env python
-import os
-import sys
-from ricecooker.utils import downloader, html_writer
+from ricecooker.utils import downloader
 from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files, questions, licenses
+from ricecooker.classes import nodes, files
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
-from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
+from le_utils.constants import licenses
 
+""" Additional imports """
+###########################################################
+from bs4 import BeautifulSoup
 
 # Run constants
 ################################################################################
@@ -15,12 +16,15 @@ CHANNEL_NAME = "Solar Spell"              # Name of channel
 CHANNEL_SOURCE_ID = "sushi-chef-solar-spell-en"    # Channel's unique id
 CHANNEL_DOMAIN = "solarspell.org"          # Who is providing the content
 CHANNEL_LANGUAGE = "en"      # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_DESCRIPTION = "A solar-powered digital library of scholastic educational content and general reference resources."
+CHANNEL_THUMBNAIL = "thumbnail.jpg" # Local path or url to image file (optional)
 
 # Additional constants
 ################################################################################
+BASE_URL = 'http://pacificschoolserver.org/'
 
+# License to be used for content under channel
+CHANNEL_LICENSE = licenses.PUBLIC_DOMAIN
 
 
 # The chef subclass
@@ -45,35 +49,84 @@ class MyChef(SushiChef):
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,        # Local path or url to image file (optional)
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,    # Description of the channel (optional)
     }
-    # Your chef subclass can ovverdie/extend the following method:
-    # get_channel: to create ChannelNode manually instead of using channel_info
-    # pre_run: to perform preliminary tasks, e.g., crawling and scraping website
-    # __init__: if need to customize functionality or add command line arguments
 
     def construct_channel(self, *args, **kwargs):
+        """ construct_channel: Creates ChannelNode and build topic tree
+
+            Solar Spell is organized with the following hierarchy(Sample):
+                Creative Arts (source_id = dir-creative-arts)
+                |--- Culinary Arts (source_id = dir-culinary-arts)
+                |--- |--- Real Pasifik 2 introducing Chef Alexis Tahiapuhe of Tahiti (source_id = file-real pasifik 2 introducing chef lela bolobolo of fiji.mp4)
+                |--- Pacific Islands Arts and Culture(source_id = dir_pacific_islands_arts_and_culture)
+                |--- |--- Cook Islands National Cultural Policy 10 July 2017_final english (File)
+                |--- Teaching Resources and Classroom Activities
+                Environment (source_id = dir-environment)
+                |--- Adapting to Climate Change
+                |--- |--- Action Against Climate Change Tuvalu Water and climate change
+                |--- Climate Change Info                
+                |--- |--- Animated Pacific Island Climate Change Videos
+                ...
+            Returns: ChannelNode
         """
-        Creates ChannelNode and build topic tree
-        Args:
-          - args: arguments passed in during upload_channel (currently None)
-          - kwargs: extra argumens and options not handled by `uploadchannel`.
-            For example, add the command line option   lang="fr"  and the string
-            "fr" will be passed along to `construct_channel` as kwargs['lang'].
-        Returns: ChannelNode
-        """
-        channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
-
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
-
-        raise_for_invalid_channel(channel)  # Check for errors in channel construction
-
+        LOGGER.info("Constructing channel from {}...".format(BASE_URL))
+        channel = self.get_channel(*args, **kwargs)                         # Creates ChannelNode from data in self.channel_info
+        LOGGER.info('   Writing {} Folder...'.format(CHANNEL_NAME))    
+        endpoint = BASE_URL + "content/"
+        scrape_content(endpoint, channel)
+        raise_for_invalid_channel(channel)                                  # Check for errors in channel construction
         return channel
 
+""" Helper Methods """
+###########################################################
+
+def read_source(url):
+    html = downloader.read(url)    
+    return BeautifulSoup(html, "html.parser")    
+
+def replace_all(text, replacements):
+    for condition, replacement in replacements.items():
+        text = text.replace(condition, replacement)
+    return text
+
+def scrape_content(endpoint, channel, existingNode=None):
+    replacements = {" ": "%20", "#": "%23"} 
+    content = read_source(endpoint)
+    attributes = content.find("tbody").find_all("td", "text-xs-left")
+
+    for attribute in attributes:
+        source_id = attribute.attrs["data-sort-value"]
+
+        # Check if it is mp4 file
+        if source_id.endswith(".mp4"):
+            video_info = attribute.find("a")
+            video_title = str(video_info.string)
+            filter_video_link = video_info.attrs["href"][1:].replace(" ", "%20")
+            video_link = BASE_URL + filter_video_link
+            video_file = files.VideoFile(path=video_link)
+            video_node = nodes.VideoNode(
+                source_id=source_id,
+                title=video_title,
+                files=[video_file],
+                license=CHANNEL_LICENSE
+            )
+            existingNode.add_child(video_node)         
+
+        # Check if it is a directory
+        if source_id.startswith("dir"):
+            title = str(attribute.find("strong").string)
+            topic_node = nodes.TopicNode(source_id=source_id, title=title)
+            if existingNode:
+                existingNode.add_child(topic_node)
+            else:
+                channel.add_child(topic_node)                            
+
+            new_end_point = replace_all(title, replacements)
+            new_end = endpoint + "{}/".format(new_end_point)
+            scrape_content(new_end, channel, topic_node)
 
 
 # CLI
 ################################################################################
 if __name__ == '__main__':
-    # This code runs when sushichef.py is called from the command line
     chef = MyChef()
     chef.main()

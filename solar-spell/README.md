@@ -1,10 +1,6 @@
 # Solar Spell Chef
 
-Kolibri is an open source educational platform to distribute content to areas with
-little or no internet connectivity. Educational content is created and edited on [Kolibri Studio](https://studio.learningequality.org),
-which is a platform for organizing content to import from the Kolibri applications. The purpose
-of this project is to create a *chef*, or a program that scrapes a content source and puts it
-into a format that can be imported into Kolibri Studio. 
+Sushi chef for `SolarSpell.org` - Import content from `SolarSpell.org` into `Kolibri Studio`
 
 
 ## Installation
@@ -30,57 +26,23 @@ into a format that can be imported into Kolibri Studio.
 
 * Run `pip install -r requirements.txt` to install the required python libraries.
 
-
-
-
+  
 ## Usage
+##### Get an Authorization Token
+In order to run the script, you need an authorization token. To get one, 
+  1. Create an account on [Kolibri Studio](https://contentworkshop.learningequality.org/)
+  2. Navigate to the Tokens tab under your Settings page
+  3. Copy the given authorization token (you will need this for later).
 
-TODO: Explain how to run the Solar Spell chef
+##### Running the Chef
+In `sushi-chef-solar-spell` directory, run the following command to run the script with token from previous step:
+```
+$ ./sushichef.py -v --token=<AUTHORIZATION TOKEN>
 
-      export SOMEVAR=someval
-      ./script.py -v --option2 --kwoard="val"
+```
 
-
-
-## Description
-
-A sushi chef script is responsible for importing content into Kolibri Studio.
-The [Rice Cooker](https://github.com/learningequality/ricecooker) library provides
-all the necessary methods for uploading the channel content to Kolibri Studio,
-as well as helper functions and utilities.
-
-A sushi chef script has been started for you in `sushichef.py`.
-
-Sushi chef docs can be found [here](https://github.com/learningequality/ricecooker/blob/master/README.md).
-
-_For more sushi chef examples, see `examples/openstax_sushichef.py` (json) and
- `examples/wikipedia_sushichef.py` (html) and also the examples/ dir inside the ricecooker repo._
-
-
----
-
-
-## Rubric
-
-_Please make sure your final chef matches the following standards._
-
-
-
-#### General Standards
-1. Does the code work (no infinite loops, exceptions thrown, etc.)?
-1. Are the `source_id`s determined consistently (based on foreign database identifiers or permanent url paths)?
-1. Is there documentation on how to run the script (include command line parameters to use)?
-
-#### Coding Standards
-1. Are there no obvious runtime or memory inefficiencies in the code?
-1. Are the functions succinct?
-1. Are clarifying comments provided where needed?
-1. Are the git commits easy to understand?
-1. Is there no unnecessary nested `if` or `for` loops?
-1. Are variables named descriptively (e.g. `path` vs `p`)?
-
-#### Python Standards
-1. Is the code compatible with Python 3?
-1. Does the code use common standard library functions where needed?
-1. Does the code use common python idioms where needed (with/open, try/except, etc.)?
+Example
+```
+$ ./sushichef.py -v --token=123456abcdefb4c9404451768a3924eb71123456
+```
 
