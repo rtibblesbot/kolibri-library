@@ -82,9 +82,11 @@ class PBSChef(SushiChef):
                 lesson_node.add_child(html_node)
                 
                 for text, node in get_lesson(urljoin("https://artsedge.kennedy-center.org/", lesson.link)):
+                    print (repr(text), repr(old_text))
                     if text != old_text:
-                        subnode = TopicNode("__SUB_{}".format(_subid), text, "")
+                        subnode = TopicNode("__SUB_{}".format(_subid), text[0]+text[1:].lower(), "")
                         _subid=_subid+1
+                        old_text = text
                         lesson_node.add_child(subnode)
                     
                     if node.source_id in sources:  # skip duplicates
