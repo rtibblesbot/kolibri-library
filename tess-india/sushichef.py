@@ -44,7 +44,7 @@ BASE_URL = "http://www.tess-india.edu.in/learning-materials"
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .8
@@ -90,7 +90,11 @@ def test():
             subject="English",
             level="Elementary")
         resource.scrape()
-        resource.to_tree(channel_tree)
+        #resource.to_tree(channel_tree)
+        #lesson = Lesson(name="Test", key_resource_id="http://www.tess-india.edu.in/learning-resource-3981",
+        #        extra_resources=None, path=["A", "B", "C"])
+        #lesson.download()
+        #channel_tree["children"].append(lesson.to_node())
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
@@ -211,7 +215,9 @@ class Resource(object):
             lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
                 extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
             lesson.download()
-            self.nodes.append(lesson.to_node())
+            lesson_node = lesson.to_node()
+            if len(lesson_node["children"]) > 0:
+                self.nodes.append(lesson_node)
 
     def empty_state_node(self):
         return dict(
@@ -339,7 +345,8 @@ class Lesson(object):
         topic_node["children"].extend(self.html.to_nodes())
         if self.file is not None:
             file_node = self.file.to_node()
-            topic_node["children"].append(file_node)
+            if file_node is not None:
+                topic_node["children"].append(file_node)
 
         if self.video is not None:
             videos_nodes = self.video.to_nodes()
@@ -660,7 +667,7 @@ class YouTubeResource(ResourceType):
         if download is True:
             video_filepath = self.video_download(download_to=filepath)
         else:
-            video_filepath = ""#None
+            video_filepath = None
 
         if video_filepath is not None:
             files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
@@ -696,7 +703,7 @@ class YouTubeResource(ResourceType):
                 return video_filepath
 
     def to_file(self, filepath=None):
-        if "watch?" in self.resource_url: 
+        if "watch?" in self.resource_url or not "/user/" in self.resource_url: 
             self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
 
 
