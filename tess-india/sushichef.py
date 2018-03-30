@@ -212,7 +212,7 @@ class Resource(object):
             extra_resources_urls = set([])
             for extra_resource in extra_resources:
                 extra_resources_urls.add(extra_resource["href"])
-            lesson = Lesson(name=lesson_name, key_resource_id=lesson_url,
+            lesson = Lesson(name=lesson_name, key_resource_id=lesson_url, lang=self.lang,
                 extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
             lesson.download()
             lesson_node = lesson.to_node()
@@ -295,15 +295,19 @@ class Resource(object):
                 
 
 class Lesson(object):
-    def __init__(self, name=None, key_resource_id=None, extra_resources=None, path=None):
+    def __init__(self, name=None, key_resource_id=None, extra_resources=None, 
+                path=None, lang="en"):
         self.key_resource_id = urljoin(BASE_URL, key_resource_id.strip())
         self.filename = hashlib.sha1(name.encode("utf-8")).hexdigest()
         self.title = name if len(name) < 80 else name[:80]
         self.path_levels = path
+        self.lang = lang
         self.file = None
         self.video = None
+        self.ids = set([])
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
         LOGGER.info("   - Name: {}".format(self.title))
+        LOGGER.info("   - Lang: {}".format(self.lang))
         self.html = HTMLLesson(source_id=self.key_resource_id, name=self.title)
         if self.path_levels[-1] is None:
             self.base_path = build_path([DATA_DIR] + self.path_levels[:-1] + [self.filename])
@@ -317,7 +321,7 @@ class Lesson(object):
         for resource in extra_resources:
             LOGGER.info("   - Resource: {}".format(resource))
             if resource.endswith(".pdf"):
-                self.file = File(resource)
+                self.file = File(resource, lang=self.lang)
             elif resource.endswith(".doc") or resource.endswith(".docx"):
                 pass
             else:
@@ -345,8 +349,9 @@ class Lesson(object):
         topic_node["children"].extend(self.html.to_nodes())
         if self.file is not None:
             file_node = self.file.to_node()
-            if file_node is not None:
+            if file_node is not None and file_node["source_id"] not in self.ids:
                 topic_node["children"].append(file_node)
+                self.ids.add(file_node["source_id"])
 
         if self.video is not None:
             videos_nodes = self.video.to_nodes()
@@ -455,6 +460,7 @@ class Menu(object):
         self.images = {}
         self.pdfs_url = set([])
         self.nodes = []
+        self.ids = set([])
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
@@ -531,8 +537,9 @@ class Menu(object):
                 pdf_file = File(pdf_url)
                 pdf_file.download(base_path)
                 node = pdf_file.to_node()
-                if node is not None:
+                if node is not None and node["source_id"] not in self.ids:
                     self.nodes.append(node)
+                    self.ids.add(node["source_id"])
 
     def write_video(self, base_path, content):
         videos = content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").find("youtube") != -1 or tag.attrs.get("href", "").find("youtu.be") != -1 or tag.text.lower() == "youtube")
@@ -543,13 +550,13 @@ class Menu(object):
             if node is None:
                 youtube.to_file(filepath=VIDEOS_DATA_DIR)
                 node = youtube.node
-            else:
-                print("############# VIDEO CACHED ###############")
 
             if node is not None:
                 if video.parent.name == 'li':
                     video.parent.replace_with("Video name: " + node["title"])
-                self.nodes.append(node)
+                if node["source_id"] not in self.ids:
+                    self.nodes.append(node)
+                    self.ids.add(node["source_id"])
 
     def write_index(self, filepath, content):
         with html_writer.HTMLWriter(filepath, "w") as zipper:
@@ -690,7 +697,12 @@ class YouTubeResource(ResourceType):
             try:
                 video = pafy.new(self.resource_url)
                 best = video.getbest(preftype="mp4")
-                video_filepath = best.download(filepath=download_to)
+                video_filepath_tmp = os.path.join(download_to, best.filename)
+                if not if_file_exists(video_filepath_tmp):
+                    video_filepath = best.download(filepath=download_to)
+                else:
+                    print("Already downloded: ", video_filepath_tmp)
+                    video_filepath = video_filepath_tmp
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
                 LOGGER.info("Download retry:"+str(try_number))
@@ -725,6 +737,21 @@ def download(source_id):
             return BeautifulSoup(document, 'html.parser') #html5lib
         tries += 1
     return False
+
+
+def language_map(subject):
+    lang_map = {
+        "All India - English": "en",
+        "अखिल भारतीय हिंदी": "hi",
+        "उत्तर प्रदेश": "hi",
+        "बिहार": "hi",
+        "मध्य प्रदेश": "hi",
+        "অসম": "as",
+        "পশ্চিমবঙ্গ": "bn",
+        "ଓଡ଼ିଶା": "or",
+        "ಕರ್ನಾಟಕ":  "kn"
+    }
+    return lang_map.get(subject, "en")
 
 
 class TESSIndiaChef(JsonTreeChef):
@@ -798,7 +825,7 @@ class TESSIndiaChef(JsonTreeChef):
             if 0 <= counter <= total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
                 resource = Resource(source_id=resource["url"],
-                    lang="en",
+                    lang=language_map(resource["state_lang"].strip()),
                     state=resource["state_lang"],
                     subject=resource["subject_name"],
                     level=resource["level_name"])
