@@ -72,7 +72,7 @@ def test():
     """
     Test individual resources
     """
-    url = "http://www.tess-india.edu.in/learning-materials?course_tid=136&subject_tid=181&educational_level_tid=221"
+    url = "http://www.tess-india.edu.in/learning-materials?educational_level_tid=506&subject_tid=511&course_tid=156"
     channel_tree = dict(
         source_domain=TESSIndiaChef.HOSTNAME,
         source_id='tessindia',
@@ -196,6 +196,7 @@ class Resource(object):
         self.subject = subject
         self.level = level
         self.nodes = []
+        self.ids = set([])
 
     def scrape(self):
         page = download(self.source_id)
@@ -212,12 +213,14 @@ class Resource(object):
             extra_resources_urls = set([])
             for extra_resource in extra_resources:
                 extra_resources_urls.add(extra_resource["href"])
-            lesson = Lesson(name=lesson_name, key_resource_id=lesson_url, lang=self.lang,
-                extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
-            lesson.download()
-            lesson_node = lesson.to_node()
-            if len(lesson_node["children"]) > 0:
-                self.nodes.append(lesson_node)
+            if not lesson_url in self.ids:
+                lesson = Lesson(name=lesson_name, key_resource_id=lesson_url, lang=self.lang,
+                    extra_resources=extra_resources_urls, path=[self.state, self.subject, self.level])
+                lesson.download()
+                lesson_node = lesson.to_node()
+                if len(lesson_node["children"]) > 0:
+                    self.nodes.append(lesson_node)
+                self.ids.add(lesson_url)
 
     def empty_state_node(self):
         return dict(
@@ -346,7 +349,11 @@ class Lesson(object):
             children=[]
         )
 
-        topic_node["children"].extend(self.html.to_nodes())
+        for html_node in self.html.to_nodes():
+            if html_node is not None and html_node["source_id"] not in self.ids:
+                topic_node["children"].append(html_node)
+                self.ids.add(html_node["source_id"])
+
         if self.file is not None:
             file_node = self.file.to_node()
             if file_node is not None and file_node["source_id"] not in self.ids:
@@ -355,7 +362,10 @@ class Lesson(object):
 
         if self.video is not None:
             videos_nodes = self.video.to_nodes()
-            topic_node["children"].extend(videos_nodes)
+            for video_node in videos_nodes:
+                if video_node is not None and video_node["source_id"] not in self.ids:
+                    topic_node["children"].append(video_node)
+                    self.ids.add(video_node["source_id"])
         
         return topic_node
         
@@ -433,8 +443,8 @@ class HTMLLesson(object):
         self.menu.to_file(self.filepath, base_path)
 
     def to_nodes(self):
-        menu_node = self.menu.to_nodes()
-        if len(self.menu.items) > 0:
+        if self.menu.is_valid:
+            menu_node = self.menu.to_nodes()
             node = dict(
                 kind=content_kinds.HTML5,
                 source_id=self.source_id,
@@ -461,6 +471,7 @@ class Menu(object):
         self.pdfs_url = set([])
         self.nodes = []
         self.ids = set([])
+        self.is_valid = False
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
@@ -472,6 +483,7 @@ class Menu(object):
                         a["href"] = "{}{}".format(directory, item["filename"])
                 else:
                     return
+            self.is_valid = True
             return str(self.index_content)
 
     def add_item(self, title=None, url=None):
@@ -583,10 +595,10 @@ class Menu(object):
         return "{}.html".format(hash_name)
 
     def to_file(self, filepath, base_path):
-        index_content = self.build_index()
-        if index_content is not None:
+        index_content_str = self.build_index()
+        if index_content_str is not None:
             self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+\
-                index_content+'</body></html>')
+                index_content_str+'</body></html>')
             for i, item in enumerate(self.items.values()):
                 self.write_images(filepath, item["content"])
                 file_nodes = self.write_pdfs(base_path, item["content"])
@@ -824,6 +836,7 @@ class TESSIndiaChef(JsonTreeChef):
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
+                LOGGER.info("Resource: {}".format(resource["url"]))
                 resource = Resource(source_id=resource["url"],
                     lang=language_map(resource["state_lang"].strip()),
                     state=resource["state_lang"],
