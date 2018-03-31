@@ -90,11 +90,7 @@ def test():
             subject="English",
             level="Elementary")
         resource.scrape()
-        #resource.to_tree(channel_tree)
-        #lesson = Lesson(name="Test", key_resource_id="http://www.tess-india.edu.in/learning-resource-3981",
-        #        extra_resources=None, path=["A", "B", "C"])
-        #lesson.download()
-        #channel_tree["children"].append(lesson.to_node())
+        resource.to_tree(channel_tree)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
@@ -229,6 +225,7 @@ class Resource(object):
             title=self.state,
             description="",
             license=None,
+            lang=self.lang,
             children=[]
         )
 
@@ -239,6 +236,7 @@ class Resource(object):
             title=self.subject,
             description="",
             license=None,
+            lang=self.lang,
             children=[]
         )
 
@@ -249,6 +247,7 @@ class Resource(object):
             title=self.level,
             description="",
             license=None,
+            lang=self.lang,
             children=[]
         )
 
@@ -311,7 +310,8 @@ class Lesson(object):
         LOGGER.info("Collecting: {}".format(self.key_resource_id))
         LOGGER.info("   - Name: {}".format(self.title))
         LOGGER.info("   - Lang: {}".format(self.lang))
-        self.html = HTMLLesson(source_id=self.key_resource_id, name=self.title)
+        self.html = HTMLLesson(source_id=self.key_resource_id, name=self.title, 
+            lang=self.lang)
         if self.path_levels[-1] is None:
             self.base_path = build_path([DATA_DIR] + self.path_levels[:-1] + [self.filename])
         else:
@@ -330,7 +330,8 @@ class Lesson(object):
             else:
                 resource = urljoin(BASE_URL, resource.strip())
                 if resource != self.key_resource_id:
-                    self.video = HTMLLesson(source_id=resource, name=self.title + " - Videos")
+                    self.video = HTMLLesson(source_id=resource, 
+                        name=self.title + " - Videos", lang=self.lang)
 
     def download(self):
         self.html.scrape(self.base_path, name="index")
@@ -345,6 +346,7 @@ class Lesson(object):
             source_id=self.key_resource_id,
             title=self.title,
             description="",
+            lang=self.lang,
             license=None,
             children=[]
         )
@@ -383,7 +385,6 @@ class File(object):
         try:
             response = sess.get(self.source_id)
             content_type = response.headers.get('content-type')
-            #response = downloader.read(self.source_id)
             if 'application/pdf' in content_type:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
                 with open(self.filepath, 'wb') as f:
@@ -417,11 +418,12 @@ class File(object):
 
 
 class HTMLLesson(object):
-    def __init__(self, source_id=None, name=None):
+    def __init__(self, source_id=None, lang="en", name=None):
         self.source_id = source_id
         self.filepath = None
         self.name = name
-        self.menu = Menu()
+        self.lang = lang
+        self.menu = Menu(lang=self.lang)
         self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def sections_to_menu(self):
@@ -456,7 +458,7 @@ class HTMLLesson(object):
                     file_type=content_kinds.HTML5,
                     path=self.filepath
                 )],
-                language="en",
+                language=self.lang,
                 license=self.license)
             return [node] + menu_node
         else:
@@ -464,7 +466,7 @@ class HTMLLesson(object):
 
 
 class Menu(object):
-    def __init__(self):
+    def __init__(self, lang="en"):
         self.items = OrderedDict()
         self.index_content = None
         self.images = {}
@@ -472,6 +474,7 @@ class Menu(object):
         self.nodes = []
         self.ids = set([])
         self.is_valid = False
+        self.lang = lang
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
@@ -546,7 +549,7 @@ class Menu(object):
             pdf_url = tag_a.get("href", "")
             if pdf_url not in self.pdfs_url and pdf_url:
                 self.pdfs_url.add(pdf_url)
-                pdf_file = File(pdf_url)
+                pdf_file = File(pdf_url, lang=self.lang)
                 pdf_file.download(base_path)
                 node = pdf_file.to_node()
                 if node is not None and node["source_id"] not in self.ids:
@@ -784,7 +787,7 @@ class TESSIndiaChef(JsonTreeChef):
         super(TESSIndiaChef, self).__init__()
 
     def pre_run(self, args, options):
-        #self.crawl(args, options)
+        self.crawl(args, options)
         self.scrape(args, options)
 
     def crawl(self, args, options):
