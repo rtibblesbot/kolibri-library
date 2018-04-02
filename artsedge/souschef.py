@@ -62,7 +62,7 @@ class PBSChef(SushiChef):
         for item in lessons:
             topic = TopicNode("__"+item, item, "Resources for {} school students".format(item.lower()))
             channel.add_child(topic)
-            for lesson in lessons[item][:4]: 
+            for lesson in lessons[item]: 
                 print (lesson)
                 
                 if ':' in lesson.title:
@@ -87,6 +87,8 @@ class PBSChef(SushiChef):
                 
                 for text, node in get_lesson(urljoin("https://artsedge.kennedy-center.org/", lesson.link)):
                     print (repr(text), repr(old_text))
+                    if not text:
+                        text = "Discussion"
                     if text != old_text:
                         subnode = TopicNode("__SUB_{}".format(_subid), text[0]+text[1:].lower(), "")
                         _subid=_subid+1
