@@ -692,7 +692,8 @@ class YouTubeResource(ResourceType):
             video_filepath = None
 
         if video_filepath is not None:
-            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
+            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath, 
+                    ffmpeg_settings={"max_width": 480, "crf": 28})]
             files += self.subtitles_dict()
 
             self.node = dict(
@@ -716,7 +717,7 @@ class YouTubeResource(ResourceType):
                 if not if_file_exists(video_filepath_tmp):
                     video_filepath = best.download(filepath=download_to)
                 else:
-                    print("Already downloded: ", video_filepath_tmp)
+                    LOGGER.info("Already downloded: {}".format(video_filepath_tmp))
                     video_filepath = video_filepath_tmp
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
