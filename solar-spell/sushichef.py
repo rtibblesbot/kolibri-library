@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from os.path import splitext
 from ricecooker.utils import downloader
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
@@ -99,7 +100,7 @@ def scrape_content(endpoint, channel, existingNode=None):
         # Check if it is mp4 file
         if source_id.endswith(".mp4"):
             video_info = attribute.find("a")
-            video_title = str(video_info.string)
+            video_title, _ext = splitext(str(video_info.string))
             filter_video_link = video_info.attrs["href"][1:].replace(" ", "%20")
             video_link = BASE_URL + filter_video_link
             video_file = files.VideoFile(path=video_link)
@@ -109,10 +110,10 @@ def scrape_content(endpoint, channel, existingNode=None):
                 files=[video_file],
                 license=CHANNEL_LICENSE
             )
-            existingNode.add_child(video_node)         
+            existingNode.add_child(video_node)
 
         # Check if it is a directory
-        if source_id.startswith("dir"):
+        elif source_id.startswith("dir"):
             title = str(attribute.find("strong").string)
             topic_node = nodes.TopicNode(source_id=source_id, title=title)
             if existingNode:
@@ -123,6 +124,8 @@ def scrape_content(endpoint, channel, existingNode=None):
             new_end_point = replace_all(title, replacements)
             new_end = endpoint + "{}/".format(new_end_point)
             scrape_content(new_end, channel, topic_node)
+        else:
+            LOGGER.info("Format of the file is not supported by the sushi chef : {}".format(source_id))
 
 
 # CLI
