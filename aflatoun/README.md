@@ -2,16 +2,11 @@
 Script to create a Kolibri channel from the folder structure in aflatoun_tree
 
 
-TODO
-----
-
-  - decide on which exercise description to use
-
 Running
 -------
 
-    ./aflatoun_chef.py -v --reset --token=<yourtoken>  lang=en
-    ./aflatoun_chef.py -v --reset --token=<yourtoken>  lang=fr
+    ./aflatoun_chef.py -v --reset --token=<yourtoken> --thumbnails lang=en
+    ./aflatoun_chef.py -v --reset --token=<yourtoken> --thumbnails lang=fr
 
 
 
