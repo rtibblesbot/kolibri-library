@@ -72,7 +72,8 @@ def test():
     """
     Test individual resources
     """
-    url = "http://www.tess-india.edu.in/learning-materials?educational_level_tid=506&subject_tid=511&course_tid=156"
+    url = "http://www.tess-india.edu.in/learning-materials?course_tid=136&subject_tid=181&educational_level_tid=226"
+    global channel_tree    
     channel_tree = dict(
         source_domain=TESSIndiaChef.HOSTNAME,
         source_id='tessindia',
@@ -94,6 +95,15 @@ def test():
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
     return channel_tree
+
+
+def test_lesson():
+    lesson_url = "http://www.tess-india.edu.in/learning-resource-1001"
+    lesson = Lesson(name="test", key_resource_id=lesson_url, lang="en",
+                    extra_resources=None, path=["A", "B"])
+    lesson.download()
+    lesson_node = lesson.to_node()
+    print(lesson_node)
 
 
 class ResourceBrowser(object):
@@ -398,6 +408,8 @@ class File(object):
             ### is slow to respond requested resources
             LOGGER.info("Connection error, the resource will be scraped in 5s...")
             time.sleep(3)
+        except requests.exceptions.ReadTimeout as e:
+            LOGGER.info("Error: {}".format(e))
         except requests.exceptions.TooManyRedirects as e:
             LOGGER.info("Error: {}".format(e))
 
@@ -692,8 +704,8 @@ class YouTubeResource(ResourceType):
             video_filepath = None
 
         if video_filepath is not None:
-            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath, 
-                    ffmpeg_settings={"max_width": 480, "crf": 28})]
+            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)] 
+                    #ffmpeg_settings={"max_width": 480, "crf": 28})]
             files += self.subtitles_dict()
 
             self.node = dict(
@@ -712,8 +724,7 @@ class YouTubeResource(ResourceType):
         for try_number in range(10):
             try:
                 video = pafy.new(self.resource_url)
-                #best = video.getbest(preftype="mp4")
-                best = get_video_resolution_format(video, resolution="480", ext="mp4")
+                best = get_video_resolution_format(video, maxvres=480, ext="mp4")
                 LOGGER.info("Video resolution: {}".format(best.resolution))
                 video_filepath_tmp = os.path.join(download_to, best.filename)
                 if not if_file_exists(video_filepath_tmp):
@@ -762,12 +773,17 @@ def download(source_id):
     return False
 
 
-def get_video_resolution_format(video, resolution="720", ext="mp4"):
-    formats = [(s.resolution.split("x")[1], s.extension, s) for s in video.videostreams]
+def get_video_resolution_format(video, maxvres=720, ext="mp4"):
+    formats = [(int(s.resolution.split("x")[1]), s.extension, s) for s in video.videostreams]
+    formats = sorted(formats, key=lambda x: x[0])
+    best = None
     for r, x, stream in formats:
-        if r == resolution and x == ext:
-            return stream
-    return video.getbest(preftype=ext)
+        if r <= maxvres and x == ext:
+            best = stream
+    if best is None:
+        return video.getbest(preftype=ext)
+    else:
+        return best
 
 
 def language_map(subject):
@@ -829,6 +845,7 @@ class TESSIndiaChef(JsonTreeChef):
             assert web_resource_tree['kind'] == 'TESSIndiaResourceTree'
          
         #channel_tree = test()
+        #test_lesson()
         channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
         self.write_tree_to_json(channel_tree, "en")
 
