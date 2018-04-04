@@ -712,13 +712,18 @@ class YouTubeResource(ResourceType):
         for try_number in range(10):
             try:
                 video = pafy.new(self.resource_url)
-                best = video.getbest(preftype="mp4")
+                #best = video.getbest(preftype="mp4")
+                best = get_video_resolution_format(video, resolution="480", ext="mp4")
+                LOGGER.info("Video resolution: {}".format(best.resolution))
                 video_filepath_tmp = os.path.join(download_to, best.filename)
                 if not if_file_exists(video_filepath_tmp):
                     video_filepath = best.download(filepath=download_to)
                 else:
                     LOGGER.info("Already downloded: {}".format(video_filepath_tmp))
                     video_filepath = video_filepath_tmp
+                if os.stat(video_filepath).st_size == 0:
+                    LOGGER.info("Empty file")
+                    return
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
                 LOGGER.info("Download retry:"+str(try_number))
@@ -726,6 +731,8 @@ class YouTubeResource(ResourceType):
             except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError, OSError) as e:
                 LOGGER.info("An error ocurred, may be the video is not available.")
+                return
+            except OSError:
                 return
             else:
                 return video_filepath
@@ -753,6 +760,14 @@ def download(source_id):
             return BeautifulSoup(document, 'html.parser') #html5lib
         tries += 1
     return False
+
+
+def get_video_resolution_format(video, resolution="720", ext="mp4"):
+    formats = [(s.resolution.split("x")[1], s.extension, s) for s in video.videostreams]
+    for r, x, stream in formats:
+        if r == resolution and x == ext:
+            return stream
+    return video.getbest(preftype=ext)
 
 
 def language_map(subject):
