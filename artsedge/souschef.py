@@ -101,6 +101,20 @@ class ArtsEdgeChef(SushiChef):
                     sources.add(node.source_id)
         return channel
     
+def download_videos(jsonfile):
+    with open(jsonfile) as f:
+        database = [json.loads(line) for line in f.readlines()]
+        
+    i = 0
+    for item in database:
+        if item['category'] in ["Video"]: # ("Document", "Audio", "Image", "Video"):
+            yield detail.get_individual_page(item)
+            i=i+1
+            if i == 4:
+                print ("Artificial quit")
+                break
+
+
 if __name__ == '__main__':
     """
     Set the environment var `CONTENT_CURATION_TOKEN` (or `KOLIBRI_STUDIO_TOKEN`)
@@ -110,4 +124,4 @@ if __name__ == '__main__':
     mychef = ArtsEdgeChef()
     if 'KOLIBRI_STUDIO_TOKEN' in os.environ:
         os.environ['CONTENT_CURATION_TOKEN'] = os.environ['KOLIBRI_STUDIO_TOKEN']
-    mychef.main()    
+    mychef.main()
