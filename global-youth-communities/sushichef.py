@@ -1,13 +1,19 @@
 #!/usr/bin/env python
 import os
-import sys
-from ricecooker.utils import downloader, html_writer
 from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files, questions, licenses
+from ricecooker.classes import nodes, files
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
-from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
+from le_utils.constants import licenses
 
+""" Additional imports """
+###########################################################
+
+# from bs4 import BeautifulSoup
+import json
+from PyPDF2 import PdfFileWriter, PdfFileReader
+from utils import downloader
+import io
 
 # Run constants
 ################################################################################
@@ -15,12 +21,32 @@ CHANNEL_NAME = "Global Youth Communities"              # Name of channel
 CHANNEL_SOURCE_ID = "sushi-chef-global-youth-communities-en"    # Channel's unique id
 CHANNEL_DOMAIN = "globalcommunities.org/yslc"          # Who is providing the content
 CHANNEL_LANGUAGE = "en"      # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
+CHANNEL_DESCRIPTION = None
+                        # "Started in the West Bank and Gaza, \
+                        # this toolkit is designed to support the \
+                        # facilitation of Local Youth Councils, groups \
+                        # of young leaders from ages 15-20 who can organize \
+                        # to facilitate self-governance in their communities. \
+                        # Around the world, Youth Local Councils are helping \
+                        # youth build a better future and advance the stability \
+                        # of their communities by promoting democratic and good \
+                        # governance practices, holding their elected local \
+                        # officials accountable and ensuring transparent \
+                        # government practices."             # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
 
 # Additional constants
 ################################################################################
 
+BASE_URL = "https://www.globalcommunities.org/yslc"
+JSON_FILE = "page_structure.json"
+CHANNEL_LICENSE = licenses.PUBLIC_DOMAIN
+DOWNLOAD_DIRECTORY = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "downloads"])
+
+
+# Create download directory if it doesn't already exist
+if not os.path.exists(DOWNLOAD_DIRECTORY):
+    os.makedirs(DOWNLOAD_DIRECTORY)
 
 
 # The chef subclass
@@ -61,15 +87,51 @@ class MyChef(SushiChef):
         Returns: ChannelNode
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
+        topics = read_source(JSON_FILE)
+        for topic in topics:
+            book_title = topic['book_title']
+            source_id = book_title.replace(" ", "_")
+            url = topic['path_or_url']
+            topic_node = nodes.TopicNode(source_id=source_id, title=book_title)
+            channel.add_child(topic_node)
+            topic_pdf = download_pdf(url)
 
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
+            for chapter in topic['chapters']:
+                pdf = split_pdf(chapter=chapter, pdf=topic_pdf)
+                title = chapter['title']
+                pdf_path = "{}/{}-{}.pdf".format(DOWNLOAD_DIRECTORY, book_title, title)
+                pdf_file = files.DocumentFile(pdf_path)
+                write_pdf(pdf_path, pdf)
+                pdf_node = nodes.DocumentNode(
+                    source_id="{} {}".format(book_title, title),
+                    title=title,
+                    files=[pdf_file],
+                    license=CHANNEL_LICENSE
+                )
+                topic_node.add_child(pdf_node)
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
-
         return channel
 
+def download_pdf(url):
+    page_contents = downloader.read("{url}".format(url=url))
+    pdf_content = io.BytesIO(page_contents)
+    reader = PdfFileReader(pdf_content)
+    return reader
 
+def read_source(json_file):
+    with open(json_file) as json_data:
+        return json.load(json_data)
+
+def split_pdf(chapter, pdf):
+    writer = PdfFileWriter()
+    for page in range(chapter['page_start']-1, chapter['page_end']):
+        writer.addPage(pdf.getPage(page))
+    return writer
+
+def write_pdf(pdf_path, pdf):
+    with open(pdf_path, 'wb') as outfile:
+        pdf.write(outfile)
 
 # CLI
 ################################################################################
