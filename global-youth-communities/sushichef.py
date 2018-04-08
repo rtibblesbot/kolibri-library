@@ -14,26 +14,18 @@ import json
 from PyPDF2 import PdfFileWriter, PdfFileReader
 from utils import downloader
 import io
+import sys
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Global Youth Communities"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-global-youth-communities-en"    # Channel's unique id
-CHANNEL_DOMAIN = "globalcommunities.org/yslc"          # Who is providing the content
-CHANNEL_LANGUAGE = "en"      # Language of channel
-CHANNEL_DESCRIPTION = None
-                        # "Started in the West Bank and Gaza, \
-                        # this toolkit is designed to support the \
-                        # facilitation of Local Youth Councils, groups \
-                        # of young leaders from ages 15-20 who can organize \
-                        # to facilitate self-governance in their communities. \
-                        # Around the world, Youth Local Councils are helping \
-                        # youth build a better future and advance the stability \
-                        # of their communities by promoting democratic and good \
-                        # governance practices, holding their elected local \
-                        # officials accountable and ensuring transparent \
-                        # government practices."             # Description of the channel (optional)
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_NAME = "Global Youth Communities"
+CHANNEL_SOURCE_ID = "sushi-chef-global-youth-communities-en"
+CHANNEL_DOMAIN = "globalcommunities.org/yslc"
+CHANNEL_LANGUAGE = "en"
+CHANNEL_DESCRIPTION = "This toolkit contains four guiding manuals that were\
+                       developed based on the rich and diverse experiences of \
+                       the first 13 Youth Local Councils established."
+CHANNEL_THUMBNAIL = "thumbnail.jpeg"
 
 # Additional constants
 ################################################################################
@@ -52,17 +44,7 @@ if not os.path.exists(DOWNLOAD_DIRECTORY):
 # The chef subclass
 ################################################################################
 class MyChef(SushiChef):
-    """
-    This class uploads the Global Youth Communities channel to Kolibri Studio.
-    Your command line script should call the `main` method as the entry point,
-    which performs the following steps:
-      - Parse command line arguments and options (run `./sushichef.py -h` for details)
-      - Call the `SushiChef.run` method which in turn calls `pre_run` (optional)
-        and then the ricecooker function `uploadchannel` which in turn calls this
-        class' `get_channel` method to get channel info, then `construct_channel`
-        to build the contentnode tree.
-    For more info, see https://github.com/learningequality/ricecooker/tree/master/docs
-    """
+
     channel_info = {                                   # Channel Metadata
         'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,       # Who is providing the content
         'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,        # Channel's unique id
@@ -71,21 +53,22 @@ class MyChef(SushiChef):
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,        # Local path or url to image file (optional)
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,    # Description of the channel (optional)
     }
-    # Your chef subclass can ovverdie/extend the following method:
-    # get_channel: to create ChannelNode manually instead of using channel_info
-    # pre_run: to perform preliminary tasks, e.g., crawling and scraping website
-    # __init__: if need to customize functionality or add command line arguments
 
     def construct_channel(self, *args, **kwargs):
         """
         Creates ChannelNode and build topic tree
-        Args:
-          - args: arguments passed in during upload_channel (currently None)
-          - kwargs: extra argumens and options not handled by `uploadchannel`.
-            For example, add the command line option   lang="fr"  and the string
-            "fr" will be passed along to `construct_channel` as kwargs['lang'].
-        Returns: ChannelNode
+
+        Global Youth Communities is organized with the following hierarchy:
+        A Practical Guide To Formation & Activation of Youth Shadow Local Councils (Topic)
+        |--- Introduction (PDF - DocumentNode)
+        |--- Youth Shadow Local Councils: An Overview (PDF - DocumentNode)
+        Unified Bylaws for the Youth Shadow Local Councils in Palestine
+        |--- Introduction (PDF - DocumentNode)
+        |--- General Provisions (PDF - DocumentNode)
+        ...
         """
+        LOGGER.info("Constructing channel from {}...".format(BASE_URL))
+
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         topics = read_source(JSON_FILE)
         for topic in topics:
@@ -97,8 +80,9 @@ class MyChef(SushiChef):
             topic_pdf = download_pdf(url)
 
             for chapter in topic['chapters']:
-                pdf = split_pdf(chapter=chapter, pdf=topic_pdf)
                 title = chapter['title']
+                LOGGER.info("   Writing {}-{}.pdf...".format(book_title, title))
+                pdf = split_pdf(chapter=chapter, pdf=topic_pdf)
                 pdf_path = "{}/{}-{}.pdf".format(DOWNLOAD_DIRECTORY, book_title, title)
                 pdf_file = files.DocumentFile(pdf_path)
                 write_pdf(pdf_path, pdf)
@@ -114,7 +98,11 @@ class MyChef(SushiChef):
         return channel
 
 def download_pdf(url):
-    page_contents = downloader.read("{url}".format(url=url))
+    try:
+        page_contents = downloader.read("{url}".format(url=url))
+    except Exception as e:
+        LOGGER.error("   Error on downloading pdf from {url} : {e}".format(url=url, e=e))
+        sys.exit(1)
     pdf_content = io.BytesIO(page_contents)
     reader = PdfFileReader(pdf_content)
     return reader
@@ -125,9 +113,18 @@ def read_source(json_file):
 
 def split_pdf(chapter, pdf):
     writer = PdfFileWriter()
-    for page in range(chapter['page_start']-1, chapter['page_end']):
-        writer.addPage(pdf.getPage(page))
-    return writer
+    pdf_size = pdf.getNumPages()
+    title = chapter['title']
+    page_start = chapter['page_start']
+    page_end = chapter['page_end']
+
+    if pdf_size < page_start-1 or pdf_size < page_end:
+        LOGGER.error("   Error with invalid page information on {} with page {} and page {}.".format(title, page_start, page_end))
+        sys.exit(1)
+    else:
+        for page in range(page_start-1, page_end):
+            writer.addPage(pdf.getPage(page))
+        return writer
 
 def write_pdf(pdf_path, pdf):
     with open(pdf_path, 'wb') as outfile:
