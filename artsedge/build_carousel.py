@@ -105,15 +105,12 @@ def create_carousel_soup(filenames, captions=[]):
     combined_data = list(zip_longest(reversed(filenames), reversed(captions)))
     soup = BeautifulSoup(html_bytes, "html5lib")
     # note: this just uses the order in the HTML document -- not very stable
-    small_slick_replace, large_slick_replace = soup.findAll("divreplace")
+    large_slick_replace, small_slick_replace = soup.findAll("divreplace")
 
     def add_image(parent_tag, imgsrc, caption=None, thumbnail=False):
         div_tag = soup.new_tag("div")
         img_tag = soup.new_tag("img")
         img_tag.attrs['src'] = imgsrc
-        if thumbnail:
-            img_tag.attrs['width'] = 100
-            img_tag.attrs['height'] = 100
         div_tag.insert(0, img_tag)
         if not thumbnail and caption:
             div_tag.insert(0, NavigableString(caption))
@@ -155,6 +152,6 @@ def create_carousel_node(filenames, captions=[], **metadata):
     return add_file.create_node(add_file.HTMLZipFile, filename=zip_filename, **metadata)
 
 
-if __name__ == "main":
-    create_carousel_zip(filenames, captions)
+if __name__ == "__main__":
+    print(create_carousel_zip(filenames, captions))
     #create_carousel(filenames, captions)
