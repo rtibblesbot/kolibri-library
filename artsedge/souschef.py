@@ -27,7 +27,7 @@ lessons = OrderedDict([('Elementary', [x for x in raw_lessons if x.grade == "K-4
 LOGGER = logging.getLogger()
 
 
-class PBSChef(SushiChef):
+class ArtsChef(SushiChef):
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': 'artsedge.kennedy-center.org/', # who is providing the content (e.g. learningequality.org)
         'CHANNEL_SOURCE_ID': 'artsedge',         # channel's unique id
@@ -101,24 +101,11 @@ class PBSChef(SushiChef):
                     sources.add(node.source_id)
         return channel
     
-def download_videos(jsonfile):
-    with open(jsonfile) as f:
-        database = [json.loads(line) for line in f.readlines()]
-        
-    i = 0
-    for item in database:
-        if item['category'] in ["Video"]: # ("Document", "Audio", "Image", "Video"):
-            yield detail.get_individual_page(item)
-            i=i+1
-            if i == 4:
-                print ("Artificial quit")
-                break
-        
 def make_channel():
-    mychef = PBSChef()
-    # if you are having problems wth kolibri, delete your .ricecookerfilecache
-    args = {'token': os.environ['KOLIBRI_STUDIO_TOKEN'], 'reset': True, 'verbose': True}
-    options = {}
+    mychef = ArtsChef()
+    # if you are having problems wth kolibri, delete your .ricecookerfilecache and maybe storage
+    args = {'token': os.environ['KOLIBRI_STUDIO_TOKEN'], 'reset': True, 'verbose': True, 'nomonitor': False}
+    options = {'thumbnails': True}
     mychef.run(args, options)
 
 make_channel()
