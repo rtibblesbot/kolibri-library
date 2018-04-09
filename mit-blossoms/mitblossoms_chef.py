@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 import argparse
 from itertools import groupby
 import json
@@ -16,6 +16,7 @@ from le_utils.constants import licenses
 from le_utils import constants
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
+from ricecooker.classes.licenses import get_license
 from ricecooker.exceptions import UnknownFileTypeError, raise_for_invalid_channel
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.zip import create_predictable_zip
@@ -42,7 +43,7 @@ CHANNEL_SOURCE_ID = 'mit_blossoms_v1.0b'
 CHANNEL_TITLE = 'MIT Blossoms'
 CHANNEL_THUMBNAIL = 'https://pk12.mit.edu/files/2016/02/MIT-Blossoms.png'
 CHANNEL_LANGUAGE='en'
-MIT_BLOSSOMS_LICENSE = licenses.CC_BY_NC_SA
+MIT_BLOSSOMS_LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder='MIT Blossoms')
 DATA_DIR = 'chefdata'
 ZIP_FILES_TMP_DIR = os.path.join(DATA_DIR, 'zipfiles')
 CONTENT_DIR = 'content'
