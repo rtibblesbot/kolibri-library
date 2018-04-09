@@ -5,6 +5,7 @@ Import content from https://blossoms.mit.edu into kolibri format.
 TODOs
 -----
 
+* Update chef run crawl and scrape as part of normal operation `main`
 * Make HTMLZipFile paths names repeatable (so won't re-upload every time)
 * Add manual override steps: \[3h\]
   * Fix videos with multiple languages in "Video Summary" (manual override)
@@ -30,12 +31,12 @@ Running locally for testing
 
     source venv/bin/activate
     export STUDIO_TOKEN="a92a8ff947c8423ed0cd11c6ce33ad6b95b6564e"
-    ./mitblossoms_chef.py -v --reset --thumbnails --pruned
+    ./mitblossoms_chef.py -v --reset --thumbnails --pruned  --parts crawl scrape main
 
 
 Running for real
 ----------------
 
     source venv/bin/activate
-    ./mitblossoms_chef.py -v --reset --thumbnails --token={studio_token}
+    ./mitblossoms_chef.py -v --reset --thumbnails --token={studio_token} --parts crawl scrape main
 

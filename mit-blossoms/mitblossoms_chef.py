@@ -1079,7 +1079,7 @@ class MitBlossomsSushiChef(SushiChef):
         """
         The MIT Blossoms Sushi Chef acceps the `--parts` command line arguement
         which controls which parts of the import pipeline should run.
-          - `--parts crawl` builds `chefdata/web_resource_tree.json`
+          - `--parts crawl`  builds `chefdata/web_resource_tree.json`
           - `--parts scrape` builds `chefdata/ricecooker_json_tree.json`
           - `--parts main` runs the entire pipeline (default)
         """
