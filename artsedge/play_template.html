@@ -15,9 +15,17 @@
       box-sizing: border-box;
     }
 
+   .center div img {
+     display: block;
+     max-width: 20vw;
+     max-height: 15vw;
+     width: auto;
+     height: auto;
+   }
+
     .slider {
-        width: 50%;
-        margin: 100px auto;
+      width: 100%;
+      margin: 100px auto;
     }
 
     .slick-slide {
@@ -49,17 +57,16 @@
   </style>
 </head>
 <body>
-  <section class="center slider">
-    <divreplace type=small>
-  </section>
-
   <section class="lazy slider">
     <divreplace type=large>
   </section>
 
+  <section class="center slider">
+    <divreplace type=small>
+  </section>
 
+    <script src="./jquery/jquery-2.2.0.min.js" type="text/javascript" nochange=True></script>
 
-  <script src="https://code.jquery.com/jquery-2.2.0.min.js" type="text/javascript" nochange=True></script>
   <script src="./slick/slick.js" type="text/javascript" charset="utf-8" nochange=True></script>
   <script type="text/javascript">
     $(document).on('ready', function() {
