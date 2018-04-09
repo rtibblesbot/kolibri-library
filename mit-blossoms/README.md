@@ -31,12 +31,17 @@ Running locally for testing
 
     source venv/bin/activate
     export STUDIO_TOKEN="a92a8ff947c8423ed0cd11c6ce33ad6b95b6564e"
-    ./mitblossoms_chef.py -v --reset --thumbnails --pruned  --parts crawl scrape main
+    # to run first part of chef (crawling website)
+    ./mitblossoms_chef.py -v --reset --thumbnails --pruned  --parts crawlonly
+    # crawl and scrape
+    ./mitblossoms_chef.py -v --reset --thumbnails --pruned  --parts crawlonly scrapeonly
+    # run full chef
+    ./mitblossoms_chef.py -v --reset --thumbnails --pruned  --parts main
 
 
 Running for real
 ----------------
 
     source venv/bin/activate
-    ./mitblossoms_chef.py -v --reset --thumbnails --token={studio_token} --parts crawl scrape main
+    ./mitblossoms_chef.py -v --reset --thumbnails --token={studio_token}
 

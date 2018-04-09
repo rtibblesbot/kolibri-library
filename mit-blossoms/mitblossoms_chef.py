@@ -214,11 +214,6 @@ def build_preliminary_tree(languages=None):
     # STAGE 1.1 OUTPUT: Topics and Lessons before adding the TopicClusters
     web_resource_tree = dict(
         __class__='MitBlossomsResourceTree',
-        source_domain=CHANNEL_SOURCE_DOMAIN,
-        source_id=CHANNEL_SOURCE_ID,
-        title=CHANNEL_TITLE,
-        thumbnail=CHANNEL_THUMBNAIL,
-        language=CHANNEL_LANGUAGE,
         children=[],
     )
 
@@ -839,11 +834,6 @@ def scraping_part(args, options):
     # Ricecooker tree
     ricecooker_json_tree = dict(
         kind='ChannelNode',
-        source_domain=web_resource_tree['source_domain'],
-        source_id=web_resource_tree['source_id'] + source_id_suffix,
-        title=web_resource_tree['title'] + source_id_suffix,
-        thumbnail=web_resource_tree['thumbnail'],
-        language=web_resource_tree.get('language'),
         children=[],
     )
     _build_json_tree(ricecooker_json_tree, web_resource_tree['children'], languages=args['languages'])
@@ -1074,14 +1064,22 @@ class MitBlossomsSushiChef(SushiChef):
     """
     This class contains all the methods for the MIT Blossoms sushi chef.
     """
+    channel_info = {
+        'CHANNEL_TITLE': CHANNEL_TITLE,
+        'CHANNEL_SOURCE_DOMAIN': CHANNEL_SOURCE_DOMAIN,
+        'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,
+        'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,
+        'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,
+        'CHANNEL_DESCRIPTION': None, # TODO(ivan)  add chennel description
+    }
 
     def __init__(self, *args, **kwargs):
         """
         The MIT Blossoms Sushi Chef acceps the `--parts` command line arguement
         which controls which parts of the import pipeline should run.
-          - `--parts crawl`  builds `chefdata/web_resource_tree.json`
-          - `--parts scrape` builds `chefdata/ricecooker_json_tree.json`
-          - `--parts main` runs the entire pipeline (default)
+          - `--parts crawlonly` build `chefdata/web_resource_tree.json` then exit
+          - `--parts scrapeonly` build `chefdata/ricecooker_json_tree.json` then exit
+          - `--parts main` run the entire pipeline (default)
         """
         super(MitBlossomsSushiChef, self).__init__(*args, **kwargs)
 
@@ -1093,10 +1091,11 @@ class MitBlossomsSushiChef(SushiChef):
                                      choices=ALL_LANGUAGES,
                                      help='List of languages to import')
         self.arg_parser.add_argument('--parts', nargs='*', default=['main'],
-                                     choices=['crawl', 'scrape', 'main',],
+                                     choices=['crawlonly', 'scrapeonly', 'main',],
                                      help='Which parts of import pipeline to run')
         self.arg_parser.add_argument('--pruned', action='store_true',
                                      help='Prune tree for testing purposes.')
+
 
 
     def crawl(self, args, options):
@@ -1124,22 +1123,7 @@ class MitBlossomsSushiChef(SushiChef):
         self.crawl(args, options)
         self.scrape(args, options)
 
-    def get_channel(self, **kwargs):
-        """
-        Load json tree data just to read channel info.
-        """
-        json_tree = None
-        with open(os.path.join(DATA_DIR, 'ricecooker_json_tree.json')) as infile:
-            json_tree = json.load(infile)
-        assert json_tree['kind'] == 'ChannelNode'
-        channel = nodes.ChannelNode(
-            source_domain=json_tree['source_domain'],
-            source_id=json_tree['source_id'],
-            title=json_tree['title'],
-            thumbnail=json_tree['thumbnail'],
-            language=json_tree.get('language'),
-        )
-        return channel
+
 
     def construct_channel(self, **kwargs):
         channel = self.get_channel(**kwargs)
@@ -1171,9 +1155,9 @@ if __name__ == '__main__':
 
     # Dispatch based on --part specified
     for part in args['parts']:
-        if part == 'crawl':
+        if part == 'crawlonly':
             mitchef.crawl(args, options)
-        elif part == 'scrape':
+        elif part == 'scrapeonly':
             mitchef.scrape(args, options)
         elif part == 'main':
             mitchef.main()
