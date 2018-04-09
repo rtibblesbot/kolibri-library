@@ -99,7 +99,18 @@ def create_node(file_class=None, url=None, filename=None, title=None, license=No
         os.rename(filename, new_filename)
         filename = new_filename
     
-    file_instance = file_class(filename)
+    print (filename, os.path.getsize(filename))
+    assert(os.path.getsize(filename))
+    
+    # //
+    kwargs = {VideoFile: {"ffmpeg_settings": {"max_width": 480, "crf": 28}},
+              AudioFile: {},
+              DocumentFile: {},
+              HTMLZipFile: {}}
+
+    file_instance = file_class(filename, **kwargs[file_class]) # property
+    #//    
+
     node_class = node_dict[file_class]
     
     return node_class(source_id=filename,
