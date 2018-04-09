@@ -429,7 +429,7 @@ class MitBlossomsVideoLessonResource(object):
         all_links = [div.find('a') for div in block_divs]
         resources = []
         for link in all_links:
-            file_name = link.get('title') or os.path.basename(link['href'])
+            file_name = os.path.basename(link['href'])
             (base_name, ext) = os.path.splitext(file_name)
             if ext.lstrip('.').lower() in self.ALLOWED_EXTS_FOR_TEACHERS_DOCS:
                 resource = {}
@@ -493,7 +493,7 @@ class MitBlossomsVideoLessonResource(object):
         all_links = [div.find('a') for div in block_divs]
         transcripts = []
         for link in all_links:
-            file_name = link.get('title') or os.path.basename(link['href'])
+            file_name = os.path.basename(link['href'])
             (base_name, ext) = os.path.splitext(file_name)
             if ext.lstrip('.').lower() in self.ALLOWED_EXTS_FOR_TRANSCRIPTS:
                 transcript = {}
