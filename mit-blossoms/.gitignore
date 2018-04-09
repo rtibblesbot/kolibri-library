@@ -4,6 +4,7 @@ chefdata/ricecooker_json_tree.json
 chefdata/ricecooker_json_tree_full.json
 chefdata/ricecooker_pruned_json_tree.json
 chefdata/zipfiles
+chefdata/archives
 
 
 # requests cache dir

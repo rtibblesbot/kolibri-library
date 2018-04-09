@@ -1,2 +1,1 @@
-# ricecooker==0.6.3
-git+https://github.com/ivanistheone/ricecooker@ab7fc8fcf0fe81cb9f9a5633e49fddd1a8a08a0d#egg=ricecooker
+ricecooker==0.6.16
