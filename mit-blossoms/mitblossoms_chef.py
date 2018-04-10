@@ -49,7 +49,7 @@ ZIP_FILES_TMP_DIR = os.path.join(DATA_DIR, 'zipfiles')
 CONTENT_DIR = 'content'
 BASE_URL = 'https://blossoms.mit.edu'
 VIDEOS_BY_LANGUAGE_PATH = '/videos/by_language'
-ALL_LANGUAGES = ['Arabic', 'English','Farsi', 'Hindi', 'Japanese', 'Kannada',
+ALL_LANGUAGES = ['Arabic', 'English', 'Farsi', 'Hindi', 'Japanese', 'Kannada',
                  'Korean', 'Malay', 'Mandarin', 'Portuguese', 'Spanish', 'Urdu']
 SELECTED_LANGUAGES = ALL_LANGUAGES   # download all languages
 LANGUAGE_LOOKUP = {
@@ -689,12 +689,13 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                 if video_url is None:
                     logger.debug('No video_url found for ' + lang + ' in ' + lesson.url)
                     continue
+                source_id = BLOSSOMS_FMT['video']['source_id'].format(
+                    node_id=lesson.get_source_id(),
+                    lang_variant=lang_variant
+                )
                 video_grandchild = dict(
                     kind='VideoNode',
-                    source_id=BLOSSOMS_FMT['video']['source_id'].format(
-                        node_id=lesson.get_source_id(),
-                        lang_variant=lang_variant
-                    ),
+                    source_id=source_id,
                     title=BLOSSOMS_FMT['video']['title'].format(
                         lang_variant=lang_variant,
                         title=lesson.title
@@ -705,14 +706,23 @@ def _build_json_tree(parent_node, sourcetree, languages=None):
                     derive_thumbnail=True,
                     thumbnail=lesson.get_thumbnail_url(),
                 )
-                lesson_folder['children'].append(video_grandchild)
-                video_file = dict(
-                    file_type='VideoFile',
-                    path=video_url,
-                    ffmpeg_settings={"crf": 24},
-                    language=LANGUAGE_LOOKUP[lang],  # test path with str code
-                )
-                video_grandchild['files'] = [video_file]
+
+                # Fix for https://github.com/learningequality/sushi-chef-mit-blossoms/issues/3
+                # don't add video with same source_id if it already exists
+                # TODO(ivan): figure out a more general way to pick which language version to keep
+                # e.g. for https://blossoms.mit.edu/videos/lessons/plastics_and_covalent_chemical_bonds
+                #      we should pick `ar` instead of `en`
+                existing_videos = [n for n in lesson_folder['children'] if n['kind']=='VideoNode']
+                exists = any([v['source_id']==source_id for v in existing_videos])
+                if not exists:
+                    lesson_folder['children'].append(video_grandchild)
+                    video_file = dict(
+                        file_type='VideoFile',
+                        path=video_url,
+                        ffmpeg_settings={"crf": 24},
+                        language=LANGUAGE_LOOKUP[lang],  # test path with str code
+                    )
+                    video_grandchild['files'] = [video_file]
 
             # 2. Add the lesson transcript(s)
             video_transcripts = lesson.get_transcripts()
