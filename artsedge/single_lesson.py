@@ -21,9 +21,6 @@ def handle_lesson(url="https://artsedge.kennedy-center.org/educators/lessons/gra
 
 
 
-with open("carousel.xml") as f:
-    xml_string = f.read()
-
 def handle_xml(xml_string):
 
     """
@@ -86,25 +83,25 @@ def get_lesson(url):
         # TODO: off-site website links are problematic!
         if "artsedge" not in url and module == "website":
             print ("Skipping presumed offsite link ", url)
-            continue 
+            continue
         if "artsedge" not in urls[0]:
             print ("Skipping ",urls)
             continue
-        
+
         if module in ["gallery", "photo"]:
             node = build_carousel.create_carousel_node(urls, title=text)
         else:
             try:
                 node = add_file.create_node(None, urls[0],
-                                            title=text, 
-                                            license=None, 
+                                            title=text,
+                                            license=None,
                                             copyright_holder=None)
             except:
                 print (item)
                 continue
-            
+
         yield lesson, node
         print (node)
-    # caption text doesn't need to go in    
+    # caption text doesn't need to go in
     #print (item)
-    
+
