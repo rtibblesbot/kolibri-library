@@ -153,5 +153,5 @@ def create_carousel_node(filenames, captions=[], **metadata):
 
 
 if __name__ == "__main__":
-    print(create_carousel_zip(filenames, captions))
+    print(create_carousel_zip(filenames))# , captions))
     #create_carousel(filenames, captions)
