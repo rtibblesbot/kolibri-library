@@ -14,7 +14,6 @@ import json
 from PyPDF2 import PdfFileWriter, PdfFileReader
 from utils import downloader
 import io
-import sys
 
 # Run constants
 ################################################################################
@@ -102,7 +101,6 @@ def download_pdf(url):
         page_contents = downloader.read("{url}".format(url=url))
     except Exception as e:
         LOGGER.error("   Error on downloading pdf from {url} : {e}".format(url=url, e=e))
-        sys.exit(1)
     pdf_content = io.BytesIO(page_contents)
     reader = PdfFileReader(pdf_content)
     return reader
@@ -120,7 +118,6 @@ def split_pdf(chapter, pdf):
 
     if pdf_size < page_start-1 or pdf_size < page_end:
         LOGGER.error("   Error with invalid page information on {} with page {} and page {}.".format(title, page_start, page_end))
-        sys.exit(1)
     else:
         for page in range(page_start-1, page_end):
             writer.addPage(pdf.getPage(page))
