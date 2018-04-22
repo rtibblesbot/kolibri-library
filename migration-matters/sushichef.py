@@ -1,43 +1,42 @@
 #!/usr/bin/env python
 import os
+import re
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from le_utils.constants import licenses
-
+import requests
+import youtube_dl
+from bs4 import BeautifulSoup
+from client import Client
+from fake_useragent import UserAgent
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Migration Matters"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-migration-matters-en"    # Channel's unique id
-CHANNEL_DOMAIN = "migrationmatters.me/#featured_courses"          # Who is providing the content
-CHANNEL_LANGUAGE = "en"      # Language of channel
+CHANNEL_NAME = "Migration Matters"
+CHANNEL_SOURCE_ID = "sushi-chef-migration-matters-en"
+CHANNEL_DOMAIN = "migrationmatters.me/#featured_courses"
+CHANNEL_LANGUAGE = "en"
 CHANNEL_DESCRIPTION = "Migration Matters is a non-profit "\
                       "that was founded in 2016 to address "\
                       "big topics on migration through short-form "\
                       "video courses that empower the public to have "\
                       "more nuanced and evidence-based conversations "\
-                      "about migration and refugees."                                  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = "thumbnail.png"                                    # Local path or url to image file (optional)
+                      "about migration and refugees."
+CHANNEL_THUMBNAIL = "thumbnail.png"
 
 # Additional constants
 ################################################################################
-from client import Client
-from bs4 import BeautifulSoup
-import requests
-import youtube_dl
-import re
-from fake_useragent import UserAgent
 
 BASE_URL = "https://iversity.org"
 CLIENT = Client("shivi@learningequality.org", "kolibri")
 CHANNEL_LICENSE = licenses.CC_BY_NC_ND
 COPYRIGHT_HOLDER = "CC BY-NC-ND 4.0"
 EMAIL_COURSE_URL = "http://migrationmatters.me/episode/"
-_headers = { 'User-Agent': str(UserAgent().chrome) }
+HEADERS = {'User-Agent': str(UserAgent().chrome)}
 DOWNLOAD_DIRECTORY = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "downloads"])
-episode_dict = {}
-page_dict = {}
+EPISODE_DICT = {}
+PAGE_DICT = {}
 
 # Create download directory if it doesn't already exist
 if not os.path.exists(DOWNLOAD_DIRECTORY):
@@ -59,37 +58,44 @@ class MyChef(SushiChef):
     def construct_channel(self, *args, **kwargs):
         """
         Creates ChannelNode and build topic tree
-        Args:
-          - args: arguments passed in during upload_channel (currently None)
-          - kwargs: extra argumens and options not handled by `uploadchannel`.
-            For example, add the command line option   lang="fr"  and the string
-            "fr" will be passed along to `construct_channel` as kwargs['lang'].
-        Returns: ChannelNode
+
+        Migration-Matters is organized with the following hierarchy:
+        Iversity Site
+        Understanding Diversity (Topic)
+        |--- Welcome (Video - VideoNode)
+        |--- Who is 'Us' and Who is 'Them'? (Video - VideoNode)
+        ...
+        Email Course
+        A MIGRANT'S VIEW (Topic)
+        |--- Nassim's Takeaway: Can Europe Welcome Them All? (Video - VideoNode)
+        |--- Do Deportations Cut Migration? (Video - VideoNode)
+        ...
         """
+
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         CLIENT.login("{}/en/users/sign_in".format(BASE_URL))
         scrape_iversity(channel)
-        scrape_email_courses(channel, EMAIL_COURSE_URL)
+        scrape_email_courses(EMAIL_COURSE_URL)
 
         # create a topic node for each episode
         # and add videos with same episode as children
-        for episode in episode_dict:
+        for episode in EPISODE_DICT:
             source_id = episode.strip().replace(" ", "_")
             topic = nodes.TopicNode(source_id=source_id, title=episode)
-            for video in episode_dict[episode]:
+            for video in EPISODE_DICT[episode]:
                 topic.add_child(video)
             channel.add_child(topic)
 
         return channel
 
-def crawl_each_post(channel, post_url):
-    resp = requests.get(post_url, headers=_headers)
+def crawl_each_post(post_url):
+    resp = requests.get(post_url, headers=HEADERS)
     soup = BeautifulSoup(resp.content, "html.parser")
     wrapper = soup.find('div', {'class': 'wpb_wrapper'})
     course_name = wrapper.find('div', {'class': 'vc_custom_heading'}).getText().strip()
     delimiters = " OF ", " FROM "
-    regexPattern = '|'.join(map(re.escape, delimiters))
-    course = re.split(regexPattern, course_name)[1]
+    regex_pattern = '|'.join(map(re.escape, delimiters))
+    course = re.split(regex_pattern, course_name)[1]
     wpb_video_wrapper = wrapper.find_all('div', {'class': 'wpb_video_wrapper'})
 
     if wpb_video_wrapper:
@@ -121,33 +127,34 @@ def crawl_each_post(channel, post_url):
                 copyright_holder=COPYRIGHT_HOLDER
             )
 
-            if course not in episode_dict:
-                episode_dict[course] = [video_node]
+            if course not in EPISODE_DICT:
+                EPISODE_DICT[course] = [video_node]
             else:
-                episode_dict[course].append(video_node)
+                EPISODE_DICT[course].append(video_node)
             LOGGER.info("   Uploading video - {}".format(video_title.strip()))
 
-def crawl_video(channel, url, first=False):
-    resp = requests.get(url, headers=_headers)
+def crawl_video(url, first=False):
+    resp = requests.get(url, headers=HEADERS)
     soup = BeautifulSoup(resp.content, "html.parser")
     posts = soup.find_all('div', {'class': 'post'})
     for post in posts:
         post_url = post.find('a').attrs["href"]
-        crawl_each_post(channel, post_url)
+        crawl_each_post(post_url)
     if first:
         return soup
+    return None
 
-def scrape_email_courses(channel, url):
-    soup = crawl_video(channel, url, True)
+def scrape_email_courses(url):
+    soup = crawl_video(url, True)
     pagination = soup.find('div', {'class': 'pagination'}).find_all('li')
 
-    for page in pagination:
-        pg, status = page.find("a").string, page.attrs.get("class")
-        if pg not in page_dict:
-            page_dict[pg] = status
+    for each_page in pagination:
+        page, status = each_page.find("a").string, each_page.attrs.get("class")
+        if page not in PAGE_DICT:
+            PAGE_DICT[page] = status
             if status is None:
-                next_page_url = page.find("a").attrs["href"]
-                crawl_video(channel, next_page_url)
+                next_page_url = each_page.find("a").attrs["href"]
+                crawl_video(next_page_url)
 
 def scrape_iversity(channel):
     url = "{}/en/my/courses/rethinking-us-them-integration-and-diversity-in-europe/lesson_units".format(BASE_URL)
