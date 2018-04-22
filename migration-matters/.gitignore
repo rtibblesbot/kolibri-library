@@ -72,3 +72,6 @@ storage/*
 restore/*
 ghostdriver.log
 .webcache/*
+
+#ignore added files with DS_Store
+.DS_Store
