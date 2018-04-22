@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 import os
-import sys
-from ricecooker.utils import downloader, html_writer
 from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files, questions, licenses
+from ricecooker.classes import nodes, files
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
-from ricecooker.exceptions import raise_for_invalid_channel
-from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
+from le_utils.constants import licenses
 
 
 # Run constants
@@ -25,7 +22,6 @@ CHANNEL_THUMBNAIL = "thumbnail.png"                                    # Local p
 
 # Additional constants
 ################################################################################
-from robobrowser import RoboBrowser
 from client import Client
 from bs4 import BeautifulSoup
 import requests
@@ -50,17 +46,7 @@ if not os.path.exists(DOWNLOAD_DIRECTORY):
 # The chef subclass
 ################################################################################
 class MyChef(SushiChef):
-    """
-    This class uploads the Migration Matters channel to Kolibri Studio.
-    Your command line script should call the `main` method as the entry point,
-    which performs the following steps:
-      - Parse command line arguments and options (run `./sushichef.py -h` for details)
-      - Call the `SushiChef.run` method which in turn calls `pre_run` (optional)
-        and then the ricecooker function `uploadchannel` which in turn calls this
-        class' `get_channel` method to get channel info, then `construct_channel`
-        to build the contentnode tree.
-    For more info, see https://github.com/learningequality/ricecooker/tree/master/docs
-    """
+
     channel_info = {                                   # Channel Metadata
         'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,       # Who is providing the content
         'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,        # Channel's unique id
@@ -69,10 +55,6 @@ class MyChef(SushiChef):
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,        # Local path or url to image file (optional)
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,    # Description of the channel (optional)
     }
-    # Your chef subclass can ovverdie/extend the following method:
-    # get_channel: to create ChannelNode manually instead of using channel_info
-    # pre_run: to perform preliminary tasks, e.g., crawling and scraping website
-    # __init__: if need to customize functionality or add command line arguments
 
     def construct_channel(self, *args, **kwargs):
         """
@@ -104,18 +86,13 @@ def crawl_each_post(channel, post_url):
     resp = requests.get(post_url, headers=_headers)
     soup = BeautifulSoup(resp.content, "html.parser")
     wrapper = soup.find('div', {'class': 'wpb_wrapper'})
-    episode_name = wrapper.find('h1', {'class': 'vc_custom_heading'}).getText().strip()
     course_name = wrapper.find('div', {'class': 'vc_custom_heading'}).getText().strip()
     delimiters = " OF ", " FROM "
     regexPattern = '|'.join(map(re.escape, delimiters))
     course = re.split(regexPattern, course_name)[1]
-    course_source_id = course.replace(" ", "_")
     wpb_video_wrapper = wrapper.find_all('div', {'class': 'wpb_video_wrapper'})
 
     if wpb_video_wrapper:
-        episode = episode_name
-        source_id = episode.strip().replace(" ", "_")
-        topic = nodes.TopicNode(source_id=source_id, title=episode)
 
         for each_wrapper in wpb_video_wrapper:
             video_url = each_wrapper.find('iframe').attrs["src"].split("?feature")[0]
@@ -174,7 +151,7 @@ def scrape_email_courses(channel, url):
 
 def scrape_iversity(channel):
     url = "{}/en/my/courses/rethinking-us-them-integration-and-diversity-in-europe/lesson_units".format(BASE_URL)
-    LOGGER.info("Scraping Migration Matters at {}".format(url))
+    LOGGER.info("   Scraping Migration Matters at {}".format(url))
     source = read_source(url)
     chapters = source.find_all('div', {'class': 'chapter-units-wrapper'})
 
@@ -208,7 +185,6 @@ def scrape_iversity(channel):
 def read_source(url):
     response = CLIENT.get(url)
     return BeautifulSoup(response.content, 'html5lib')
-
 
 # CLI
 ################################################################################
