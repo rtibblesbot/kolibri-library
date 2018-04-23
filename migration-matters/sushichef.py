@@ -4,12 +4,13 @@ import re
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
-from le_utils.constants import licenses
+from ricecooker.exceptions import raise_for_invalid_channel
+from le_utils.constants import licenses, languages
 import requests
 import youtube_dl
 from bs4 import BeautifulSoup
-from client import Client
 from fake_useragent import UserAgent
+from client import Client
 
 # Run constants
 ################################################################################
@@ -86,6 +87,7 @@ class MyChef(SushiChef):
                 topic.add_child(video)
             channel.add_child(topic)
 
+        raise_for_invalid_channel(channel)                                  # Check for errors in channel construction
         return channel
 
 def crawl_each_post(post_url):
@@ -104,11 +106,16 @@ def crawl_each_post(post_url):
             video_url = each_wrapper.find('iframe').attrs["src"].split("?feature")[0]
             video_id = video_url.split("/")[-1]
 
-            ydl = youtube_dl.YoutubeDL({'outtmpl': './downloads/%(id)s.%(ext)s'})
+            ydl = youtube_dl.YoutubeDL({
+                'outtmpl': './downloads/%(id)s.%(ext)s',
+                'writeautomaticsub': True,
+                'logger': LOGGER
+            })
 
             with ydl:
                 result = ydl.extract_info(
-                    "http://www.youtube.com/watch?v={}".format(video_id)
+                    "http://www.youtube.com/watch?v={}".format(video_id),
+                    download=True
                 )
             if 'entries' in result:
                 video = result['entries'][0]
@@ -118,13 +125,15 @@ def crawl_each_post(post_url):
             video_title = video["title"]
             video_source_id = video_title.strip().replace(" ", "_")
             video_path = "{}/{}.mp4".format(DOWNLOAD_DIRECTORY, video_id)
-            video_file = files.VideoFile(path=video_path)
+            video_subtitle_path = "{}/{}.en.vtt".format(DOWNLOAD_DIRECTORY, video_id)
+            video_file = files.VideoFile(path=video_path, language=languages.getlang('en').code)
+            video_subtitle = files.SubtitleFile(path=video_subtitle_path, language=languages.getlang('en').code)
             video_node = nodes.VideoNode(
                 source_id=video_source_id,
                 title=video_title,
-                files=[video_file],
+                files=[video_file, video_subtitle],
                 license=CHANNEL_LICENSE,
-                copyright_holder=COPYRIGHT_HOLDER
+                copyright_holder=COPYRIGHT_HOLDER,
             )
 
             if course not in EPISODE_DICT:
@@ -132,6 +141,8 @@ def crawl_each_post(post_url):
             else:
                 EPISODE_DICT[course].append(video_node)
             LOGGER.info("   Uploading video - {}".format(video_title.strip()))
+    else:
+        LOGGER.info("Format of the file is not supported by the sushi chef : {}".format(course_name))
 
 def crawl_video(url, first=False):
     resp = requests.get(url, headers=HEADERS)
@@ -140,6 +151,8 @@ def crawl_video(url, first=False):
     for post in posts:
         post_url = post.find('a').attrs["href"]
         crawl_each_post(post_url)
+    # This is to return BeautifulSoup part to
+    # crawl next pages.
     if first:
         return soup
     return None
@@ -170,23 +183,29 @@ def scrape_iversity(channel):
 
         for lesson in lessons:
             video_exists = lesson.find('i', {'class': 'unit_video'})
+            video_title = str(lesson.find('span', {'class': 'unit-title'}).string).strip()
+
             if video_exists:
-                video_title = str(lesson.find('span', {'class': 'unit-title'}).string)
-                video_source_id = video_title.strip().replace(" ", "_")
+                video_source_id = video_title.replace(" ", "_")
                 video_url = "{}{}".format(BASE_URL, lesson.attrs["href"])
                 video_source = read_source(video_url)
                 video_info = video_source.find('video')
+                video_subtitle_path = video_info.find('track', {'kind': 'subtitles'}).attrs["src"]
+                video_subtitle = files.SubtitleFile(path=video_subtitle_path, language=languages.getlang('en').code)
                 video_link = video_info.find('source', {'res':'480'}).attrs["src"]
-                video_file = files.VideoFile(path=video_link)
+                video_file = files.VideoFile(path=video_link, language=languages.getlang('en').code)
                 video_node = nodes.VideoNode(
                     source_id=video_source_id,
                     title=video_title,
-                    files=[video_file],
+                    files=[video_file, video_subtitle],
                     license=CHANNEL_LICENSE,
                     copyright_holder=COPYRIGHT_HOLDER
                 )
                 LOGGER.info("   Uploading video - {}".format(video_title.strip()))
                 topic.add_child(video_node)
+            else:
+                LOGGER.info("Format of the file is not supported by the sushi chef : {}".format(video_title))
+
         channel.add_child(topic)
 
 def read_source(url):
