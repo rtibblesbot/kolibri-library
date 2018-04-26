@@ -1,11 +1,17 @@
 from git import Repo
 import ntpath
+import os
 from pathlib import Path
 
 
 def if_dir_exists(filepath):
     file_ = Path(filepath)
     return file_.is_dir()
+
+
+def if_file_exists(filepath):
+    my_file = Path(filepath)
+    return my_file.is_file()
 
 
 def remove_links(content):
@@ -33,3 +39,10 @@ def get_name_from_url(url):
 def clone_repo(git_url, repo_dir):
     if not if_dir_exists(repo_dir):
         Repo.clone_from(git_url, repo_dir)
+
+
+def build_path(levels):
+    path = os.path.join(*levels)
+    if not if_dir_exists(path):
+        os.makedirs(path)
+    return path
