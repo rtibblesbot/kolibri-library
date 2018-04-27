@@ -313,7 +313,7 @@ def add_page_flipper_buttons(doc, left_png, right_png):
     left_flipper_html = base_flipper_html % {
         "id": "left-flipper",
         "width": width,
-        "style": "left: 0; cursor: w-resize;",
+        "style": "left: 0; cursor: pointer;",
         "onclick": "$$('#go-back').click();",
         "src": left_png,
     }
@@ -321,7 +321,7 @@ def add_page_flipper_buttons(doc, left_png, right_png):
     right_flipper_html = base_flipper_html % {
         "id": "right-flipper",
         "width": width,
-        "style": "right: 0; cursor: e-resize;",
+        "style": "right: 0; cursor: pointer;",
         "onclick": "$$('#go-next').click();",
         "src": right_png,
     }

@@ -37,3 +37,15 @@
         line-height: 1.7vw !important;
     }
 }
+
+#go-back {
+    cursor: pointer;
+}
+
+#go-next {
+    cursor: pointer;
+}
+
+#readingRange {
+    cursor: pointer;
+}
