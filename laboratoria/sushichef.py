@@ -39,22 +39,28 @@ class Menu(object):
         #ul = ["<ul>"]        
         for a in links:
             dirname = a["href"]
-            a["href"] = "{}{}/{}".format(self.page.extra_files_path, dirname, "index.html")
+            a["href"] = ""#"{}{}/{}.html".format(self.page.extra_files_path, dirname, "index")
+            #print("URL MENU", a["href"])
             #ul.append("<li><a href='{}'>{}</a></li>".format(dirname, a.text))
             dirs.append(dirname)
         #ul.append("</ul>")
         #self.ul = "".join(ul)
         return dirs
 
-    def write_index(self, filepath):
-        with html_writer.HTMLWriter(filepath, "w") as zipper:
-            zipper.write_index_contents(self.page.to_string())
+    def write_index(self):
+        path = [DATA_DIR] + self.page.pwd[2:]
+        path = build_path(path)
+        #print(path, self.page.pwd[2:])
+        with html_writer.HTMLWriter(os.path.join(path, "index.zip"), "w") as zipper:
+            zipper.write_index_contents(str(self.page.content))
 
-    def write_contents(self, filepath):
-        with html_writer.HTMLWriter(filepath, "a") as zipper:
-            content = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
-                self.page.to_string())
-            zipper.write_contents(filepath, content, directory=self.page.extra_files_path)
+    #def write_contents(self, filepath):
+    #    with html_writer.HTMLWriter(filepath, "a") as zipper:
+    #        content = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
+    #            self.page.to_string())
+    #        path = [DATA_DIR] + self.page.pwd[3:]
+    #        path = build_path(path)
+    #        zipper.write_contents(os.path.join(path, "index.html"), content, directory=self.page.extra_files_path)
 
 
 class Markdown(object):
@@ -63,7 +69,8 @@ class Markdown(object):
         self.images = {}
         self.copyright = None
         self.extra_files_path = extra_files_path
-        self.root = None
+        self.htmlzip_filepath = None
+        self.pwd = self.filepath.split("/")[:-1]
 
     def exists(self):
         return if_file_exists(self.filepath)
@@ -84,8 +91,8 @@ class Markdown(object):
         else:
             return '<html><head><meta charset="UTF-8"></head><body>'+html+'</body></html>'
 
-    def to_string(self):
-        return str(self.content)
+    #def to_string(self):
+    #    return str(self.content)
 
     def parser(self, document):
         if document is not None:
@@ -106,8 +113,7 @@ class Markdown(object):
 
     def read_localdir(self):
         try:
-            directory = self.filepath.split("/")[:-1]
-            path = "/".join(directory)
+            path = "/".join(self.pwd)
             if if_dir_exists(path):
                 return os.listdir(path)
             else:
@@ -117,7 +123,7 @@ class Markdown(object):
             return []
 
     def write_images(self):
-        with html_writer.HTMLWriter(self.root, "a") as zipper:
+        with html_writer.HTMLWriter(self.htmlzip_filepath, "a") as zipper:
             for img_src, img_filename in self.images.items():
                 try:
                     zipper.write_url(img_src, img_filename, directory=self.extra_files_path)
@@ -132,15 +138,14 @@ class Markdown(object):
         else:
             self.copyright = None
 
-    def write_index(self, filepath, main_index=True):
+    def write_index(self):#, filepath, main_index=True):
         menu = Menu(self)
-        if main_index is True:
-            menu.write_index(filepath)
-        else:
-            menu.write_contents(filepath)
-        self.root = filepath
+        #if main_index is True:
+        menu.write_index()
+        #else:
+        #    menu.write_contents(filepath)
+        #self.htmlzip_filepath = filepath
         return menu
-
 
 #def read_markdown(filepath):
 #    input_file = codecs.open(filepath, mode="r", encoding="utf-8")
@@ -159,7 +164,7 @@ def folder_walker(repo_dir, dirs):
         readme = Markdown(os.path.join(repo_dir, directory, "README.md"), extra_files_path="files/")
         if readme.exists():
             readme.load()
-            menu = readme.write_index(base_dir, main_index=False)
+            menu = readme.write_index()#base_dir, main_index=False)
             subdirs = menu.subdirs
         else:
             subdirs = readme.read_localdir()
@@ -173,8 +178,8 @@ if __name__ == '__main__':
     readme = Markdown(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
     readme.load()
     base_dir = os.path.join(build_path([DATA_DIR]), "index.zip")
-    menu = readme.write_index(base_dir, main_index=True)
-    readme.write_images()
+    menu = readme.write_index()#base_dir, main_index=True)
+    #readme.write_images()
     folder_walker(repo_dir, menu.subdirs)
     #for page in menu.subdirs:
     #    print(page)
