@@ -69,3 +69,30 @@ def get_video_resolution_format(video, maxvres=720, ext="mp4"):
         return video.getbest(preftype=ext)
     else:
         return best
+
+
+def get_node_from_channel(source_id, channel_tree, exclude=None):
+    parent = channel_tree["children"]
+    while len(parent) > 0:
+        for children in parent:
+            if children is not None and children["source_id"] == source_id:
+                return children
+        nparent = []
+        for children in parent:
+            try:
+                if children is not None and children["title"] != exclude:
+                    nparent.extend(children["children"])
+            except KeyError:
+                pass
+        parent = nparent
+
+
+def get_level_map(tree, levels):
+    actual_node = levels[0]
+    r_levels = levels[1:]
+    for children in tree.get("children", []):
+        if children["source_id"] == actual_node:
+            if len(r_levels) >= 1:
+                return get_level_map(children, r_levels)
+            else:
+                return children

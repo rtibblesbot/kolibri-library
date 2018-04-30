@@ -21,14 +21,14 @@ from urllib.error import URLError#, urlencode
 from urllib.parse import urljoin
 from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
 from utils import if_file_exists, get_video_resolution_format, remove_links
-from utils import get_name_from_url_no_ext
+from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
 import youtube_dl   
 
 
 BASE_URL = "https://github.com/Laboratoria/"
 REPOSITORY_URL = "https://github.com/Laboratoria/curricula-js.git"
 DATA_DIR = "chefdata"
-COPYRIGHT_HOLDER = ""
+COPYRIGHT_HOLDER = "Laboratoria"
 
 LOGGER = logging.getLogger()
 __logging_handler = logging.StreamHandler()
@@ -124,7 +124,6 @@ class MarkdownReader(object):
         self.filepath = filepath
         self.copyright = None
         self.extra_files_path = extra_files_path
-        self.htmlzip_filepath = None
         self.pwd = self.filepath.split("/")[:-1]
         self.copyright = None
         self.url = self.pwd2url()
@@ -205,15 +204,35 @@ class MarkdownReader(object):
         if h2 is not None:
             self.copyright = h2.findNext('p')
 
+    def get_levels(self):
+        prefix = BASE_URL
+        levels = []
+        for level in self.pwd[2:-1]:
+            url = urljoin(prefix, level)
+            print(url)
+            levels.append(url)
+            prefix = url
+        return levels
+
     def write(self, channel_tree):
         menu = Menu(self)
         menu.write_index()
         menu.write_images()
-        menu_node = menu.to_node()
+        menu_node = get_node_from_channel(self.url, channel_tree)
+        if menu_node is None:
+            menu_node = menu.to_node()
+            levels = self.get_levels()
+            if len(levels) > 0:
+                parent = get_level_map(channel_tree, levels)
+            else:
+                parent = channel_tree
+            parent["children"].append(menu_node)
         for node in menu.write_pdfs():
-            menu_node["children"].append(node)
+            if node is not None:
+                menu_node["children"].append(node)
         for node in menu.write_videos():
-            menu_node["children"].append(node)
+            if node is not None:
+                menu_node["children"].append(node)
         remove_links(self.content)
         return menu
 
@@ -419,7 +438,7 @@ class LaboratoriaChef(JsonTreeChef):
         global channel_tree
         channel_tree = dict(
                 source_domain=LaboratoriaChef.HOSTNAME,
-                source_id='laboratoria',
+                source_id=BASE_URL,
                 title='Laboratoria',
                 description="""Trabajamos para ser la principal fuente de talento tech femenino de América Latina para el mundo, transformando el futuro de miles de mujeres y las empresas que las reciben."""[:400], #400 UPPER LIMIT characters allowed 
                 thumbnail=None,
