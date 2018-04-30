@@ -35,7 +35,7 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -45,39 +45,34 @@ sess.mount('http://', basic_adapter)
 sess.mount(BASE_URL, forever_adapter)
 
 
-#check if any google docs are avaible
+#fix: check if any google docs are avaible
 class Menu(object):
     def __init__(self, index):
         self.page = index
-        self.subdirs = self.build_list()
+        self.subdirs = self.get_subdirs()
+        self.subject = "FIX"
+        self.lang = "es"
+        self.filepath = None
 
-    def build_list(self):
+    def get_subdirs(self):
         dirs = []
         pattern = re.compile('\d{1,2}\-')
         if self.page.content is None:
             return dirs
         links = self.page.content.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"), href=pattern)
-        #ul = ["<ul>"]        
         for a in links:
             dirname = a["href"]
-            a["href"] = ""#"{}{}/{}.html".format(self.page.extra_files_path, dirname, "index")
-            #print("URL MENU", a["href"])
-            #ul.append("<li><a href='{}'>{}</a></li>".format(dirname, a.text))
             dirs.append(dirname)
-        #ul.append("</ul>")
-        #self.ul = "".join(ul)
         return dirs
 
     def write_index(self):
         path = [DATA_DIR] + self.page.pwd[2:]
-        path = build_path(path)
-        with html_writer.HTMLWriter(os.path.join(path, "index.zip"), "w") as zipper:
+        self.filepath = os.path.join(build_path(path), "index.zip")
+        with html_writer.HTMLWriter(self.filepath, "w") as zipper:
             zipper.write_index_contents(str(self.page.content))
 
     def write_images(self):
-        path = [DATA_DIR] + self.page.pwd[2:]
-        path = build_path(path)
-        with html_writer.HTMLWriter(os.path.join(path, "index.zip"), "a") as zipper:
+        with html_writer.HTMLWriter(self.filepath, "a") as zipper:
             for img_src, img_filename in self.page.get_images().items():
                 try:
                     zipper.write_url(img_src, img_filename, directory=self.page.extra_files_path)
@@ -99,18 +94,32 @@ class Menu(object):
             yield video.to_node()
 
     def to_node(self):
-        pass
+        node = dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.page.url,
+            title=self.subject,
+            description="",
+            license=None,
+            lang=self.lang,
+            children=[dict(
+                kind=content_kinds.HTML5,
+                source_id=urljoin(self.page.url, "README.md"),
+                title="README",
+                description="",
+                thumbnail=None,
+                author="",
+                files=[dict(
+                    file_type=content_kinds.HTML5,
+                    path=self.filepath
+                )],
+                language=self.lang,
+                license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
+            ]
+        )
+        return node
 
-    #def write_contents(self, filepath):
-    #    with html_writer.HTMLWriter(filepath, "a") as zipper:
-    #        content = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
-    #            self.page.to_string())
-    #        path = [DATA_DIR] + self.page.pwd[3:]
-    #        path = build_path(path)
-    #        zipper.write_contents(os.path.join(path, "index.html"), content, directory=self.page.extra_files_path)
 
-
-class Markdown(object):
+class MarkdownReader(object):
     def __init__(self, filepath, extra_files_path=""):
         self.filepath = filepath
         self.copyright = None
@@ -118,11 +127,15 @@ class Markdown(object):
         self.htmlzip_filepath = None
         self.pwd = self.filepath.split("/")[:-1]
         self.copyright = None
+        self.url = self.pwd2url()
+
+    def pwd2url(self):
+        return urljoin(BASE_URL, "/".join(self.pwd[2:]))
 
     def exists(self):
         return if_file_exists(self.filepath)
 
-    def load(self):
+    def load_content(self):
         self.content = self.parser(self.to_html())
         if self.content is not None:
             self.get_copyright()
@@ -192,17 +205,17 @@ class Markdown(object):
         if h2 is not None:
             self.copyright = h2.findNext('p')
 
-    def write(self):
+    def write(self, channel_tree):
         menu = Menu(self)
         menu.write_index()
         menu.write_images()
+        menu_node = menu.to_node()
         for node in menu.write_pdfs():
-            node
+            menu_node["children"].append(node)
         for node in menu.write_videos():
-            node
+            menu_node["children"].append(node)
         remove_links(self.content)
         return menu
-
 
 
 class YouTubeResource(object):
@@ -341,7 +354,6 @@ class File(object):
             ### this is a weird error, may be it's raised when the webpage
             ### is slow to respond requested resources
             LOGGER.info("Connection error, the resource will be scraped in 5s...")
-            time.sleep(3)
         except requests.exceptions.ReadTimeout as e:
             LOGGER.info("Error: {}".format(e))
         except requests.exceptions.TooManyRedirects as e:
@@ -362,40 +374,84 @@ class File(object):
                 license=self.license)
             return node
 
-#def read_markdown(filepath):
-#    input_file = codecs.open(filepath, mode="r", encoding="utf-8")
-#    text = input_file.read()
-#    html = markdown.markdown(text, output_format="html")
-#    output_file = codecs.open("/tmp/README.html", "w",
-#                          encoding="utf-8",
-#                          errors="xmlcharrefreplace")
-#    output_file.write(html)
 
-
-def folder_walker(repo_dir, dirs):
+def folder_walker(repo_dir, dirs, channel_tree):
     for directory in dirs:
-        print("---", repo_dir, directory)
-        readme = Markdown(os.path.join(repo_dir, directory, "README.md"), extra_files_path="files/")
+        LOGGER.info("--- {} {}".format(repo_dir, directory))
+        readme = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), extra_files_path="files/")
         if readme.exists():
-            readme.load()
-            menu = readme.write()#base_dir, main_index=False)
+            readme.load_content()
+            menu = readme.write(channel_tree)
             subdirs = menu.subdirs
         else:
             subdirs = readme.read_localdir()
-            print("Readme does not exists")
-        folder_walker(os.path.join(repo_dir, directory), subdirs)
-    
+            LOGGER.info("Readme does not exists")
+        #folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
+
+class LaboratoriaChef(JsonTreeChef):
+    HOSTNAME = BASE_URL
+    TREES_DATA_DIR = os.path.join(DATA_DIR, 'trees')
+    SCRAPING_STAGE_OUTPUT_TPL = 'ricecooker_json_tree.json'
+    LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+    THUMBNAIL = ""
+
+    def __init__(self):
+        build_path([LaboratoriaChef.TREES_DATA_DIR])
+        self.scrape_stage = os.path.join(LaboratoriaChef.TREES_DATA_DIR, 
+                                LaboratoriaChef.SCRAPING_STAGE_OUTPUT_TPL)
+        super(LaboratoriaChef, self).__init__()
+
+    def pre_run(self, args, options):
+        self.scrape(args, options)
+
+    def scrape(self, args, options):
+        repo_dir = os.path.join("/tmp/", "curricula-js")
+        #clone_repo(REPOSITORY_URL, repo_dir)
+        channel_tree = self._build_scraping_json_tree(repo_dir)
+        self.write_tree_to_json(channel_tree, "en")
+
+    def write_tree_to_json(self, channel_tree, lang):
+        write_tree_to_json_tree(self.scrape_stage, channel_tree)
+
+    def _build_scraping_json_tree(self, repo_dir):
+        LANG = 'es'
+        global channel_tree
+        channel_tree = dict(
+                source_domain=LaboratoriaChef.HOSTNAME,
+                source_id='laboratoria',
+                title='Laboratoria',
+                description="""Trabajamos para ser la principal fuente de talento tech femenino de América Latina para el mundo, transformando el futuro de miles de mujeres y las empresas que las reciben."""[:400], #400 UPPER LIMIT characters allowed 
+                thumbnail=None,
+                language=LANG,
+                children=[],
+                license=LaboratoriaChef.LICENSE,
+            )
+        
+        readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
+        readme.load_content()
+        menu = readme.write(channel_tree)
+        COPYRIGHT_HOLDER = readme.copyright
+        folder_walker(repo_dir, menu.subdirs, channel_tree)
+        return channel_tree
+
+
+# CLI: This code will run when `souschef.py` is called on the command line
+################################################################################
 if __name__ == '__main__':
-    repo_dir = os.path.join("/tmp/", "curricula-js")
+    chef = LaboratoriaChef()
+    chef.main()
+
+#if __name__ == '__main__':
+#    repo_dir = os.path.join("/tmp/", "curricula-js")
     #clone_repo(REPOSITORY_URL, repo_dir)
-    readme = Markdown(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
-    readme.load()
-    COPYRIGHT_HOLDER = readme.copyright
-    base_dir = os.path.join(build_path([DATA_DIR]), "index.zip")
-    menu = readme.write()#base_dir, main_index=True)
+#    readme = Markdown(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
+#    readme.load()
+#    COPYRIGHT_HOLDER = readme.copyright
+#    base_dir = os.path.join(build_path([DATA_DIR]), "index.zip")
+#    menu = readme.write()#base_dir, main_index=True)
     #readme.write_images()
-    folder_walker(repo_dir, menu.subdirs)
+#    folder_walker(repo_dir, menu.subdirs)
     #for page in menu.subdirs:
     #    print(page)
     #    readme = Markdown(os.path.join(repo_dir, page, "README.md"), extra_files_path="files/")
