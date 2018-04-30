@@ -2,10 +2,12 @@
 
 from bs4 import BeautifulSoup
 import codecs
+import copy
 from git import Repo
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
-import markdown
+#import markdown
+import markdown2
 import ntpath
 import os
 import pafy
@@ -50,7 +52,7 @@ class Menu(object):
     def __init__(self, index):
         self.page = index
         self.subdirs = self.get_subdirs()
-        self.subject = "FIX"
+        self.subject = self.page.subject()
         self.lang = "es"
         self.filepath = None
 
@@ -69,7 +71,9 @@ class Menu(object):
         path = [DATA_DIR] + self.page.pwd[2:]
         self.filepath = os.path.join(build_path(path), "index.zip")
         with html_writer.HTMLWriter(self.filepath, "w") as zipper:
-            zipper.write_index_contents(str(self.page.content))
+            content = copy.copy(self.page.content)
+            remove_links(content)
+            zipper.write_index_contents(str(content))
 
     def write_images(self):
         with html_writer.HTMLWriter(self.filepath, "a") as zipper:
@@ -134,6 +138,9 @@ class MarkdownReader(object):
     def exists(self):
         return if_file_exists(self.filepath)
 
+    def subject(self):
+        return self.pwd[-1]
+
     def load_content(self):
         self.content = self.parser(self.to_html())
         if self.content is not None:
@@ -143,7 +150,8 @@ class MarkdownReader(object):
         try:
             with codecs.open(self.filepath, mode="r", encoding="utf-8") as input_file:
                 text = input_file.read()
-                html = markdown.markdown(text, output_format="html")
+                #html = markdown.markdown(text, output_format="html")
+                html = markdown2.markdown(text, extras=["tables"])
         except FileNotFoundError as e:
             LOGGER.info("Error: {}".format(e))
         else:
@@ -233,7 +241,6 @@ class MarkdownReader(object):
         for node in menu.write_videos():
             if node is not None:
                 menu_node["children"].append(node)
-        remove_links(self.content)
         return menu
 
 
