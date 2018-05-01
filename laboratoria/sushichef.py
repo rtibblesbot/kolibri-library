@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import codecs
 import copy
 from git import Repo
+import glob
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
 import markdown2
@@ -66,21 +67,23 @@ class Menu(object):
             return dirs
         links = self.page.content.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"), href=pattern)
         for a in links:
-            dirname = a["href"]
-            dirs.append(dirname)
+            dirs.append(a["href"])
         return dirs
 
     def write_index(self):
         path = [DATA_DIR] + self.page.pwd[2:]
-        self.filepath = os.path.join(build_path(path), "index.zip")
+        filename = self.page.filepath.split("/")[-1]
+        self.filepath = os.path.join(build_path(path), "{}.zip".format(filename))
         with html_writer.HTMLWriter(self.filepath, "w") as zipper:
+            images = self.page.get_images()
             content = copy.copy(self.page.content)
             remove_links(content)
             zipper.write_index_contents(str(content))
+        return images
 
-    def write_images(self):
+    def write_images(self, images):
         with html_writer.HTMLWriter(self.filepath, "a") as zipper:
-            for img_src, img_filename in self.page.get_images().items():
+            for img_src, img_filename in images.items():
                 try:
                     zipper.write_url(img_src, img_filename, directory=self.page.extra_files_path)
                 except (requests.exceptions.HTTPError, requests.exceptions.SSLError):
@@ -100,8 +103,8 @@ class Menu(object):
             video.download(download=DOWNLOAD_VIDEOS, base_path=path)
             yield video.to_node()
 
-    def to_node(self):
-        node = dict(
+    def topic_node(self):
+        return dict(
             kind=content_kinds.TOPIC,
             source_id=self.page.url,
             title=self.subject,
@@ -110,11 +113,14 @@ class Menu(object):
             lang=self.lang,
             children=[]
         )
+
+    def to_node(self):
         if self.filepath is not None:
-            file_index = dict(
+            filename = self.page.filepath.split("/")[-1]
+            return dict(
                 kind=content_kinds.HTML5,
-                source_id=urljoin(self.page.url, "README.md"),
-                title="README",
+                source_id=urljoin(self.page.url, filename),
+                title=filename,
                 description="",
                 thumbnail=None,
                 author="",
@@ -124,8 +130,6 @@ class Menu(object):
                 )],
                 language=self.lang,
                 license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
-            node["children"].append(file_index)
-        return node
 
 
 class MarkdownReader(object):
@@ -204,7 +208,9 @@ class MarkdownReader(object):
         try:
             path = "/".join(self.pwd)
             if if_dir_exists(path):
-                return os.listdir(path)
+                return sorted([elem for elem in os.listdir(path) 
+                    if if_dir_exists(os.path.join(path, elem)) and\
+                    not elem.startswith(".")])
             else:
                 return []
         except FileNotFoundError as e:
@@ -228,8 +234,8 @@ class MarkdownReader(object):
 
     def write(self, channel_tree):
         menu = Menu(self)
-        menu.write_index()
-        menu.write_images()
+        images = menu.write_index()
+        menu.write_images(images)
         menu_node = self._set_node(menu, channel_tree)
         for node in menu.write_pdfs():
             if node is not None:
@@ -240,26 +246,29 @@ class MarkdownReader(object):
         return menu
 
     def _set_node(self, menu, channel_tree):
-        menu_node = get_node_from_channel(self.url, channel_tree)
-        if menu_node is None:
-            menu_node = menu.to_node()
+        topic_node = get_node_from_channel(self.url, channel_tree)
+        if topic_node is None:
+            topic_node = menu.topic_node()
             levels = self.get_levels()
             if len(levels) > 0:
                 parent = get_level_map(channel_tree, levels)
             else:
                 parent = channel_tree
             if parent is not None:
-                parent["children"].append(menu_node)
+                parent["children"].append(topic_node)
             else:
                 LOGGER.info("Element {} not found in channel tree".format(self.url))
-        return menu_node
+
+        menu_node = menu.to_node()
+        if menu_node is not None:
+            topic_node["children"].append(menu_node)
+        return topic_node
 
     def add_empty_node(self, channel_tree):
         menu = Menu(self)
         self._set_node(menu, channel_tree)
         return menu
         
-
 
 class YouTubeResource(object):
     def __init__(self, resource_url, type_name="Youtube", lang="en"):
@@ -422,15 +431,25 @@ def folder_walker(repo_dir, dirs, channel_tree):
     for directory in dirs:
         LOGGER.info("--- {} {}".format(repo_dir, directory))
         readme = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), extra_files_path="files/")
-        if readme.exists():
-            readme.load_content()
-            menu = readme.write(channel_tree)
-            subdirs = menu.subdirs
+        files = get_md_files(os.path.join(repo_dir, directory))
+        if len(files) > 0:
+            for filepath in files:
+                md = MarkdownReader(filepath, extra_files_path="files/")
+                md.load_content()
+                menu = md.write(channel_tree)
         else:
             readme.add_empty_node(channel_tree)
-            subdirs = readme.read_dir()
-            LOGGER.info("Readme does not exists")
+            LOGGER.info("END NODE")
+        subdirs = readme.read_dir()
         folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
+
+
+def get_md_files(path):
+    files = []
+    for filepath in glob.glob(os.path.join(path, "*.md")):
+        if not filepath.endswith("CONTRIBUTING.md"):
+            files.append(filepath)
+    return list(sorted(files))
 
 
 class LaboratoriaChef(JsonTreeChef):
@@ -453,7 +472,7 @@ class LaboratoriaChef(JsonTreeChef):
         repo = options.get('--repo', 'curricula-js')
         path = build_path([DATA_DIR, "git"])
         repo_dir = os.path.join(path, repo)
-        clone_repo(REPOSITORY_URL[repo], repo_dir)
+        #clone_repo(REPOSITORY_URL[repo], repo_dir)
         channel_tree = self._build_scraping_json_tree(repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
@@ -478,7 +497,7 @@ class LaboratoriaChef(JsonTreeChef):
         readme.load_content()
         menu = readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
-        folder_walker(repo_dir, menu.subdirs, channel_tree)
+        folder_walker(repo_dir, readme.read_dir(), channel_tree)
         return channel_tree
 
 
