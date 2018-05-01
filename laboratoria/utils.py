@@ -48,7 +48,13 @@ def get_name_from_url_no_ext(url):
 
 def clone_repo(git_url, repo_dir):
     if not if_dir_exists(repo_dir):
+        print("Cloning repository {}".format(git_url))
         Repo.clone_from(git_url, repo_dir)
+    else:
+        print("Pulling data from repository {}".format(git_url))
+        repo = Repo(repo_dir)
+        for info in repo.remotes.origin.pull():
+            print(info)
 
 
 def build_path(levels):

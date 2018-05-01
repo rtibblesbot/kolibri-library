@@ -27,7 +27,11 @@ import youtube_dl
 
 
 BASE_URL = "https://github.com/Laboratoria/"
-REPOSITORY_URL = "https://github.com/Laboratoria/curricula-js.git"
+REPOSITORY_URL = {
+    "curricula-js": "https://github.com/Laboratoria/curricula-js.git",
+    "curricula-ux": "https://github.com/Laboratoria/curricula-ux.git",
+    "curricula-mobile": "https://github.com/Laboratoria/curricula-mobile.git"
+}
 DATA_DIR = "chefdata"
 COPYRIGHT_HOLDER = "Laboratoria"
 
@@ -132,6 +136,7 @@ class MarkdownReader(object):
         self.pwd = self.filepath.split("/")[:-1]
         self.copyright = None
         self.url = self.pwd2url()
+        self.content = None
 
     def pwd2url(self):
         return urljoin(BASE_URL, "/".join(self.pwd[2:]))
@@ -195,7 +200,7 @@ class MarkdownReader(object):
                 yield YouTubeResource(url, lang="es")
                 unique_urls.add(url)
 
-    def read_localdir(self):
+    def read_dir(self):
         try:
             path = "/".join(self.pwd)
             if if_dir_exists(path):
@@ -225,6 +230,16 @@ class MarkdownReader(object):
         menu = Menu(self)
         menu.write_index()
         menu.write_images()
+        menu_node = self._set_node(menu, channel_tree)
+        for node in menu.write_pdfs():
+            if node is not None:
+                menu_node["children"].append(node)
+        for node in menu.write_videos():
+            if node is not None:
+                menu_node["children"].append(node)
+        return menu
+
+    def _set_node(self, menu, channel_tree):
         menu_node = get_node_from_channel(self.url, channel_tree)
         if menu_node is None:
             menu_node = menu.to_node()
@@ -233,14 +248,17 @@ class MarkdownReader(object):
                 parent = get_level_map(channel_tree, levels)
             else:
                 parent = channel_tree
-            parent["children"].append(menu_node)
-        for node in menu.write_pdfs():
-            if node is not None:
-                menu_node["children"].append(node)
-        for node in menu.write_videos():
-            if node is not None:
-                menu_node["children"].append(node)
+            if parent is not None:
+                parent["children"].append(menu_node)
+            else:
+                LOGGER.info("Element {} not found in channel tree".format(self.url))
+        return menu_node
+
+    def add_empty_node(self, channel_tree):
+        menu = Menu(self)
+        self._set_node(menu, channel_tree)
         return menu
+        
 
 
 class YouTubeResource(object):
@@ -409,7 +427,8 @@ def folder_walker(repo_dir, dirs, channel_tree):
             menu = readme.write(channel_tree)
             subdirs = menu.subdirs
         else:
-            subdirs = readme.read_localdir()
+            readme.add_empty_node(channel_tree)
+            subdirs = readme.read_dir()
             LOGGER.info("Readme does not exists")
         folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
@@ -431,8 +450,10 @@ class LaboratoriaChef(JsonTreeChef):
         self.scrape(args, options)
 
     def scrape(self, args, options):
-        repo_dir = os.path.join("/tmp/", "curricula-js")
-        #clone_repo(REPOSITORY_URL, repo_dir)
+        repo = options.get('--repo', 'curricula-js')
+        path = build_path([DATA_DIR, "git"])
+        repo_dir = os.path.join(path, repo)
+        clone_repo(REPOSITORY_URL[repo], repo_dir)
         channel_tree = self._build_scraping_json_tree(repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
@@ -466,21 +487,3 @@ class LaboratoriaChef(JsonTreeChef):
 if __name__ == '__main__':
     chef = LaboratoriaChef()
     chef.main()
-
-#if __name__ == '__main__':
-#    repo_dir = os.path.join("/tmp/", "curricula-js")
-    #clone_repo(REPOSITORY_URL, repo_dir)
-#    readme = Markdown(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
-#    readme.load()
-#    COPYRIGHT_HOLDER = readme.copyright
-#    base_dir = os.path.join(build_path([DATA_DIR]), "index.zip")
-#    menu = readme.write()#base_dir, main_index=True)
-    #readme.write_images()
-#    folder_walker(repo_dir, menu.subdirs)
-    #for page in menu.subdirs:
-    #    print(page)
-    #    readme = Markdown(os.path.join(repo_dir, page, "README.md"), extra_files_path="files/")
-    #    readme.load()
-    #    menu = readme.write_index(base_dir, main_index=False)
-    #    print(menu.subdirs)
-        #break
