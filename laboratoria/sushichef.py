@@ -6,7 +6,6 @@ import copy
 from git import Repo
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
-#import markdown
 import markdown2
 import ntpath
 import os
@@ -105,7 +104,10 @@ class Menu(object):
             description="",
             license=None,
             lang=self.lang,
-            children=[dict(
+            children=[]
+        )
+        if self.filepath is not None:
+            file_index = dict(
                 kind=content_kinds.HTML5,
                 source_id=urljoin(self.page.url, "README.md"),
                 title="README",
@@ -118,8 +120,7 @@ class Menu(object):
                 )],
                 language=self.lang,
                 license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
-            ]
-        )
+            node["children"].append(file_index)
         return node
 
 
@@ -150,7 +151,6 @@ class MarkdownReader(object):
         try:
             with codecs.open(self.filepath, mode="r", encoding="utf-8") as input_file:
                 text = input_file.read()
-                #html = markdown.markdown(text, output_format="html")
                 html = markdown2.markdown(text, extras=["tables"])
         except FileNotFoundError as e:
             LOGGER.info("Error: {}".format(e))
@@ -217,9 +217,8 @@ class MarkdownReader(object):
         levels = []
         for level in self.pwd[2:-1]:
             url = urljoin(prefix, level)
-            print(url)
             levels.append(url)
-            prefix = url
+            prefix = "{}/".format(url)
         return levels
 
     def write(self, channel_tree):
@@ -412,7 +411,7 @@ def folder_walker(repo_dir, dirs, channel_tree):
         else:
             subdirs = readme.read_localdir()
             LOGGER.info("Readme does not exists")
-        #folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
+        folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
 
 class LaboratoriaChef(JsonTreeChef):
