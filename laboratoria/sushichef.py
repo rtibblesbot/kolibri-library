@@ -469,17 +469,6 @@ class LaboratoriaChef(JsonTreeChef):
         self.scrape(args, options)
 
     def scrape(self, args, options):
-        repo = options.get('--repo', 'curricula-js')
-        path = build_path([DATA_DIR, "git"])
-        repo_dir = os.path.join(path, repo)
-        #clone_repo(REPOSITORY_URL[repo], repo_dir)
-        channel_tree = self._build_scraping_json_tree(repo_dir)
-        self.write_tree_to_json(channel_tree, "en")
-
-    def write_tree_to_json(self, channel_tree, lang):
-        write_tree_to_json_tree(self.scrape_stage, channel_tree)
-
-    def _build_scraping_json_tree(self, repo_dir):
         LANG = 'es'
         global channel_tree
         channel_tree = dict(
@@ -492,13 +481,28 @@ class LaboratoriaChef(JsonTreeChef):
                 children=[],
                 license=LaboratoriaChef.LICENSE,
             )
-        
+
+        path = build_path([DATA_DIR, "git"])
+        repos = options.get('--repo', None)
+        if repos is None:
+            repos = REPOSITORY_URL.keys()
+        else:
+            repos = [repos]
+        for repo in repos:
+            repo_dir = os.path.join(path, repo)
+            clone_repo(REPOSITORY_URL[repo], repo_dir)
+            self._build_scraping_json_tree(channel_tree, repo_dir)
+        self.write_tree_to_json(channel_tree, "en")
+
+    def write_tree_to_json(self, channel_tree, lang):
+        write_tree_to_json_tree(self.scrape_stage, channel_tree)
+
+    def _build_scraping_json_tree(self, channel_tree, repo_dir):
         readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
         readme.load_content()
         menu = readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
         folder_walker(repo_dir, readme.read_dir(), channel_tree)
-        return channel_tree
 
 
 # CLI: This code will run when `souschef.py` is called on the command line
