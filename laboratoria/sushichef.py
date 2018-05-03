@@ -44,7 +44,7 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -211,17 +211,18 @@ class MarkdownReader(object):
     def get_videos(self):
         pattern = re.compile('youtube.com|youtu\.be')
         videos = self.get_data_fn(["a"], {"href": pattern}, "href", YouTubeResource)
-        videos.extend(self.get_data_fn(["iframe"], {"src": pattern}, "src", YouTubeResource))
+        videos.extend(self.get_data_fn(["iframe"], {"src": pattern}, "src", 
+            YouTubeResource, embeded=True))
         return videos
 
-    def get_data_fn(self, fn_args, fn_kwargs, attr, class_):
+    def get_data_fn(self, fn_args, fn_kwargs, attr, class_, **extra_params):
         unique_urls = set([])
         data = []
         for tag in self.content.find_all(*fn_args, **fn_kwargs):
             url = tag.get(attr, "")
             LOGGER.info("Tag: {} source url {}".format(tag.name, url))
             if url not in unique_urls and url:
-                data.append(class_(url, lang="es"))
+                data.append(class_(url, lang="es", **extra_params))
                 unique_urls.add(url)
         return data
 
@@ -293,12 +294,15 @@ class MarkdownReader(object):
         
 
 class YouTubeResource(object):
-    def __init__(self, resource_url, type_name="Youtube", lang="en"):
+    def __init__(self, resource_url, type_name="Youtube", lang="en", embeded=False):
         LOGGER.info("Resource Type: "+type_name)
         self.filename = None
         self.type_name = type_name
         self.filepath = None
-        self.resource_url = self.clean_url(resource_url)
+        if embeded is True:
+            self.resource_url = YouTubeResource.transform_embed(resource_url)
+        else:
+            self.resource_url = self.clean_url(resource_url)
         self.file_format = file_formats.MP4
         self.lang = lang
 
@@ -362,10 +366,11 @@ class YouTubeResource(object):
             return
 
         download_to = build_path([base_path, 'videos'])
-        for try_number in range(10):
+        resolutions = [480, 360, 240, 720, 1080]
+        for maxvres in resolutions:
             try:
                 video = pafy.new(self.resource_url)
-                best = get_video_resolution_format(video, maxvres=480, ext="mp4")
+                best = get_video_resolution_format(video, maxvres=maxvres, ext="mp4")
                 LOGGER.info("Video resolution: {}".format(best.resolution))
                 self.filepath = os.path.join(download_to, best.filename)
                 if not if_file_exists(self.filepath):
@@ -377,7 +382,7 @@ class YouTubeResource(object):
                     LOGGER.info("Empty file")
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
-                LOGGER.info("Download retry:"+str(try_number))
+                LOGGER.info("Download retry")
                 time.sleep(.8)
             except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError, OSError) as e:
@@ -416,7 +421,7 @@ class File(object):
         try:
             response = sess.get(self.source_id)
             content_type = response.headers.get('content-type')
-            if 'application/pdf' in content_type:
+            if content_type is not None and 'application/pdf' in content_type:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
                 save_response_content(response, self.filepath)
                 LOGGER.info("   - Get file: {}".format(self.filename))
@@ -555,7 +560,7 @@ class LaboratoriaChef(JsonTreeChef):
             repos = [repos]
         for repo in repos:
             repo_dir = os.path.join(path, repo)
-            clone_repo(REPOSITORY_URL[repo], repo_dir)
+            #clone_repo(REPOSITORY_URL[repo], repo_dir)
             self._build_scraping_json_tree(channel_tree, repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
