@@ -102,3 +102,24 @@ def get_level_map(tree, levels):
                 return get_level_map(children, r_levels)
             else:
                 return children
+
+
+def remove_iframes(content):
+    if content is not None:
+        for iframe in content.find_all("iframe"):
+            iframe.extract()
+
+
+def get_confirm_token(response):
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+    return None
+
+
+def save_response_content(response, destination):
+    CHUNK_SIZE = 32768
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(CHUNK_SIZE):
+            if chunk:
+                f.write(chunk)

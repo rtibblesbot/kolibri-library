@@ -24,6 +24,7 @@ from urllib.parse import urljoin
 from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
 from utils import if_file_exists, get_video_resolution_format, remove_links
 from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
+from utils import remove_iframes, get_confirm_token, save_response_content
 import youtube_dl   
 
 
@@ -78,6 +79,7 @@ class Menu(object):
             images = self.page.get_images()
             content = copy.copy(self.page.content)
             remove_links(content)
+            remove_iframes(content)
             zipper.write_index_contents(str(content))
         return images
 
@@ -188,21 +190,29 @@ class MarkdownReader(object):
         return images
 
     def get_pdfs(self):
-        unique_urls = set([])
-        for a in self.content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")):
-            url = a.get("href", "")
-            if url not in unique_urls and url:
-                yield File(url, lang="es")
-                unique_urls.add(url)
+        files = self.get_data_fn([lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")], 
+            {}, "href", File)
+        files.extend(self.get_data_fn([lambda tag: tag.name == "iframe" and tag.attrs.get("src", "").endswith(".pdf")], {}, "src", File))
+        pattern = re.compile('drive\.google\.com')
+        files.extend(self.get_data_fn(["a"], {"href": pattern}, "href", FileDrive))
+        return files
 
     def get_videos(self):
         pattern = re.compile('youtube.com|youtu\.be')
+        videos = self.get_data_fn(["a"], {"href": pattern}, "href", YouTubeResource)
+        videos.extend(self.get_data_fn(["iframe"], {"src": pattern}, "src", YouTubeResource))
+        return videos
+
+    def get_data_fn(self, fn_args, fn_kwargs, attr, class_):
         unique_urls = set([])
-        for a in self.content.find_all("a", href=pattern):
-            url = a.get("href", "")
+        data = []
+        for tag in self.content.find_all(*fn_args, **fn_kwargs):
+            url = tag.get(attr, "")
+            LOGGER.info("Tag: {} source url {}".format(tag.name, url))
             if url not in unique_urls and url:
-                yield YouTubeResource(url, lang="es")
+                data.append(class_(url, lang="es"))
                 unique_urls.add(url)
+        return data
 
     def read_dir(self):
         try:
@@ -382,7 +392,7 @@ class YouTubeResource(object):
 
 
 class File(object):
-    def __init__(self, source_id, lang="en", lincese=""):
+    def __init__(self, source_id, lang="en", lincese="", drive=True):
         self.filename = get_name_from_url(source_id)
         self.source_id = urljoin(BASE_URL, source_id) if source_id.startswith("/") else source_id
         self.filepath = None
@@ -396,9 +406,7 @@ class File(object):
             content_type = response.headers.get('content-type')
             if 'application/pdf' in content_type:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
-                with open(self.filepath, 'wb') as f:
-                    for chunk in response.iter_content(10000):
-                        f.write(chunk)
+                save_response_content(response, self.filepath)
                 LOGGER.info("   - Get file: {}".format(self.filename))
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
@@ -425,6 +433,51 @@ class File(object):
                 language=self.lang,
                 license=self.license)
             return node
+
+
+class FileDrive(File):
+    def __init__(self, source_id, lang="en", lincese="", drive=True):
+        self.source_id = source_id
+        self.id = self.get_id_from_url()
+        self.filename = "googledrive_{}.pdf".format(self.id)
+        self.filepath = None
+        self.lang = lang
+        self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+
+    def get_id_from_url(self):
+        url = self.source_id
+        if url.find("file/d/") != -1:
+            index = url.find("file/d/")
+            end_index = index + len("file/d/") + url[index+len("file/d/"):].find("/")
+            return url[index+len("file/d/"):end_index].strip()
+        elif url.find("?id=") != -1:
+            index = url.find("?id=")
+            return url[index+len("?id="):].strip()
+
+    def download(self, base_path):
+        PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
+        try:
+            URL = "https://docs.google.com/uc?export=download"
+            response = sess.get(URL, params={'id': self.id}, stream=True)
+            token = get_confirm_token(response)
+            if token:
+                params = {'id':id, 'confirm':token}
+                response = sess.get(URL, params=params, stream=True)
+            content_type = response.headers.get('content-type')
+            if 'application/pdf' in content_type:
+                self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
+                save_response_content(response, self.filepath)
+                LOGGER.info("   - Get file: {}".format(self.filename))
+        except requests.exceptions.HTTPError as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.ConnectionError:
+            ### this is a weird error, may be it's raised when the webpage
+            ### is slow to respond requested resources
+            LOGGER.info("Connection error, the resource will be scraped in 5s...")
+        except requests.exceptions.ReadTimeout as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.TooManyRedirects as e:
+            LOGGER.info("Error: {}".format(e))
 
 
 def folder_walker(repo_dir, dirs, channel_tree):
