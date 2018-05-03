@@ -19,7 +19,8 @@ from ricecooker.chefs import JsonTreeChef
 from ricecooker.utils import downloader, html_writer
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree, SUBTITLES_FILE
-from urllib.error import URLError#, urlencode
+import time
+from urllib.error import URLError
 from urllib.parse import urljoin
 from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
 from utils import if_file_exists, get_video_resolution_format, remove_links
@@ -30,9 +31,10 @@ import youtube_dl
 
 BASE_URL = "https://github.com/Laboratoria/"
 REPOSITORY_URL = {
-    "curricula-js": "https://github.com/Laboratoria/curricula-js.git",
-    "curricula-ux": "https://github.com/Laboratoria/curricula-ux.git",
-    "curricula-mobile": "https://github.com/Laboratoria/curricula-mobile.git"
+    "curricula-js": urljoin(BASE_URL, "curricula-js.git"),
+    "curricula-ux": urljoin(BASE_URL, "curricula-ux.git"),
+    "curricula-mobile": urljoin(BASE_URL, "curricula-mobile.git"),
+    "executive-training": urljoin(BASE_URL, "executive-training")
 }
 DATA_DIR = "chefdata"
 COPYRIGHT_HOLDER = "Laboratoria"
@@ -82,6 +84,15 @@ class Menu(object):
             remove_iframes(content)
             zipper.write_index_contents(str(content))
         return images
+
+    def write_css_js(self):
+        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("styles.css") as f:
+            content = f.read()
+            zipper.write_contents("styles.css", content, directory="css/")
+
+        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("scripts.js") as f:
+            content = f.read()
+            zipper.write_contents("scrips.js", content, directory="js/")
 
     def write_images(self, images):
         with html_writer.HTMLWriter(self.filepath, "a") as zipper:
@@ -166,7 +177,7 @@ class MarkdownReader(object):
         except FileNotFoundError as e:
             LOGGER.info("Error: {}".format(e))
         else:
-            return '<html><head><meta charset="UTF-8"></head><body>'+html+'</body></html>'
+            return '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content">{}</div><script src="js/scripts.js"></script></body></html>'.format(html)
 
     def parser(self, document):
         if document is not None:
@@ -246,6 +257,7 @@ class MarkdownReader(object):
         menu = Menu(self)
         images = menu.write_index()
         menu.write_images(images)
+        menu.write_css_js()
         menu_node = self._set_node(menu, channel_tree)
         for node in menu.write_pdfs():
             if node is not None:
