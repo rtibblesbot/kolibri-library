@@ -323,21 +323,23 @@ class YouTubeResource(object):
         url = "".join(url.split("?")[:1])
         return url.replace("embed/", "watch?v=").strip()
 
-    def get_video_info(self):
+    def get_video_info(self, download_to=None, subtitles=True):
         ydl_options = {
-                'writesubtitles': True,
-                'allsubtitles': True,
+                'writesubtitles': subtitles,
+                'allsubtitles': subtitles,
                 'no_warnings': True,
                 'restrictfilenames':True,
                 'continuedl': True,
                 'quiet': False,
-                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='720')
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
+                'outtmpl': '{}/%(id)s'.format(download_to),
+                'noplaylist': True
             }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
             try:
                 ydl.add_default_info_extractors()
-                info = ydl.extract_info(self.resource_url, download=False)
+                info = ydl.extract_info(self.resource_url, download=(download_to is not None))
                 return info
             except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError) as e:
@@ -366,20 +368,15 @@ class YouTubeResource(object):
             return
 
         download_to = build_path([base_path, 'videos'])
-        resolutions = [480, 360, 240, 720, 1080]
-        for maxvres in resolutions:
+        for i in range(4):
             try:
-                video = pafy.new(self.resource_url)
-                best = get_video_resolution_format(video, maxvres=maxvres, ext="mp4")
-                LOGGER.info("Video resolution: {}".format(best.resolution))
-                self.filepath = os.path.join(download_to, best.filename)
-                if not if_file_exists(self.filepath):
-                    self.filepath = best.download(filepath=download_to)
-                    self.filename = get_name_from_url_no_ext(self.filepath)
-                else:
-                    LOGGER.info("Already downloded: {}".format(self.filepath))
-                if os.stat(self.filepath).st_size == 0:
-                    LOGGER.info("Empty file")
+                info = self.get_video_info(download_to=download_to, subtitles=False)
+                if info is not None:
+                    LOGGER.info("Video resolution: {}x{}".format(info.get("width", ""), info.get("height", "")))
+                    self.filepath = os.path.join(download_to, "{}.mp4".format(info["id"]))
+                    self.filename = info["title"]
+                    if self.filepath is not None and os.stat(self.filepath).st_size == 0:
+                        LOGGER.info("Empty file")
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
                 LOGGER.info("Download retry")
