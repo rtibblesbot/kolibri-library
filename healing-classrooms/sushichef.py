@@ -11,10 +11,10 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Healing Classrooms"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-healing-classrooms"    # Channel's unique id
+CHANNEL_NAME = "Healing Classrooms"                                # Name of channel
+CHANNEL_SOURCE_ID = "sushi-chef-healing-classrooms"                # Channel's unique id
 CHANNEL_DOMAIN = "www.youtube.com/user/HealingClassrooms"          # Who is providing the content
-CHANNEL_LANGUAGE = "mul"      # Language of channel
+CHANNEL_LANGUAGE = "mul"                                           # Language of channel
 CHANNEL_DESCRIPTION = "The IRC's Healing Classrooms began in 2004 as a global "\
                     + "organizational learning initiative focused on the broad "\
                     + "theme of teacher development for student well-being. It "\
@@ -25,7 +25,6 @@ CHANNEL_THUMBNAIL = "http://www.healingclassrooms.org/i/lg-irc-big.jpg"
 # Additional constants
 ################################################################################
 import youtube_dl
-import json
 
 PLAYLISTS_URL = "https://www.youtube.com/user/HealingClassrooms/playlists"
 AUTHOR = "International Rescue Committee"
@@ -75,12 +74,9 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        # # Download the playlist/video information
-        # with youtube_dl.YoutubeDL({'skip_download': True}) as ydl:
-        #     info_dict = ydl.extract_info(PLAYLISTS_URL, download=False)
-
-        with open('videos.json', 'rb') as f:
-            info_dict = json.loads(f.read())
+        # Download the playlist/video information
+        with youtube_dl.YoutubeDL({'skip_download': True}) as ydl:
+            info_dict = ydl.extract_info(PLAYLISTS_URL, download=False)
 
             # Generate topics based off playlist entries in dict
             for playlist in info_dict['entries']:
