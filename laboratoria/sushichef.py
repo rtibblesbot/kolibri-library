@@ -54,7 +54,7 @@ sess.mount('http://', basic_adapter)
 sess.mount(BASE_URL, forever_adapter)
 
 
-#fix: check if any google docs are avaible
+
 class Menu(object):
     def __init__(self, index):
         self.page = index
@@ -201,29 +201,33 @@ class MarkdownReader(object):
         return images
 
     def get_pdfs(self):
+        unique_urls = set([])
         files = self.get_data_fn([lambda tag: tag.name == "a" and tag.attrs.get("href", "").endswith(".pdf")], 
-            {}, "href", File)
-        files.extend(self.get_data_fn([lambda tag: tag.name == "iframe" and tag.attrs.get("src", "").endswith(".pdf")], {}, "src", File))
+            {}, "href", File, unique_urls)
+        files.extend(self.get_data_fn([lambda tag: tag.name == "iframe" and tag.attrs.get("src", "").endswith(".pdf")], {}, "src", File, unique_urls))
         pattern = re.compile('drive\.google\.com')
-        files.extend(self.get_data_fn(["a"], {"href": pattern}, "href", FileDrive))
+        files.extend(self.get_data_fn(["a"], {"href": pattern}, "href", FileDrive, unique_urls))
         return files
 
     def get_videos(self):
+        unique_urls = set([])
         pattern = re.compile('youtube.com|youtu\.be')
-        videos = self.get_data_fn(["a"], {"href": pattern}, "href", YouTubeResource)
+        videos = self.get_data_fn(["a"], {"href": pattern}, "href", YouTubeResource, 
+            unique_urls)
         videos.extend(self.get_data_fn(["iframe"], {"src": pattern}, "src", 
-            YouTubeResource, embeded=True))
+            YouTubeResource, unique_urls, embeded=True))
         return videos
 
-    def get_data_fn(self, fn_args, fn_kwargs, attr, class_, **extra_params):
-        unique_urls = set([])
+    def get_data_fn(self, fn_args, fn_kwargs, attr, class_, unique_urls, **extra_params):        
         data = []
         for tag in self.content.find_all(*fn_args, **fn_kwargs):
-            url = tag.get(attr, "")
+            url = tag.get(attr, None)
             LOGGER.info("Tag: {} source url {}".format(tag.name, url))
-            if url not in unique_urls and url:
-                data.append(class_(url, lang="es", **extra_params))
-                unique_urls.add(url)
+            if url is not None:
+                data_obj = class_(url, lang="es", **extra_params)
+                if data_obj.source_id not in unique_urls:
+                    data.append(data_obj)
+                    unique_urls.add(data_obj.source_id)
         return data
 
     def read_dir(self):
@@ -294,15 +298,15 @@ class MarkdownReader(object):
         
 
 class YouTubeResource(object):
-    def __init__(self, resource_url, type_name="Youtube", lang="en", embeded=False):
+    def __init__(self, source_id, type_name="Youtube", lang="en", embeded=False):
         LOGGER.info("Resource Type: "+type_name)
         self.filename = None
         self.type_name = type_name
         self.filepath = None
         if embeded is True:
-            self.resource_url = YouTubeResource.transform_embed(resource_url)
+            self.source_id = YouTubeResource.transform_embed(source_id)
         else:
-            self.resource_url = self.clean_url(resource_url)
+            self.source_id = self.clean_url(source_id)
         self.file_format = file_formats.MP4
         self.lang = lang
 
@@ -339,12 +343,12 @@ class YouTubeResource(object):
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
             try:
                 ydl.add_default_info_extractors()
-                info = ydl.extract_info(self.resource_url, download=(download_to is not None))
+                info = ydl.extract_info(self.source_id, download=(download_to is not None))
                 return info
             except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError) as e:
                 LOGGER.info('An error occured ' + str(e))
-                LOGGER.info(self.resource_url)
+                LOGGER.info(self.source_id)
             except KeyError as e:
                 LOGGER.info(str(e))
 
@@ -363,7 +367,7 @@ class YouTubeResource(object):
     #sometimes raises connection error
     #for that I choose pafy for downloading
     def download(self, download=True, base_path=None):
-        if not "watch?" in self.resource_url or "/user/" in self.resource_url or\
+        if not "watch?" in self.source_id or "/user/" in self.source_id or\
             download is False:
             return
 
@@ -396,7 +400,7 @@ class YouTubeResource(object):
             files += self.subtitles_dict()
             node = dict(
                 kind=content_kinds.VIDEO,
-                source_id=self.resource_url,
+                source_id=self.source_id,
                 title=self.filename,
                 description='',
                 files=files,
