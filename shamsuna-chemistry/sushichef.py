@@ -20,7 +20,7 @@ CHANNEL_DESCRIPTION = "The IRC's Healing Classrooms began in 2004 as a global "\
                     + "theme of teacher development for student well-being. It "\
                     + "was created in recognition of and response to the special "\
                     + "role of teachers in crisis and post-crisis education. "
-CHANNEL_THUMBNAIL = "http://www.healingclassrooms.org/i/lg-irc-big.jpg"
+CHANNEL_THUMBNAIL = "https://yt3.ggpht.com/-NJ6anwslbKA/AAAAAAAAAAI/AAAAAAAAAAA/w8SpF-eWqRA/s288-mo-c-c0xffffffff-rj-k-no/photo.jpg"
 
 # Additional constants
 ################################################################################
