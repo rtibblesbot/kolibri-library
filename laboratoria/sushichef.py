@@ -90,6 +90,10 @@ class Menu(object):
             content = f.read()
             zipper.write_contents("styles.css", content, directory="css/")
 
+        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("chefdata/highlight_default.css") as f:
+            content = f.read()
+            zipper.write_contents("highlight_default.css", content, directory="css/")
+
         with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("chefdata/scripts.js") as f:
             content = f.read()
             zipper.write_contents("scrips.js", content, directory="js/")
@@ -173,11 +177,11 @@ class MarkdownReader(object):
         try:
             with codecs.open(self.filepath, mode="r", encoding="utf-8") as input_file:
                 text = input_file.read()
-                html = markdown2.markdown(text, extras=["tables"])
+                html = markdown2.markdown(text, extras=["tables", "fenced-code-blocks"])
         except FileNotFoundError as e:
             LOGGER.info("Error: {}".format(e))
         else:
-            return '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content">{}</div><script src="js/scripts.js"></script></body></html>'.format(html)
+            return '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/highlight_default.css"></head><body><div class="main-content">{}</div><script src="js/scripts.js"></script></body></html>'.format(html)
 
     def parser(self, document):
         if document is not None:
@@ -566,7 +570,7 @@ class LaboratoriaChef(JsonTreeChef):
             repos = [repos]
         for repo in repos:
             repo_dir = os.path.join(path, repo)
-            #clone_repo(REPOSITORY_URL[repo], repo_dir)
+            clone_repo(REPOSITORY_URL[repo], repo_dir)
             self._build_scraping_json_tree(channel_tree, repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
@@ -584,6 +588,10 @@ class LaboratoriaChef(JsonTreeChef):
         r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
         with open("chefdata/styles.css", "wb") as f:
             f.write(r.content)
+
+        r = requests.get("https://raw.githubusercontent.com/richleland/pygments-css/master/default.css")
+        with open("chefdata/highlight_default.css", "w") as f:
+            f.write(r.content.decode("utf-8").replace(".highlight", ".codehilite"))
 
         r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/js/scripts.js")
         with open("chefdata/scripts.js", "wb") as f:
