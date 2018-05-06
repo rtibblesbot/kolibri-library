@@ -86,11 +86,11 @@ class Menu(object):
         return images
 
     def write_css_js(self):
-        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("styles.css") as f:
+        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("chefdata/styles.css") as f:
             content = f.read()
             zipper.write_contents("styles.css", content, directory="css/")
 
-        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("scripts.js") as f:
+        with html_writer.HTMLWriter(self.filepath, "a") as zipper, open("chefdata/scripts.js") as f:
             content = f.read()
             zipper.write_contents("scrips.js", content, directory="js/")
 
@@ -537,6 +537,11 @@ class LaboratoriaChef(JsonTreeChef):
         super(LaboratoriaChef, self).__init__()
 
     def pre_run(self, args, options):
+        css = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/styles.css")
+        js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/scripts.js")
+        if not if_file_exists(css) or not if_file_exists(js):
+            LOGGER.info("Downloading styles")
+            self.download_css_js()
         self.scrape(args, options)
 
     def scrape(self, args, options):
@@ -574,6 +579,16 @@ class LaboratoriaChef(JsonTreeChef):
         menu = readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
         folder_walker(repo_dir, readme.read_dir(), channel_tree)
+
+    def download_css_js(self):
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
+        with open("chefdata/styles.css", "wb") as f:
+            f.write(r.content)
+
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/js/scripts.js")
+        with open("chefdata/scripts.js", "wb") as f:
+            f.write(r.content)
+        
 
 
 # CLI: This code will run when `souschef.py` is called on the command line
