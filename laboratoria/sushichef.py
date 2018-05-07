@@ -419,7 +419,7 @@ class File(object):
         self.source_id = urljoin(BASE_URL, source_id) if source_id.startswith("/") else source_id
         self.filepath = None
         self.lang = lang
-        self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+        self.license = get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
@@ -464,7 +464,7 @@ class FileDrive(File):
         self.filename = "googledrive_{}.pdf".format(self.id)
         self.filepath = None
         self.lang = lang
-        self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+        self.license = get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def get_id_from_url(self):
         url = self.source_id
@@ -531,7 +531,7 @@ class LaboratoriaChef(JsonTreeChef):
     HOSTNAME = BASE_URL
     TREES_DATA_DIR = os.path.join(DATA_DIR, 'trees')
     SCRAPING_STAGE_OUTPUT_TPL = 'ricecooker_json_tree.json'
-    LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+    LICENSE = get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
     THUMBNAIL = ""
 
     def __init__(self):
