@@ -34,7 +34,7 @@ REPOSITORY_URL = {
     "curricula-js": urljoin(BASE_URL, "curricula-js.git"),
     "curricula-ux": urljoin(BASE_URL, "curricula-ux.git"),
     "curricula-mobile": urljoin(BASE_URL, "curricula-mobile.git"),
-    "executive-training": urljoin(BASE_URL, "executive-training")
+    "executive-training": urljoin(BASE_URL, "executive-training.git")
 }
 DATA_DIR = "chefdata"
 COPYRIGHT_HOLDER = "Laboratoria"
