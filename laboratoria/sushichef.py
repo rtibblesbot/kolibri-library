@@ -44,7 +44,7 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -124,7 +124,7 @@ class Menu(object):
         return dict(
             kind=content_kinds.TOPIC,
             source_id=self.page.url,
-            title=self.subject,
+            title=self.page.title,#self.subject,
             description="",
             license=None,
             lang=self.lang,
@@ -137,7 +137,7 @@ class Menu(object):
             return dict(
                 kind=content_kinds.HTML5,
                 source_id=urljoin(self.page.url, filename),
-                title=filename,
+                title=self.page.title,
                 description="",
                 thumbnail=None,
                 author="",
@@ -156,6 +156,7 @@ class MarkdownReader(object):
         self.extra_files_path = extra_files_path
         self.pwd = self.filepath.split("/")[:-1]
         self.copyright = None
+        self.title = None
         self.url = self.pwd2url()
         self.content = None
 
@@ -172,6 +173,7 @@ class MarkdownReader(object):
         self.content = self.parser(self.to_html())
         if self.content is not None:
             self.get_copyright()
+            self.get_title()
 
     def to_html(self):
         try:
@@ -252,6 +254,13 @@ class MarkdownReader(object):
             tag.text.find("Copyright") != -1)
         if h2 is not None:
             self.copyright = h2.findNext('p')
+
+    def get_title(self):
+        h1 = self.content.find("h1")
+        if h1 is not None:
+            self.title = h1.text
+        else:
+            self.title = self.filepath.split("/")[-1]
 
     def get_levels(self):
         prefix = BASE_URL
@@ -516,15 +525,38 @@ def folder_walker(repo_dir, dirs, channel_tree):
             readme.add_empty_node(channel_tree)
             LOGGER.info("END NODE")
         subdirs = readme.read_dir()
-        folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
+        #folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
 
 def get_md_files(path):
-    files = []
-    for filepath in glob.glob(os.path.join(path, "*.md")):
+    all_md_files = sorted(glob.glob(os.path.join(path, "*.md")))
+    md_files = []
+    readme = None
+    for i, filepath in enumerate(all_md_files):
+        if filepath.endswith("README.md"):
+            readme = filepath
+            all_md_files.pop(i)
+            break
+
+    for filepath in all_md_files:
         if not filepath.endswith("CONTRIBUTING.md"):
-            files.append(filepath)
-    return list(sorted(files))
+            md_files.append(filepath)
+
+    if readme is not None:
+        return [readme] + md_files
+    return md_files
+
+
+def clean_leafs_nodes(channel_tree):
+    children = channel_tree.get("children", [])
+    if len(children) == 1 and not "children" in children[0]:
+        print("LEAF NODE", channel_tree["title"])
+    elif len(children) == 0:
+        pass
+    else:
+        for node in children:
+            clean_leafs_nodes(node)
+    
 
 
 class LaboratoriaChef(JsonTreeChef):
@@ -570,7 +602,7 @@ class LaboratoriaChef(JsonTreeChef):
             repos = [repos]
         for repo in repos:
             repo_dir = os.path.join(path, repo)
-            clone_repo(REPOSITORY_URL[repo], repo_dir)
+            #clone_repo(REPOSITORY_URL[repo], repo_dir)
             self._build_scraping_json_tree(channel_tree, repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
@@ -582,7 +614,8 @@ class LaboratoriaChef(JsonTreeChef):
         readme.load_content()
         menu = readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
-        folder_walker(repo_dir, readme.read_dir(), channel_tree)
+        folder_walker(repo_dir, readme.read_dir()[1:], channel_tree)#skiped 00-template dir
+        clean_leafs_nodes(channel_tree)
 
     def download_css_js(self):
         r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
