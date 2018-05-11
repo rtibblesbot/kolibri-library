@@ -124,7 +124,7 @@ class Menu(object):
         return dict(
             kind=content_kinds.TOPIC,
             source_id=self.page.url,
-            title=self.page.title,#self.subject,
+            title=self.page.title,
             description="",
             license=None,
             lang=self.lang,
@@ -150,18 +150,19 @@ class Menu(object):
 
 
 class MarkdownReader(object):
-    def __init__(self, filepath, extra_files_path=""):
+    def __init__(self, filepath, extra_files_path="", title=None):
         self.filepath = filepath
         self.copyright = None
         self.extra_files_path = extra_files_path
         self.pwd = self.filepath.split("/")[:-1]
         self.copyright = None
-        self.title = None
+        self.title = self.filepath.split("/")[-1] if title is None else title 
         self.url = self.pwd2url()
         self.content = None
+        self.lang = "es"
 
     def pwd2url(self):
-        return urljoin(BASE_URL, "/".join(self.pwd[2:]))
+        return urljoin(BASE_URL, "/".join(self.pwd[2:]+[""]))
 
     def exists(self):
         return if_file_exists(self.filepath)
@@ -173,7 +174,7 @@ class MarkdownReader(object):
         self.content = self.parser(self.to_html())
         if self.content is not None:
             self.get_copyright()
-            self.get_title()
+            self.get_h1_title()
 
     def to_html(self):
         try:
@@ -255,20 +256,18 @@ class MarkdownReader(object):
         if h2 is not None:
             self.copyright = h2.findNext('p')
 
-    def get_title(self):
+    def get_h1_title(self):
         h1 = self.content.find("h1")
         if h1 is not None:
             self.title = h1.text
-        else:
-            self.title = self.filepath.split("/")[-1]
 
     def get_levels(self):
         prefix = BASE_URL
         levels = []
         for level in self.pwd[2:-1]:
-            url = urljoin(prefix, level)
+            url = urljoin(prefix, level+"/")
             levels.append(url)
-            prefix = "{}/".format(url)
+            prefix = url
         return levels
 
     def write(self, channel_tree):
@@ -297,7 +296,7 @@ class MarkdownReader(object):
             if parent is not None:
                 parent["children"].append(topic_node)
             else:
-                LOGGER.info("Element {} not found in channel tree".format(self.url))
+                LOGGER.info("Element {} does not found in channel tree".format(self.url))
 
         menu_node = menu.to_node()
         if menu_node is not None:
@@ -308,6 +307,17 @@ class MarkdownReader(object):
         menu = Menu(self)
         self._set_node(menu, channel_tree)
         return menu
+
+    #def main_node(self, channel_tree):
+    #    channel_tree["children"].append(dict(
+    #        kind=content_kinds.TOPIC,
+    #        source_id=self.url,
+    #        title=self.subject(),
+    #        description="",
+    #        license=None,
+    #        lang=self.lang,
+    #        children=[]
+    #    ))
         
 
 class YouTubeResource(object):
@@ -514,7 +524,6 @@ class FileDrive(File):
 def folder_walker(repo_dir, dirs, channel_tree):
     for directory in dirs:
         LOGGER.info("--- {} {}".format(repo_dir, directory))
-        readme = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), extra_files_path="files/")
         files = get_md_files(os.path.join(repo_dir, directory))
         if len(files) > 0:
             for filepath in files:
@@ -522,10 +531,12 @@ def folder_walker(repo_dir, dirs, channel_tree):
                 md.load_content()
                 menu = md.write(channel_tree)
         else:
-            readme.add_empty_node(channel_tree)
+            md = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), 
+                extra_files_path="files/", title=directory)
+            md.add_empty_node(channel_tree)
             LOGGER.info("END NODE")
-        subdirs = readme.read_dir()
-        #folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
+        subdirs = md.read_dir()
+        folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
 
 def get_md_files(path):
@@ -550,12 +561,15 @@ def get_md_files(path):
 def clean_leafs_nodes(channel_tree):
     children = channel_tree.get("children", [])
     if len(children) == 1 and not "children" in children[0]:
-        print("LEAF NODE", channel_tree["title"])
+        return channel_tree["children"][0]
     elif len(children) == 0:
         pass
     else:
-        for node in children:
-            clean_leafs_nodes(node)
+        for i, node in enumerate(children):
+            leaf_node = clean_leafs_nodes(node)
+            if leaf_node is not None:
+                print("SOURCE ID", leaf_node["source_id"], leaf_node["title"])
+                children[i] = leaf_node
     
 
 
@@ -611,6 +625,7 @@ class LaboratoriaChef(JsonTreeChef):
 
     def _build_scraping_json_tree(self, channel_tree, repo_dir):
         readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
+        #readme.main_node(channel_tree)
         readme.load_content()
         menu = readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
