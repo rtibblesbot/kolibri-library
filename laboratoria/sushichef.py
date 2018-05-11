@@ -6,6 +6,7 @@ import copy
 from git import Repo
 import glob
 from le_utils.constants import licenses, content_kinds, file_formats
+import json
 import logging
 import markdown2
 import ntpath
@@ -109,9 +110,11 @@ class Menu(object):
     def write_pdfs(self):
         path = [DATA_DIR] + self.page.pwd[2:]
         path = build_path(path)
+        urllist = UrlList()
         for pdf in self.page.get_pdfs():
-            pdf.download(path)
-            yield pdf.to_node()
+            if urllist.valid_url(pdf.source_id):
+                pdf.download(path)
+                yield pdf.to_node()
 
     def write_videos(self):
         path = [DATA_DIR] + self.page.pwd[2:]
@@ -307,17 +310,6 @@ class MarkdownReader(object):
         menu = Menu(self)
         self._set_node(menu, channel_tree)
         return menu
-
-    #def main_node(self, channel_tree):
-    #    channel_tree["children"].append(dict(
-    #        kind=content_kinds.TOPIC,
-    #        source_id=self.url,
-    #        title=self.subject(),
-    #        description="",
-    #        license=None,
-    #        lang=self.lang,
-    #        children=[]
-    #    ))
         
 
 class YouTubeResource(object):
@@ -440,12 +432,20 @@ class File(object):
         self.lang = lang
         self.license = get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
+    def is_pdf(self):
+        response = sess.get(self.source_id)
+        content_type = response.headers.get('content-type')
+        if content_type is not None and 'application/pdf' in content_type:
+            return response
+
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
         try:
-            response = sess.get(self.source_id)
-            content_type = response.headers.get('content-type')
-            if content_type is not None and 'application/pdf' in content_type:
+            #response = sess.get(self.source_id)
+            #content_type = response.headers.get('content-type')
+            #if content_type is not None and 'application/pdf' in content_type:
+            response = self.is_pdf()
+            if response is not None:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
                 save_response_content(response, self.filepath)
                 LOGGER.info("   - Get file: {}".format(self.filename))
@@ -495,17 +495,30 @@ class FileDrive(File):
             index = url.find("?id=")
             return url[index+len("?id="):].strip()
 
+    def is_pdf(self):
+        URL = "https://docs.google.com/uc?export=download"
+        response = sess.get(URL, params={'id': self.id}, stream=True)
+        token = get_confirm_token(response)
+        if token:
+            params = {'id':id, 'confirm':token}
+            response = sess.get(URL, params=params, stream=True)
+        content_type = response.headers.get('content-type')
+        if content_type is not None and 'application/pdf' in content_type:
+            return response
+
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
         try:
-            URL = "https://docs.google.com/uc?export=download"
-            response = sess.get(URL, params={'id': self.id}, stream=True)
-            token = get_confirm_token(response)
-            if token:
-                params = {'id':id, 'confirm':token}
-                response = sess.get(URL, params=params, stream=True)
-            content_type = response.headers.get('content-type')
-            if 'application/pdf' in content_type:
+            #URL = "https://docs.google.com/uc?export=download"
+            #response = sess.get(URL, params={'id': self.id}, stream=True)
+            #token = get_confirm_token(response)
+            #if token:
+            #    params = {'id':id, 'confirm':token}
+            #    response = sess.get(URL, params=params, stream=True)
+            #content_type = response.headers.get('content-type')
+            #if 'application/pdf' in content_type:
+            response = self.is_pdf()
+            if response is not None:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
                 save_response_content(response, self.filepath)
                 LOGGER.info("   - Get file: {}".format(self.filename))
@@ -537,6 +550,55 @@ def folder_walker(repo_dir, dirs, channel_tree):
             LOGGER.info("END NODE")
         subdirs = md.read_dir()
         folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
+
+
+def folder_walker_pdfs(repo_dir, dirs, urllist):
+    for directory in dirs:
+        LOGGER.info("--- {} {}".format(repo_dir, directory))
+        files = get_md_files(os.path.join(repo_dir, directory))
+        if len(files) > 0:
+            for filepath in files:
+                md = MarkdownReader(filepath, extra_files_path="files/")
+                md.load_content()
+                urllist.add_batch(md.get_pdfs())
+        else:
+            md = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), 
+                extra_files_path="files/", title=directory)
+        subdirs = md.read_dir()
+        folder_walker_pdfs(os.path.join(repo_dir, directory), subdirs, urllist)
+
+
+class UrlList(object):
+    def __init__(self):
+        self.load()
+        self.new_elem = False
+
+    def add_batch(self, file_objs):
+        for file_obj in file_objs:
+            if not file_obj.source_id in self.urls and file_obj.is_pdf() is not None:
+                self.urls[file_obj.source_id] = 0
+                self.new_elem = True
+
+    def load(self):
+        if if_file_exists("pdf_white_list.json"):
+            #try:
+            with open("pdf_white_list.json", "r") as f:
+                self.urls = json.load(f)
+            #except json.decoder.JSONDecodeError:
+            #    self.urls = {}
+        else:
+            self.urls = {}
+
+    def save(self):
+        if self.new_elem == True:
+            with open("pdf_white_list.json", "w") as f:
+                json.dump(self.urls, f, indent=2, sort_keys=True)
+
+    def valid_url(self, url):
+        try:
+            return self.urls["url"] == 1
+        except KeyError:
+            return False
 
 
 def get_md_files(path):
@@ -615,6 +677,14 @@ class LaboratoriaChef(JsonTreeChef):
             repos = REPOSITORY_URL.keys()
         else:
             repos = [repos]
+
+        for repo in repos:
+            repo_dir = os.path.join(path, repo)
+            urllist = UrlList()
+            readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
+            folder_walker_pdfs(repo_dir, readme.read_dir(), urllist)
+            urllist.save()
+
         for repo in repos:
             repo_dir = os.path.join(path, repo)
             #clone_repo(REPOSITORY_URL[repo], repo_dir)
@@ -626,11 +696,13 @@ class LaboratoriaChef(JsonTreeChef):
 
     def _build_scraping_json_tree(self, channel_tree, repo_dir):
         readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
-        #readme.main_node(channel_tree)
         readme.load_content()
         menu = readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
-        folder_walker(repo_dir, readme.read_dir()[1:], channel_tree)#skiped 00-template dir
+        dirs = readme.read_dir()
+        if "00-template" in dirs:
+            dirs = dirs[1:] #skiped 00-template dir
+        folder_walker(repo_dir, dirs, channel_tree)
         clean_leafs_nodes(channel_tree)
 
     def download_css_js(self):
