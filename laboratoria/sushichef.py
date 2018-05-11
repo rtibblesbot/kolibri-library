@@ -543,6 +543,9 @@ def get_md_files(path):
     all_md_files = sorted(glob.glob(os.path.join(path, "*.md")))
     md_files = []
     readme = None
+    #this put the readme file in the first place of the list to read the title
+    #and save it in the topic node. If README does not exist the title is read 
+    #from the next file or is set form the current directory name
     for i, filepath in enumerate(all_md_files):
         if filepath.endswith("README.md"):
             readme = filepath
@@ -558,19 +561,17 @@ def get_md_files(path):
     return md_files
 
 
+#If a node has only one child and this child does not have a child (leaf node),
+#the leaf node is set to a upper level
 def clean_leafs_nodes(channel_tree):
     children = channel_tree.get("children", [])
     if len(children) == 1 and not "children" in children[0]:
         return channel_tree["children"][0]
-    elif len(children) == 0:
-        pass
     else:
         for i, node in enumerate(children):
             leaf_node = clean_leafs_nodes(node)
             if leaf_node is not None:
-                print("SOURCE ID", leaf_node["source_id"], leaf_node["title"])
                 children[i] = leaf_node
-    
 
 
 class LaboratoriaChef(JsonTreeChef):
