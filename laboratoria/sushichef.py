@@ -45,7 +45,7 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -110,7 +110,7 @@ class Menu(object):
     def write_pdfs(self):
         path = [DATA_DIR] + self.page.pwd[2:]
         path = build_path(path)
-        urllist = UrlList()
+        urllist = UrlPDFList("pdf_white_list.json")
         for pdf in self.page.get_pdfs():
             if urllist.valid_url(pdf.source_id):
                 pdf.download(path)
@@ -119,9 +119,11 @@ class Menu(object):
     def write_videos(self):
         path = [DATA_DIR] + self.page.pwd[2:]
         path = build_path(path)
+        urllist = UrlVideoList("youtube_white_list.json")
         for video in self.page.get_videos():
-            video.download(download=DOWNLOAD_VIDEOS, base_path=path)
-            yield video.to_node()
+            if urllist.valid_url(video.source_id):
+                video.download(download=DOWNLOAD_VIDEOS, base_path=path)
+                yield video.to_node()
 
     def topic_node(self):
         return dict(
@@ -352,7 +354,7 @@ class YouTubeResource(object):
                 'quiet': False,
                 'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
                 'outtmpl': '{}/%(id)s'.format(download_to),
-                'noplaylist': True
+                'noplaylist': False
             }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
@@ -441,9 +443,6 @@ class File(object):
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
         try:
-            #response = sess.get(self.source_id)
-            #content_type = response.headers.get('content-type')
-            #if content_type is not None and 'application/pdf' in content_type:
             response = self.is_pdf()
             if response is not None:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
@@ -509,14 +508,6 @@ class FileDrive(File):
     def download(self, base_path):
         PDFS_DATA_DIR = build_path([base_path, 'pdfs'])
         try:
-            #URL = "https://docs.google.com/uc?export=download"
-            #response = sess.get(URL, params={'id': self.id}, stream=True)
-            #token = get_confirm_token(response)
-            #if token:
-            #    params = {'id':id, 'confirm':token}
-            #    response = sess.get(URL, params=params, stream=True)
-            #content_type = response.headers.get('content-type')
-            #if 'application/pdf' in content_type:
             response = self.is_pdf()
             if response is not None:
                 self.filepath = os.path.join(PDFS_DATA_DIR, self.filename)
@@ -552,7 +543,7 @@ def folder_walker(repo_dir, dirs, channel_tree):
         folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
 
-def folder_walker_pdfs(repo_dir, dirs, urllist):
+def folder_walker_items(repo_dir, dirs, urllist, attr='get_pdfs'):
     for directory in dirs:
         LOGGER.info("--- {} {}".format(repo_dir, directory))
         files = get_md_files(os.path.join(repo_dir, directory))
@@ -560,29 +551,25 @@ def folder_walker_pdfs(repo_dir, dirs, urllist):
             for filepath in files:
                 md = MarkdownReader(filepath, extra_files_path="files/")
                 md.load_content()
-                urllist.add_batch(md.get_pdfs())
+                urllist.add_batch(getattr(md, attr)())#md.get_pdfs())
         else:
             md = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), 
                 extra_files_path="files/", title=directory)
         subdirs = md.read_dir()
-        folder_walker_pdfs(os.path.join(repo_dir, directory), subdirs, urllist)
+        folder_walker_items(os.path.join(repo_dir, directory), subdirs, urllist, attr=attr)
+
 
 
 class UrlList(object):
-    def __init__(self):
+    def __init__(self, filename):
+        self.filename = os.path.join(DATA_DIR, filename)
         self.load()
         self.new_elem = False
 
-    def add_batch(self, file_objs):
-        for file_obj in file_objs:
-            if not file_obj.source_id in self.urls and file_obj.is_pdf() is not None:
-                self.urls[file_obj.source_id] = 0
-                self.new_elem = True
-
     def load(self):
-        if if_file_exists("pdf_white_list.json"):
+        if if_file_exists(self.filename):
             #try:
-            with open("pdf_white_list.json", "r") as f:
+            with open(self.filename, "r") as f:
                 self.urls = json.load(f)
             #except json.decoder.JSONDecodeError:
             #    self.urls = {}
@@ -591,7 +578,7 @@ class UrlList(object):
 
     def save(self):
         if self.new_elem == True:
-            with open("pdf_white_list.json", "w") as f:
+            with open(self.filename, "w") as f:
                 json.dump(self.urls, f, indent=2, sort_keys=True)
 
     def valid_url(self, url):
@@ -599,6 +586,22 @@ class UrlList(object):
             return self.urls["url"] == 1
         except KeyError:
             return False
+
+
+class UrlPDFList(UrlList):
+    def add_batch(self, file_objs):
+        for file_obj in file_objs:
+            if not file_obj.source_id in self.urls and file_obj.is_pdf() is not None:
+                self.urls[file_obj.source_id] = 0
+                self.new_elem = True
+
+
+class UrlVideoList(UrlList):
+    def add_batch(self, video_objs):
+        for video_obj in video_objs:
+            if not video_obj.source_id in self.urls:
+                self.urls[video_obj.source_id] = 0
+                self.new_elem = True
 
 
 def get_md_files(path):
@@ -678,12 +681,15 @@ class LaboratoriaChef(JsonTreeChef):
         else:
             repos = [repos]
 
+        url_pdf_list = UrlPDFList("pdf_white_list.json")
+        url_v_list = UrlVideoList("youtube_white_list.json")
         for repo in repos:
             repo_dir = os.path.join(path, repo)
-            urllist = UrlList()
             readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
-            folder_walker_pdfs(repo_dir, readme.read_dir(), urllist)
-            urllist.save()
+            folder_walker_items(repo_dir, readme.read_dir(), url_pdf_list, attr='get_pdfs')
+            folder_walker_items(repo_dir, readme.read_dir(), url_v_list, attr='get_videos')
+            url_pdf_list.save()
+            url_v_list.save()
 
         for repo in repos:
             repo_dir = os.path.join(path, repo)
