@@ -477,7 +477,7 @@ class File(object):
 
 class FileDrive(File):
     def __init__(self, source_id, lang="en", lincese="", drive=True):
-        self.source_id = source_id
+        self.source_id = source_id.strip()
         self.id = self.get_id_from_url()
         self.filename = "googledrive_{}.pdf".format(self.id)
         self.filepath = None
@@ -583,7 +583,7 @@ class UrlList(object):
 
     def valid_url(self, url):
         try:
-            return self.urls["url"] == 1
+            return self.urls[url] == 1
         except KeyError:
             return False
 
