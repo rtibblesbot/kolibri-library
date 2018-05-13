@@ -45,7 +45,7 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
-DOWNLOAD_VIDEOS = True
+DOWNLOAD_VIDEOS = False
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -56,7 +56,7 @@ sess.mount(BASE_URL, forever_adapter)
 
 
 
-class Menu(object):
+class HTMLApp(object):
     def __init__(self, index):
         self.page = index
         self.subdirs = self.get_subdirs()
@@ -276,23 +276,23 @@ class MarkdownReader(object):
         return levels
 
     def write(self, channel_tree):
-        menu = Menu(self)
-        images = menu.write_index()
-        menu.write_images(images)
-        menu.write_css_js()
-        menu_node = self._set_node(menu, channel_tree)
-        for node in menu.write_pdfs():
+        htmlapp = HTMLApp(self)
+        images = htmlapp.write_index()
+        htmlapp.write_images(images)
+        htmlapp.write_css_js()
+        htmlapp_node = self._set_node(htmlapp, channel_tree)
+        for node in htmlapp.write_pdfs():
             if node is not None:
-                menu_node["children"].append(node)
-        for node in menu.write_videos():
+                htmlapp_node["children"].append(node)
+        for node in htmlapp.write_videos():
             if node is not None:
-                menu_node["children"].append(node)
-        return menu
+                htmlapp_node["children"].append(node)
+        return htmlapp
 
-    def _set_node(self, menu, channel_tree):
+    def _set_node(self, htmlapp, channel_tree):
         topic_node = get_node_from_channel(self.url, channel_tree)
         if topic_node is None:
-            topic_node = menu.topic_node()
+            topic_node = htmlapp.topic_node()
             levels = self.get_levels()
             if len(levels) > 0:
                 parent = get_level_map(channel_tree, levels)
@@ -303,15 +303,14 @@ class MarkdownReader(object):
             else:
                 LOGGER.info("Element {} does not found in channel tree".format(self.url))
 
-        menu_node = menu.to_node()
-        if menu_node is not None:
-            topic_node["children"].append(menu_node)
+        htmlapp_node = htmlapp.to_node()
+        if htmlapp_node is not None:
+            topic_node["children"].append(htmlapp_node)
         return topic_node
 
     def add_empty_node(self, channel_tree):
-        menu = Menu(self)
-        self._set_node(menu, channel_tree)
-        return menu
+        htmlapp = HTMLApp(self)
+        return self._set_node(htmlapp, channel_tree)
         
 
 class YouTubeResource(object):
@@ -422,7 +421,7 @@ class YouTubeResource(object):
                 description='',
                 files=files,
                 language=self.lang,
-                license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
+                license=get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict())
             return node
 
 
@@ -525,18 +524,45 @@ class FileDrive(File):
             LOGGER.info("Error: {}".format(e))
 
 
+class JSFile(object):
+    def __init__(self, source_id, lang="en", lincese=""):
+        self.filename = get_name_from_url(source_id)
+        self.source_id = urljoin(BASE_URL, source_id)
+        self.filepath = None
+        self.lang = lang
+        self.license = get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+
+    def to_node(self):
+        node = dict(
+        kind=content_kinds.DOCUMENT,
+            source_id=self.source_id,
+            title=self.filename,
+            description='',
+            files=[dict(
+                file_type=content_kinds.DOCUMENT,
+                path=self.source_id
+            )],
+            language=self.lang,
+            license=self.license)
+        return node
+
+
 def folder_walker(repo_dir, dirs, channel_tree):
     for directory in dirs:
         LOGGER.info("--- {} {}".format(repo_dir, directory))
         files = get_md_files(os.path.join(repo_dir, directory))
+        js_files = get_js_files(os.path.join(repo_dir, directory))
         if len(files) > 0:
             for filepath in files:
                 md = MarkdownReader(filepath, extra_files_path="files/")
                 md.load_content()
-                menu = md.write(channel_tree)
+                md.write(channel_tree)
         else:
             md = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), 
                 extra_files_path="files/", title=directory)
+            if len(js_files) > 0:
+                for js_file in js_files:
+                    print(js_file.to_node())
             md.add_empty_node(channel_tree)
             LOGGER.info("END NODE")
         subdirs = md.read_dir()
@@ -626,8 +652,15 @@ def get_md_files(path):
     return md_files
 
 
-#If a node has only one child and this child does not have a child (leaf node),
-#the leaf node is set to a upper level
+def get_js_files(path):
+    js_files = []
+    for js_file in glob.glob(os.path.join(path, "*.js")):
+        js_files.append(JSFile(js_file))
+    return js_files
+
+
+#When a node has only one child and this child does not have a child (leaf node),
+#the leaf node is moved to an upper level
 def clean_leafs_nodes(channel_tree):
     children = channel_tree.get("children", [])
     if len(children) == 1 and not "children" in children[0]:
@@ -681,15 +714,15 @@ class LaboratoriaChef(JsonTreeChef):
         else:
             repos = [repos]
 
-        url_pdf_list = UrlPDFList("pdf_white_list.json")
-        url_v_list = UrlVideoList("youtube_white_list.json")
-        for repo in repos:
-            repo_dir = os.path.join(path, repo)
-            readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
-            folder_walker_items(repo_dir, readme.read_dir(), url_pdf_list, attr='get_pdfs')
-            folder_walker_items(repo_dir, readme.read_dir(), url_v_list, attr='get_videos')
-            url_pdf_list.save()
-            url_v_list.save()
+        #url_pdf_list = UrlPDFList("pdf_white_list.json")
+        #url_v_list = UrlVideoList("youtube_white_list.json")
+        #for repo in repos:
+        #    repo_dir = os.path.join(path, repo)
+        #    readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
+        #    folder_walker_items(repo_dir, readme.read_dir(), url_pdf_list, attr='get_pdfs')
+        #    folder_walker_items(repo_dir, readme.read_dir(), url_v_list, attr='get_videos')
+        #    url_pdf_list.save()
+        #    url_v_list.save()
 
         for repo in repos:
             repo_dir = os.path.join(path, repo)
@@ -703,7 +736,7 @@ class LaboratoriaChef(JsonTreeChef):
     def _build_scraping_json_tree(self, channel_tree, repo_dir):
         readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
         readme.load_content()
-        menu = readme.write(channel_tree)
+        readme.write(channel_tree)
         COPYRIGHT_HOLDER = readme.copyright
         dirs = readme.read_dir()
         if "00-template" in dirs:
