@@ -43,6 +43,11 @@ The zip archive can then be imported into Kolibri Studio using a LineCook script
 
 
 
-## Usage
+## Usage for scrape all Laboratoria's repositories
 
       ./sushichef.py -v --reset --token='.token'
+      
+## Usage for scrape specific repository
+
+      ./sushichef.py -v --reset --token='.token' --repo=<repository-name>
+      ./sushichef.py -v --reset --token='.token' --repo=curricula-js
