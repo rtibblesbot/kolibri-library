@@ -69,7 +69,8 @@ class HTMLApp(object):
         pattern = re.compile('\d{1,2}\-')
         if self.page.content is None:
             return dirs
-        links = self.page.content.find_all(lambda tag: tag.name == "a" and tag.findParent("h3"), href=pattern)
+        links = self.page.content.find_all(lambda tag: tag.name == "a" and\
+            tag.findParent("h3"), href=pattern)
         for a in links:
             dirs.append(a["href"])
         return dirs
@@ -287,7 +288,7 @@ class MarkdownReader(object):
         for node in htmlapp.write_videos():
             if node is not None:
                 htmlapp_node["children"].append(node)
-        return htmlapp
+        return htmlapp_node
 
     def _set_node(self, htmlapp, channel_tree):
         topic_node = get_node_from_channel(self.url, channel_tree)
@@ -524,47 +525,60 @@ class FileDrive(File):
             LOGGER.info("Error: {}".format(e))
 
 
-class JSFile(object):
+class LocalJSFile(object):
     def __init__(self, source_id, lang="en", lincese=""):
         self.filename = get_name_from_url(source_id)
-        self.source_id = urljoin(BASE_URL, source_id)
-        self.filepath = None
+        self.pwd = source_id.split("/")[:-1]
+        self.source_id = self.pwd2url()
+        self.filepath = os.path.join(*self.pwd, self.filename)
         self.lang = lang
         self.license = get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
+        self.zip_filepath = None
+
+    def pwd2url(self):
+        return urljoin(BASE_URL, "/".join(self.pwd[2:]+[self.filename]))
+
+    def write_index(self):
+        path = [DATA_DIR] + self.pwd[2:]
+        self.zip_filepath = os.path.join(build_path(path), "{}.zip".format(self.filename))
+        with html_writer.HTMLWriter(self.zip_filepath, "w") as zipper, open(self.filepath, 'r') as f:
+            zipper.write_index_contents(f.read())
 
     def to_node(self):
-        node = dict(
-        kind=content_kinds.DOCUMENT,
-            source_id=self.source_id,
-            title=self.filename,
-            description='',
-            files=[dict(
-                file_type=content_kinds.DOCUMENT,
-                path=self.source_id
-            )],
-            language=self.lang,
-            license=self.license)
-        return node
+        if self.zip_filepath is not None:
+            return dict(
+                kind=content_kinds.HTML5,
+                source_id=self.source_id,
+                title=self.filename,
+                description="",
+                thumbnail=None,
+                author="",
+                files=[dict(
+                    file_type=content_kinds.HTML5,
+                    path=self.zip_filepath
+                )],
+                language=self.lang,
+                license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
 
 
 def folder_walker(repo_dir, dirs, channel_tree):
     for directory in dirs:
         LOGGER.info("--- {} {}".format(repo_dir, directory))
-        files = get_md_files(os.path.join(repo_dir, directory))
-        js_files = get_js_files(os.path.join(repo_dir, directory))
-        if len(files) > 0:
-            for filepath in files:
+        md_files = get_md_files(os.path.join(repo_dir, directory))
+        if len(md_files) > 0:
+            for filepath in md_files:
                 md = MarkdownReader(filepath, extra_files_path="files/")
                 md.load_content()
-                md.write(channel_tree)
+                htmlapp_node = md.write(channel_tree)
         else:
             md = MarkdownReader(os.path.join(repo_dir, directory, "README.md"), 
                 extra_files_path="files/", title=directory)
-            if len(js_files) > 0:
-                for js_file in js_files:
-                    print(js_file.to_node())
-            md.add_empty_node(channel_tree)
-            LOGGER.info("END NODE")
+            htmlapp_node = md.add_empty_node(channel_tree)
+
+        js_files = get_js_files(os.path.join(repo_dir, directory))
+        for js_fileobj in js_files:
+            js_fileobj.write_index()
+            htmlapp_node["children"].append(js_fileobj.to_node())
         subdirs = md.read_dir()
         folder_walker(os.path.join(repo_dir, directory), subdirs, channel_tree)
 
@@ -655,7 +669,7 @@ def get_md_files(path):
 def get_js_files(path):
     js_files = []
     for js_file in glob.glob(os.path.join(path, "*.js")):
-        js_files.append(JSFile(js_file))
+        js_files.append(LocalJSFile(js_file))
     return js_files
 
 
@@ -669,6 +683,10 @@ def clean_leafs_nodes(channel_tree):
         for i, node in enumerate(children):
             leaf_node = clean_leafs_nodes(node)
             if leaf_node is not None:
+                if leaf_node["source_id"].endswith(".js"):
+                    levels = leaf_node["source_id"].split("/")
+                    parent_dir = levels[-2] #dirname
+                    leaf_node["title"] = "{}_{}".format(parent_dir, leaf_node["title"])
                 children[i] = leaf_node
 
 
