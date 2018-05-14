@@ -45,7 +45,7 @@ __logging_handler = logging.StreamHandler()
 LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -122,7 +122,7 @@ class HTMLApp(object):
         path = build_path(path)
         urllist = UrlVideoList("youtube_white_list.json")
         for video in self.page.get_videos():
-            if urllist.valid_url(video.source_id):
+            if urllist.valid_url(video.source_id) or video.is_valid:
                 video.download(download=DOWNLOAD_VIDEOS, base_path=path)
                 yield video.to_node()
 
@@ -229,6 +229,9 @@ class MarkdownReader(object):
             unique_urls)
         videos.extend(self.get_data_fn(["iframe"], {"src": pattern}, "src", 
             YouTubeResource, unique_urls, embeded=True))
+        pattern = re.compile('laboratoria.wistia.com')
+        videos.extend(self.get_data_fn(["a"], {"href": pattern}, "href", 
+            WistiaVideoResource, unique_urls))
         return videos
 
     def get_data_fn(self, fn_args, fn_kwargs, attr, class_, unique_urls, **extra_params):        
@@ -326,6 +329,7 @@ class YouTubeResource(object):
             self.source_id = self.clean_url(source_id)
         self.file_format = file_formats.MP4
         self.lang = lang
+        self.is_valid = False
 
     def clean_url(self, url):
         if url[-1] == "/":
@@ -398,6 +402,7 @@ class YouTubeResource(object):
                     self.filename = info["title"]
                     if self.filepath is not None and os.stat(self.filepath).st_size == 0:
                         LOGGER.info("Empty file")
+                        self.filepath = None
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
                 LOGGER.info("Download retry")
@@ -424,6 +429,70 @@ class YouTubeResource(object):
                 language=self.lang,
                 license=get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict())
             return node
+
+
+class LocalVideoResource(object):
+    def __init__(self, source_id, type_name="Local Video", lang="es"):
+        LOGGER.info("Resource Type: "+type_name)
+        self.source_id = source_id
+        self.file_format = file_formats.MP4
+        self.lang = lang        
+        self.filename = None
+        self.type_name = type_name
+        self.filepath = None
+        self.is_valid = True
+
+    def download(self, download=True, base_path=None):
+        if download is False:
+            return
+        download_to = build_path([base_path, 'videos'])
+        response = requests.get(self.source_id, stream=True)
+        if response.headers.get("content-type") != 'video/mp4':
+            return
+        self.filename = get_name_from_url(self.source_id)
+        self.filepath = os.path.join(download_to, "{}.mp4".format(self.filename))
+        if if_file_exists(self.filepath):
+            LOGGER.info("Video already downloaded {}".format(self.filepath))
+        else:
+            with open(self.filepath, 'wb') as f:
+                LOGGER.info("   - Downloading {}".format(self.source_id))
+                save_response_content(response, self.filepath)
+                #for chunk in r.iter_content(chunk_size=1024*4): 
+                #    if chunk:
+                #        f.write(chunk)
+                #        f.flush()
+        if self.filepath is not None and os.stat(self.filepath).st_size == 0:
+            LOGGER.info("Empty file")
+            self.filepath = None
+
+    def to_node(self):
+        if self.filepath is not None:
+            node = dict(
+                kind=content_kinds.VIDEO,
+                source_id=self.source_id,
+                title=self.filename,
+                description='',
+                files = [dict(file_type=content_kinds.VIDEO, path=self.filepath)],
+                language=self.lang,
+                license=get_license(licenses.CC_BY_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict())
+            return node
+
+
+class WistiaVideoResource(LocalVideoResource):
+    def __init__(self, *args, **kwargs):
+        super(WistiaVideoResource, self).__init__(*args, **kwargs)
+        self.get_url_from_embeded()
+        
+    def get_url_from_embeded(self):
+        r = requests.get(self.source_id)
+        parser = BeautifulSoup(r.content, 'html.parser')
+        pattern = re.compile("videoUrl=")
+        meta = parser.find("meta", content=pattern)
+        if meta is not None:
+            meta_content = meta.get("content", "")
+            init_index = meta_content.find("videoUrl=")
+            end_index = meta_content[init_index:].find("&")
+            self.source_id = meta_content[init_index+len("videoUrl="):end_index+init_index]
 
 
 class File(object):
@@ -542,7 +611,7 @@ class LocalJSFile(object):
         path = [DATA_DIR] + self.pwd[2:]
         self.zip_filepath = os.path.join(build_path(path), "{}.zip".format(self.filename))
         with html_writer.HTMLWriter(self.zip_filepath, "w") as zipper, open(self.filepath, 'r') as f:
-            zipper.write_index_contents(f.read())
+            zipper.write_index_contents('<html><head><meta charset="utf-8"></head><body>'+f.read().replace("\n", "<br>")+"</body></html>")
 
     def to_node(self):
         if self.zip_filepath is not None:
@@ -732,19 +801,19 @@ class LaboratoriaChef(JsonTreeChef):
         else:
             repos = [repos]
 
-        #url_pdf_list = UrlPDFList("pdf_white_list.json")
-        #url_v_list = UrlVideoList("youtube_white_list.json")
-        #for repo in repos:
-        #    repo_dir = os.path.join(path, repo)
-        #    readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
-        #    folder_walker_items(repo_dir, readme.read_dir(), url_pdf_list, attr='get_pdfs')
-        #    folder_walker_items(repo_dir, readme.read_dir(), url_v_list, attr='get_videos')
-        #    url_pdf_list.save()
-        #    url_v_list.save()
+        url_pdf_list = UrlPDFList("pdf_white_list.json")
+        url_v_list = UrlVideoList("youtube_white_list.json")
+        for repo in repos:
+            repo_dir = os.path.join(path, repo)
+            readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
+            folder_walker_items(repo_dir, readme.read_dir(), url_pdf_list, attr='get_pdfs')
+            folder_walker_items(repo_dir, readme.read_dir(), url_v_list, attr='get_videos')
+            url_pdf_list.save()
+            url_v_list.save()
 
         for repo in repos:
             repo_dir = os.path.join(path, repo)
-            #clone_repo(REPOSITORY_URL[repo], repo_dir)
+            clone_repo(REPOSITORY_URL[repo], repo_dir)
             self._build_scraping_json_tree(channel_tree, repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
@@ -775,6 +844,24 @@ class LaboratoriaChef(JsonTreeChef):
         with open("chefdata/scripts.js", "wb") as f:
             f.write(r.content)
         
+def test():
+    channel_tree = dict(
+        source_domain="",
+        source_id=BASE_URL,
+        title='Laboratoria',
+        description="""Trabajamos para ser la principal fuente de talento tech femenino de América Latina para el mundo, transformando el futuro de miles de mujeres y las empresas que las reciben."""[:400], #400 UPPER LIMIT characters allowed 
+        thumbnail=None,
+        language="es",
+        children=[],
+        license="",
+    )
+
+    #filepath = "chefdata/git/curricula-js/09-paradigms/01-paradigms/01-overview/README.md"
+    filepath = "chefdata/git/curricula-js/14-chatbot/02-getting-started/02-ms-bot-framework/README.md"
+    md = MarkdownReader(filepath, extra_files_path="files/")
+    md.load_content()
+    htmlapp_node = md.write(channel_tree)
+    print(htmlapp_node)
 
 
 # CLI: This code will run when `souschef.py` is called on the command line
@@ -782,3 +869,4 @@ class LaboratoriaChef(JsonTreeChef):
 if __name__ == '__main__':
     chef = LaboratoriaChef()
     chef.main()
+    #test()

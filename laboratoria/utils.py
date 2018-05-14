@@ -123,3 +123,4 @@ def save_response_content(response, destination):
         for chunk in response.iter_content(CHUNK_SIZE):
             if chunk:
                 f.write(chunk)
+                f.flush()
