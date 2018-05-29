@@ -16,7 +16,7 @@ import logging
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import re
-import localise
+# import localise
 #import ricecooker
 
 """ Run Constants"""
@@ -26,7 +26,7 @@ USERNAME = os.getenv('USERNAME')
 PASSWORD = os.getenv('PASSWORD')
 
 # make sure we're using the same session as localise is! (geogebra can use a different one, that's fine)
-session = localise.session                            # I wanted to use downloader.DOWNLOAD_SESSION, but that doesn't work...
+# session = localise.session                            # I wanted to use downloader.DOWNLOAD_SESSION, but that doesn't work...
 
 """ Additional Constants """
 ###########################################################
@@ -78,7 +78,7 @@ def login():
 
     assert "sign up as an educator" not in test_response.text
     assert "Rational Number" in test_response.text
-    localise.test_login()
+    # localise.test_login()
     
 """ Main Class """
 
@@ -98,16 +98,13 @@ class OpenUpChef(SushiChef):
         # create a topic and add it to channel
         
         
-        #filename = localise.make_local("https://im.openupresources.org/7/students/1/2.html")
-        filename = localise.make_local("https://im.openupresources.org/7/students/3/2.html")
-        print('generated', filename)
-        file = HTMLZipFile(filename)
+        file = HTMLZipFile(path='chefdata/geogebratestMay29.zip')
         node = nodes.HTML5AppNode( source_id = "uniqid",
                                    title="Testing geogebra-containing HTML5App",
                                    license=licenses.CC_BY_NC_SA,
                                    copyright_holder="Open Up Resources",
                                    files=[file],
-                                   )
+        )
         channel.add_child(node)
 
         return channel
@@ -118,6 +115,6 @@ def make_channel():
     options = {}
     mychef.run(args, options)
 
-login()
+# login()
 make_channel()
 exit()
