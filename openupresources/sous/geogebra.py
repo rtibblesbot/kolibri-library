@@ -1,74 +1,65 @@
 import requests
-from bs4 import BeautifulSoup
-import os
+import base64
+import zipfile
+import io
+import re
+import shutil
 
-session = requests.Session()
+# html = standalone html
 
-LOGIN_URL = "https://accounts.geogebra.org/user/signin"
-GGB_URL = "https://www.geogebra.org/material/download/format/file/id/{file_id}"
-ZIP_URL = "https://www.geogebra.org/material/download/format/package/id/{file_id}"
-OVERVIEW_URL = "https://www.geogebra.org/m/{file_id}"
+html_template = """<html>
+<head>
+    <meta name=viewport content="width=device-width,initial-scale=1">
+</head>
+<body>
+    <script src="GeoGebra/deployggb.js"></script>
+    <div id="ggb-element"></div> 
+<script>  
+    var ggbApp = new GGBApplet({%s, "width": 800, "height": 600, "showToolBar": false, "showAlgebraInput": false, "showMenuBar": false, "allowStyleBar": false, "enableShiftDragZoom": false }, true);
+    window.addEventListener("load", function() { 
+        ggbApp.setHTML5Codebase('GeoGebra/HTML5/5.0/web3d/');
+        ggbApp.inject('ggb-element');
+    });
+</script>
+</body>
+</html>"""
 
-PASSWORD = os.environ['GEOGEBRA_PASSWORD']
-USERNAME = os.environ['GEOGEBRA_USERNAME']
-CACHE_DIR = 'cache_dir'
+def fill_html_template(b64):
+    return html_template % '"ggbBase64": "{}"'.format(b64)
 
-logged_in = False
+def get_html_from_id(identifier):
+    return fill_html_template(get_b64_from_id(identifier).decode('utf-8'))
 
-def login():
-    global logged_in
-    response = session.get(LOGIN_URL)
-    soup = BeautifulSoup(response.content, "html.parser")
-    inputs = (soup.find("form", {'id':'form_geogebra_login'}).find_all("input"))
-    data = {}
-    for i in inputs:
-        data[i['name']] = i.get('value')
-    data['username'] = USERNAME
-    data['password'] = PASSWORD
-    post_response = session.post(LOGIN_URL, data=data)
-    assert "New Worksheet" in post_response.text
-    # we are logged in
-    logged_in = True
-    print ("Logged in to geogebra")
+def get_xml_from_id(identifier):
+    ggb_base64 = get_b64_from_id(identifier)
+    zip_bytes = base64.decodestring(ggb_base64)
+    zip_io = io.BytesIO(zip_bytes)
+    zip_object = zipfile.ZipFile(zip_io)
+    geogebra = zip_object.open("geogebra.xml")
+    geogebra_xml = geogebra.read()
+    return geogebra_xml
 
-def get_canonical_id(file_id):
-    """for some reason, some have different download IDs than the main page. *sigh*"""
-    response = session.get(OVERVIEW_URL.format(file_id=file_id))
-    soup = BeautifulSoup(response.content, "html.parser")
-    target_url =  (soup.find("a", {'class': 'j-about'}).attrs['href'])
-    return target_url.split('/')[-1]
+def get_b64_from_id(identifier):
+    data = '{"request":{"-api":"1.0.0","login":{"-type":"cookie","-getuserinfo":"false"},"task":{"-type":"fetch","fields":{"field":[{"-name":"id"},{"-name":"geogebra_format"},{"-name":"width"},{"-name":"height"},{"-name":"toolbar"},{"-name":"menubar"},{"-name":"inputbar"},{"-name":"reseticon"},{"-name":"labeldrags"},{"-name":"shiftdragzoom"},{"-name":"rightclick"},{"-name":"ggbbase64"},{"-name":"preview_url"}]},"filters":{"field":[{"-name":"id","#text":"'+identifier+'"}]},"order":{"-by":"id","-type":"asc"},"limit":{"-num":"1"}}}}'
+    r = requests.post(url="https://www.geogebra.org/api/json.php", data=data)
+    return r.json()['responses']['response'][1]['item']['ggbBase64'].encode('utf-8')
 
-def get_ggb(file_id, save_target=None, cache_ok=True):
-    return get_file(file_id, save_target, GGB_URL, cache_ok)
-
-def get_zip(file_id, save_target=None, cache_ok=True):
-    return get_file(file_id, save_target, ZIP_URL, cache_ok)
-
-def get_file(file_id, save_target, url_template, cache_ok):
-    if cache_ok and save_target==None:
-        try:
-            os.mkdir(CACHE_DIR)
-        except FileExistsError: # TODO proper exception
-            pass
-        save_target = CACHE_DIR + '/' + file_id + "_" + url_template.split('/')[-3]
-        try:
-            with open(save_target, "rb") as f:
-                print ("loading from cache {}".format(save_target))
-                return f.read()
-        except FileNotFoundError:
-            print ("Not in cache")
-            pass # not in cache, will be saved later.
-    if not logged_in:
-        login()
-
-    canonical_file_id = get_canonical_id(file_id)
-    response = session.get(url_template.format(file_id=canonical_file_id))
-    response.raise_for_status()
-    if save_target:
-        with open(save_target, "wb") as f:
-            f.write(response.content)
-    return response.content
-
-if __name__=="__main__":
-    print (get_zip('dZT4v7KZ')[:5])
-    print (get_canonical_id('Vxv48Gtz'))
+def replace_ggb(base64_zip, new_zip_file):
+    # for now, just doing one.
+    shutil.copy("/home/dragon/chef/openup/sushi-chef-openupresources/sous/cache_dir/geo.zip", new_zip_file)
+    zip_object = zipfile.ZipFile(new_zip_file, "a")
+    html = zip_object.open("mNkCD4V9s-7122-Corresponding-Parts.html").read().decode('utf-8')
+    pattern = '"ggbBase64":"([^"]+)"'
+    new_html = re.sub(pattern, '"ggbBase64":"{}"'.format(base64_zip), html)
+    zip_object.writestr("index.html", new_html)
+    zip_object.close()
+    return new_zip_file
+    
+def new_zip(identifier):
+    b64 = get_b64_from_id(identifier)
+    print (replace_ggb(b64, "new_geo.zip"))
+    
+if __name__  == "__main__": 
+    html = get_html_from_id("beVbuPFP")
+    with open("bundle/b64.html", "w") as f:
+        f.write(html)

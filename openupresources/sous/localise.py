@@ -47,53 +47,35 @@ def get_resources(soup):
         resources.update(l)
     return resources
 
+def add_geogebra_files():
+    geo_folder = DOWNLOAD_FOLDER+"/geogebra"
+    try:
+        os.mkdir(geo_folder)
+    except Exception:
+        pass
+    with ZipFile("geogebra-math-apps-bundle-5-0-471-0.zip") as geo_data_zip:
+        geo_data_zip.extractall(geo_folder)
+    
+
 def handle_geogebra_tag(geo_tag):
-    """Given a tag in the webpage, download the relevant standalone geogebra app,
-    modify that app's html page to remove headers etc and insert it into an iframe.
+    """Given a tag in the webpage, download the relevant data and insert it into an iframe.
     Used by make_local"""
     geo_id = geo_tag.attrs['data-ggb_id']
-    print ("downloading {}".format(geo_id))
-    data = geogebra.get_zip(geo_id)
-    print ("handling {}".format(geo_id))
-    geo_zip = BytesIO(data)
-    with ZipFile(geo_zip) as zip_file:
-        # extract all files
-        zip_file.extractall(DOWNLOAD_FOLDER+'/geogebra')
-        # re-write html file...
-        html_filename, = [filename for filename in zip_file.namelist() if '/' not in filename and filename.endswith('.html')]
-        zip_soup = BeautifulSoup(zip_file.read(html_filename), 'html.parser')
-    all_tags = zip_soup.find("body").find_all()
-    wanted_tags =  zip_soup.find("body").find_all(lambda tag: tag.name == "script" or ('class' in tag.attrs and 'applet_container' in tag.attrs.get('class')))
-
-    for tag in all_tags:   # ditch everything in the body, including the script and applet tags, to allow nice flat HTML structure
-        tag.extract()
-
-    for tag in wanted_tags:  # reinstate bits we want
-        zip_soup.find("body").append(tag)
-
+    geo_filename = "geogebra/geo_"+geo_id+".html"
+    html = geogebra.get_html_from_id(geo_id)
     # put html file back into directory
-    revised_html = str(zip_soup)
-    with open(DOWNLOAD_FOLDER+"/geogebra/_"+html_filename, "wb") as f:
-        f.write(revised_html.encode('utf-8'))
-
+    with open(DOWNLOAD_FOLDER+"/"+geo_filename, "wb") as f:
+        f.write(html.encode('utf-8'))
 
     # one of these script tags has the height and width we want:
     # "width":"580","height":"630"
 
-    width = None
-    height = None
-    for tag in wanted_tags:
-        if '"width"' in tag.text:
-            assert width==None
-            width = re.search('"width":"(\d*)"', tag.text).groups()[0]
-            height = re.search('"height":"(\d*)"', tag.text).groups()[0]
-
     # create iframe loading this page
     # TODO: remove old tag
     geo_tag.name = "iframe"
-    geo_tag.attrs['src'] = 'geogebra/{filename}'.format(filename="_"+html_filename)
-    geo_tag.attrs['width'] = width
-    geo_tag.attrs['height'] = height
+    geo_tag.attrs['src'] = geo_filename
+    geo_tag.attrs['width'] = 820
+    geo_tag.attrs['height'] = 620
     geo_tag.attrs['scrolling'] = 'no'
     print ("handled {}".format(geo_id))
 
@@ -123,6 +105,8 @@ def make_local(page_url):
     # replace geogebra
     """<div class="geogebra-embed-wrapper" data-ggb_id="Vxv48Gtz">...</div>"""
     geos = soup.find_all("div", {'class': 'geogebra-embed-wrapper'})
+    if geos:
+        add_geogebra_files()  # TODO: do generically
     for geo in geos:
         handle_geogebra_tag(geo)
 
@@ -179,6 +163,7 @@ if __name__ == "__main__":
                     print ("*** FAILURE ON {}, {}".format(target_url, str(e)))
                     with open("fail.log", "a") as f:
                         f.write("{}:{}".format(target_url, str(e)))
+                    raise
 
     print("END")
 
