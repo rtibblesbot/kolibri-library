@@ -55,7 +55,7 @@ def add_geogebra_files():
         pass
     with ZipFile("geogebra-math-apps-bundle-5-0-471-0.zip") as geo_data_zip:
         geo_data_zip.extractall(geo_folder)
-    
+
 
 def handle_geogebra_tag(geo_tag):
     """Given a tag in the webpage, download the relevant data and insert it into an iframe.
@@ -140,7 +140,7 @@ def make_local(page_url):
 
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "w", "utf-8") as f:
         f.write(str(soup))
-        
+
     # create zip file
     return shutil.make_archive("__"+DOWNLOAD_FOLDER, "zip", # automatically adds .zip extension!
                         DOWNLOAD_FOLDER)
@@ -162,8 +162,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     print ("*** FAILURE ON {}, {}".format(target_url, str(e)))
                     with open("fail.log", "a") as f:
-                        f.write("{}:{}".format(target_url, str(e)))
-                    raise
+                        f.write("{}:{}\n".format(target_url, str(e)))
 
     print("END")
 

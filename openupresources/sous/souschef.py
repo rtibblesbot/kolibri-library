@@ -2,7 +2,7 @@
 import os
 import sys
 sys.path.append(os.getcwd()) # Handle relative imports
-from utils import data_writer, path_builder # , downloader -- we no longer use downloader due to session issues
+#from utils import data_writer, path_builder # , downloader -- we no longer use downloader due to session issues
 from le_utils.constants import licenses, exercises, content_kinds, file_formats, format_presets, languages
 import requests
 from ricecooker.classes import nodes
@@ -29,7 +29,7 @@ CHANNEL_DOMAIN = "content@learningequality.org"		# Who is providing the content
 CHANNEL_LANGUAGE = "en"					# Language of channel
 CHANNEL_DESCRIPTION = "Grade 6-8 Math: A problem-based core program that sparks unparalleled levels of student engagement."  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
-PATH = path_builder.PathBuilder(channel_name=CHANNEL_NAME)  # Keeps track of path to write to csv
+#PATH = path_builder.PathBuilder(channel_name=CHANNEL_NAME)  # Keeps track of path to write to csv
 WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)), os.path.sep, CHANNEL_NAME) # Where to generate zip file
 USERNAME = os.getenv('USERNAME')
 PASSWORD = os.getenv('PASSWORD')
@@ -74,7 +74,7 @@ def login():
     for i in inputs:
         data[i.attrs['name']] = i.attrs.get('value')
         data['user[email]'] = USERNAME
-    data['user[password'] = PASSWORD
+    data['user[password]'] = PASSWORD
 
     posted_response = session.post(sign_in_url, data=data)
     assert "Signed in successfully" in posted_response.text
