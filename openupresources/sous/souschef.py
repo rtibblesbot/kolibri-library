@@ -56,7 +56,7 @@ LOGGER = logging.getLogger()
 
 # License to be used for content under channel
 CHANNEL_LICENSE = licenses.CC_BY_NC_SA
-GRADES = [6,7,8]
+GRADES = [6]#,7,8]
 UNITS = [1,2,3,4,5,6,7,8,9]
 BASE_URL = 'https://im.openupresources.org/{grade}/{target}'
 
@@ -128,6 +128,24 @@ class OpenUpChef(SushiChef):
                                                    files=[file],
                                                    )
             grade_node.add_child(course_guide_node)
+            
+            filename = localise.make_local(BASE_URL.format(grade=grade, target="students")+"/1/1.html")
+            print (filename)
+            file = HTMLZipFile(filename)
+        
+            course_guide_node = nodes.HTML5AppNode(source_id = "{grade}-students-1-1".format(grade=grade),
+                                                           title="Grade {grade} 1-1".format(grade=grade),
+                                                           license=licenses.CC_BY_NC_SA,
+                                                           copyright_holder="Open Up Resources",
+                                                           #author="Open Up Resources",
+                                                           #description="",
+                                                           #thumbnail="",
+                                                           #extra_fields={},
+                                                           #domain_ns="",
+                                                           files=[file],
+                                                           )
+            grade_node.add_child(course_guide_node)
+            
 
 
 

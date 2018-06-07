@@ -10,9 +10,13 @@ import shutil
 import geogebra
 import re
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 session = requests.Session()
 
 DOWNLOAD_FOLDER = "foo"
+ZIP_FOLDER = "zips/"
 LINK_ATTRIBUTES = ['href', 'src']
 IGNORE_COMBOS = [['a', 'href']]
 
@@ -141,9 +145,16 @@ def make_local(page_url):
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "w", "utf-8") as f:
         f.write(str(soup))
 
+        
     # create zip file
-    return shutil.make_archive("__"+DOWNLOAD_FOLDER, "zip", # automatically adds .zip extension!
+    urlhash = hashlib.sha224(page_url.encode('utf-8')).hexdigest()
+    output_zip = shutil.make_archive(ZIP_FOLDER+"/__"+DOWNLOAD_FOLDER+"_"+urlhash, "zip", # automatically adds .zip extension!
                         DOWNLOAD_FOLDER)
+    assert "foo" in DOWNLOAD_FOLDER
+    shutil.rmtree(DOWNLOAD_FOLDER)
+    print ("folder deleted")
+    return output_zip
+    
 
 if __name__ == "__main__":
     grades = [6]#,7,8]
