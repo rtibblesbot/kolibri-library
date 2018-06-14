@@ -17,16 +17,13 @@ from ricecooker.config import LOGGER, DOWNLOAD_SESSION
 from ricecooker.utils.html import WebDriver
 
 # Variables
-BASE_URL = 'https://storyweaver.org.in'
+BASE_API_URL = 'https://storyweaver.org.in/api/v1/'
+FILTERS_URL = 'https://storyweaver.org.in/api/v1/books/filters'
 SIGNIN_URL = 'https://storyweaver.org.in/users/sign_in'
-SEARCH_URL = 'https://storyweaver.org.in/search'
-TEMPLATE_URL = SEARCH_URL + '?page={page_num}\u0026search%5Bpublishers%5D%5B%5D={publisher_name}'
-TEMPLATE_CREATED_BY_CHILDREN_URL = SEARCH_URL + '?page={page_num}\u0026search%5Bchild_created%5D=true'
-TEMPLATE_LANGUAGE_NODE_ID = '{publisher}_{language}'
-TEMPLATE_LEVEL_NODE_ID = '{publisher}_{language}_{level}'
-TEMPLATE_LEVEL_TITLE = 'Level {num}'
+BOOK_SEARCH_URL = 'https://storyweaver.org.in/api/v1/books-search'
+DOWNLOAD_URL = 'http://storyweaver.org.in/v0/stories/download-story/{}.pdf'
 
-
+CHANNEL_TREE = {}
 # Cache
 session = requests.Session()
 cache = FileCache('.webcache')
@@ -34,28 +31,7 @@ basic_adapter = CacheControlAdapter(cache=cache)
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
 session.mount('https://storyweaver.org.in', basic_adapter)
-session.mount(' https://storage.googleapis.com', basic_adapter)
-
-_headers = {
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'X-Requested-With': 'XMLHttpRequest',
-    'Connection': 'keep-alive'
-}
-
-
-"""
-Helper method. Cut off invalid part of image url.
-"""
-def edit_img_ext(url):
-    result = ''
-    base = url.split('.')
-    if base[-1] not in ('jpg', 'jepg', 'png'):
-        tmp_ext = base.pop(-1)
-        ext = tmp_ext.split('?')[0]
-        result = '.'.join(base) + '.' + ext
-    else:
-        result = url
-    return  result
+session.mount(BASE_API_URL, basic_adapter)
 
 
 """
@@ -95,170 +71,109 @@ def get_AS_booklist_dict():
 
 
 """
-Get all the publishers from the website.
-"""
-def get_all_publishers():
-    # Get the search page
-    resp = session.get(SEARCH_URL)
-    search_doc = BeautifulSoup(resp.content, 'html.parser')
-
-    # Get a list of all the publishers
-    publishers_lis = search_doc.find('ul', {'id': 'StoryPublishers'}).find_all('li')
-    publishers = []
-    for li in publishers_lis:
-        # Change the name of StoryWeaver Community to match with the link provided by the website
-        if li.find('label').text.strip() == 'StoryWeaver Community':
-            publishers.append("storyweaver")
-        else:
-            publishers.append(li.find('label').text.strip())
-
-    # Remove the first item "All" from publishers
-    publishers.pop(0)
-
-    return publishers
-
-
-"""
 Get all the information about the books from the json file of each page 
-for each publisher.
+for each category.
 """
-def get_books_from_results(search_results, list, pub):
+def get_books_from_results(books):
+    booklist = []
     # Loop through all the books for one page
-    for i in range(len(search_results)):
-        download_link = BASE_URL + search_results[i]['links'][0]['download']['low_res_pdf']
+    for i in range(len(books)):
+        publisher = books[i]['publisher']['name']
+        language = books[i]['language']
+        level = books[i]['level']
+        try:
+            thumbnail = books[i]['coverImage']['sizes'][0]['url']
+        except TypeError:
+            thumbnail = None
         book_dict = {
-            'link': download_link,
-            'source_id': search_results[i]['id'],
-            'title': search_results[i]['title'],
-            'author': ', '.join(search_results[i]['authors']),
-            'description': search_results[i]['synopsis'],
-            'thumbnail': edit_img_ext(search_results[i]['image_url']),
-            'language': search_results[i]['language'],
-            'level': search_results[i]['reading_level'],
-            'publisher': pub,
+            'link': DOWNLOAD_URL.format(books[i]['slug']),
+            'source_id': books[i]['id'],
+            'title': books[i]['title'],
+            'author': ', '.join([item['name'] for item in books[i]['authors']]),
+            'description': books[i]['description'],
+            'thumbnail': thumbnail,
+            'language': language,
+            'level': level,
+            'publisher': publisher,
         }
-        list.append(book_dict)
-    return list
+        booklist.append(book_dict)
+
+    return booklist
 
 
 """
-Get all the information about books for every publisher
+Get all the information about books for every category
 """
-def books_for_each_publisher(pub):
-    list = []
-    LOGGER.info('\tCrawling books for %s......\n' % (pub))
+def books_for_each_category(category):
+    LOGGER.info('\tCrawling books for {}......\n'.format(category))
 
-    # Parse the name of the publisher to put into url
-    publisher = pub.replace(',', '%2C')
-    name = publisher.replace(' ', '+')
-
-    # Get the first page of the publisher
-    if (pub == 'Created by Children'):
-        pub_first_page_url = TEMPLATE_CREATED_BY_CHILDREN_URL.format(page_num="1")
-    else:
-        pub_first_page_url = TEMPLATE_URL.format(page_num="1", publisher_name=name)
-    
     # Get the json file of the page and parse it
-    response = session.get(pub_first_page_url, headers=_headers)
+    payload = {'page': 1, 'per_page': 24, 'categories[]': category}
+    response = session.get(BOOK_SEARCH_URL, params=payload)
     data = response.json()
-    total_pages = data['metadata']['total_pages']
-    LOGGER.info('\tThere is(are) in total %s page(s) for %s......\n' % (str(total_pages), pub))
+    total_pages = data['metadata']['totalPages']
+    LOGGER.info('\tThere is(are) in total {} page(s) for {}......\n'.format(total_pages, category))
 
     # List of books for the first page
-    list = get_books_from_results(data['search_results'], list, pub)
+    booklist = get_books_from_results(data['data'])
 
     # get the rest of the pages' books
     for i in range(1, total_pages):
-        if (pub == 'Created by Children'):
-            page_url = TEMPLATE_CREATED_BY_CHILDREN_URL .format(page_num=i+1)
-        else:
-            page_url = TEMPLATE_URL.format(page_num=i+1, publisher_name=name)
-        response = session.get(page_url, headers=_headers)
+        payload['page'] = i+1
+        response = session.get(BOOK_SEARCH_URL, params=payload)
         data = response.json() 
-        list = get_books_from_results(data['search_results'], list, pub)
+        booklist += get_books_from_results(data['data'])
 
-    LOGGER.info('\tFinished getting all the books for %s\n\t====================\n' % (pub))
-    return list
-
-
-"""
-Group books for each publisher by different languages.
-Or
-Group books in each language section of a publisher by different levels.
-The parameter param could be language or level.
-"""
-def group_books(book_list, param):
-    # sort languages alphabetically or sort levels
-    sorted_books = sorted(book_list, key=lambda book: book[param])
-
-    grouped_books = {}
-    # group books by languages or by levels
-    for key, item in groupby(sorted_books, lambda book: book[param]):
-        grouped_books[key] = list(item)
-    return grouped_books
+    LOGGER.info('\tFinished getting all the books for {}\n\t====================\n'.format(category))
+    return booklist
 
 
-"""
-Add topics about publishers in the channel.
-"""
-def add_topic_pub(channel):
-    # Get all the publishers and loop through them
-    all_pubs = get_all_publishers()
-    for publisher in all_pubs:
-        if publisher == 'storyweaver':
-            pub_title = 'StoryWeaver Community'
+def download_all():
+    resp = session.get(FILTERS_URL).json()
+    categories = [item['name'] for item in resp['data']['category']['queryValues']]
+
+    channel_tree = {}
+    for category in categories:
+        channel_tree[category] = {}
+        booklist = books_for_each_category(category)
+
+        for book in booklist:
+            publisher = book['publisher']
+            language = book['language']
+            level = book['level']
+
+            if publisher in channel_tree[category]:
+                if language in channel_tree[category][publisher]:
+                    if level in channel_tree[category][publisher][language]:
+                        channel_tree[category][publisher][language][level].append(book)
+                    else:      
+                        channel_tree[category][publisher][language][level] = [book]
+                else:
+                    channel_tree[category][publisher][language] = {}
+                    channel_tree[category][publisher][language][level] = [book]
+            else:
+                channel_tree[category][publisher] = {}
+                channel_tree[category][publisher][language] = {}
+                channel_tree[category][publisher][language][level] = [book]
+    return channel_tree
+
+
+def parse_through_tree(tree, parent_topic, as_booklist):
+    for topic_name in tree.keys():
+        content = tree[topic_name]
+        try:
+            title = 'Level {}'.format(int(topic_name))
+        except ValueError:
+            title = topic_name
+        current_topic = TopicNode(
+            source_id = '{}_{}'.format(parent_topic.source_id, topic_name.replace(' ', '_')),
+            title = title,
+        )
+        parent_topic.add_child(current_topic)
+        if type(content) is list:
+            add_node_document(content, current_topic, as_booklist)
         else:
-            pub_title = publisher
-
-        # Add a topic for each publisher
-        pubtopic = TopicNode(
-            source_id = publisher.replace(" ", "_"), 
-            title = pub_title,
-        )
-
-        channel.add_child(pubtopic)
-        as_booklist = {}
-        if pub_title == 'African Storybook Initiative':
-            as_booklist = get_AS_booklist_dict()
-        add_sub_topic_lang(publisher, pubtopic, as_booklist)
-
-
-"""
-Add subtopics about languages under a specific publisher topic.
-"""
-def add_sub_topic_lang(publisher, pubtopic, as_booklist):
-    # Get all the books info for each publisher
-    book_list = books_for_each_publisher(publisher)
-    sorted_language_list = group_books(book_list, 'language')
-    langs = sorted_language_list.keys()
-
-    # Distribute books into subtopics according to languages
-    for lang in langs:
-        lang_id = TEMPLATE_LANGUAGE_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang)
-        langsubtopic = TopicNode(
-            source_id = lang_id, 
-            title = lang,
-        )
-        pubtopic.add_child(langsubtopic)
-        add_sub_topic_level(publisher, lang, langsubtopic, sorted_language_list, as_booklist)
-
-
-"""
-Add subtopics about levels of reading under a specific language subtopic.
-"""
-def add_sub_topic_level(publisher, lang, langsubtopic, list, as_booklist):
-    sorted_level_list = group_books(list[lang], 'level')
-    levels = sorted_level_list.keys()
-
-    # Distribute books into subtopics according to levels
-    for level in levels:
-        level_id = TEMPLATE_LEVEL_NODE_ID.format(publisher=publisher.replace(" ", "_"), language=lang, level=level)
-        levelsubtopic = TopicNode(
-            source_id = level_id, 
-            title = TEMPLATE_LEVEL_TITLE.format(num=level),
-        )
-        langsubtopic.add_child(levelsubtopic)
-        add_node_document(level, levelsubtopic, sorted_level_list, as_booklist)
+            parse_through_tree(content, current_topic, as_booklist)
 
 
 """
@@ -266,7 +181,7 @@ Check if the story in StoryWeaver is also in African Storybooks.
 """
 def check_if_story_in_AS(as_booklist, story_name):
     result = as_booklist.get(story_name.lower().rstrip())
-    if result != None and len(result) == 1:
+    if result and len(result) == 1:
         return True, result[0]['id']
     else:
         return False, None 
@@ -275,9 +190,9 @@ def check_if_story_in_AS(as_booklist, story_name):
 """
 Add books under a specific level of reading.
 """
-def add_node_document(level, levelsubtopic, list, as_booklist):
+def add_node_document(booklist, level_topic, as_booklist):
     # Add books according to level, language and publisher
-    for item in list[level]:
+    for item in booklist:
         # initailize the source domain and content_id
         domain = uuid.uuid5(uuid.NAMESPACE_DNS, 'storyweaver.org.in')
         book_id = str(item['source_id'])
@@ -303,7 +218,7 @@ def add_node_document(level, levelsubtopic, list, as_booklist):
             description = item['description'],
             domain_ns = domain,
         )
-        levelsubtopic.add_child(book)
+        level_topic.add_child(book)
 
 
 class PrathamBooksStoryWeaverSushiChef(SushiChef):
@@ -313,7 +228,6 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         self.arg_parser = argparse.ArgumentParser(parents=[self.arg_parser], description='Sushi Chef for Pratham Books\' StoryWeaver.')
         self.arg_parser.add_argument('--login_email', default='lywang07@gmail.com', help='Login email for Pratham Books\' StoryWeaver website.')
         self.arg_parser.add_argument('--login_password', default='1234567890', help='Login password for Pratham Books\' StoryWeaver website.')
-
 
     # Get the login information and log into the website with download_session.
     def pre_run(self, args, options):
@@ -330,8 +244,8 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         DOWNLOAD_SESSION.post(SIGNIN_URL, data=payload)
 
         # Get the thumbnail
-        thumbnail = html_doc.find('img', {'alt': 'Storyweaver beta'})['src']
-        cairosvg.svg2png(url=thumbnail, scale=0.2, write_to="thumbnail.png")
+        # thumbnail = html_doc.find('img', {'alt': 'Storyweaver beta'})['src']
+        # cairosvg.svg2png(url=thumbnail, scale=0.2, write_to="thumbnail.png")
 
 
     def get_channel(self, **kwargs):
@@ -340,7 +254,6 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
             source_domain = 'storyweaver.org.in',
             source_id = 'Pratham_Books_StoryWeaver',
             title = 'Pratham Books\' StoryWeaver',
-            thumbnail = 'thumbnail.png',
             description = '',
         )
         return channel
@@ -350,7 +263,16 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         channel = self.get_channel(**kwargs)
 
         # add topics and corresponding books to the channel
-        add_topic_pub(channel)
+        channel_tree = download_all()
+        as_booklist = get_AS_booklist_dict()
+        for category in channel_tree.keys():
+            category_topic = TopicNode(
+                source_id = category.replace(' ', '_'), 
+                title = category,
+            )
+            channel.add_child(category_topic)
+            parse_through_tree(channel_tree[category], category_topic, as_booklist)
+
         return channel
 
 
