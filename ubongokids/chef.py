@@ -27,7 +27,7 @@ def create_logger():
 
 class UbongoKidsChef(JsonTreeChef):
     HOSTNAME = 'ubongokids.com'
-    ROOT_URL = f'http://www.{HOSTNAME}'
+    ROOT_URL = 'http://www.{}'.format(HOSTNAME)
     DATA_DIR = 'chefdata'
     TREES_DATA_DIR = os.path.join(DATA_DIR, 'trees')
     CRAWLING_STAGE_OUTPUT = 'web_resource_tree.json'

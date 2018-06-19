@@ -36,13 +36,13 @@ class CachingClient:
         return video
 
     def _gen_playlist_cache_key(self, x):
-        return f'playlist:{x}'
+        return 'playlist:{}'.format(x)
 
     def _gen_channel_cache_key(self, x):
-        return f'channel:{x}'
+        return 'channel:{}'.format(x)
 
     def _gen_video_cache_key(self, x):
-        return f'video:{x}'
+        return 'video:{}'.format(x)
 
     def stats(self):
         return self.cache.stats()
@@ -55,13 +55,13 @@ class Client:
         return self.client.extract_info(url, download=False)
 
     def get_video_data(self, id):
-        video = self._get(f'https://www.youtube.com/watch?v={id}')
+        video = self._get('https://www.youtube.com/watch?v={}'.format(id))
         result = dict(url=video['webpage_url'])
         result.update(video)
         return result
 
     def get_playlist_data(self, id):
-        playlist = self._get(f'https://www.youtube.com/playlist?list={id}')
+        playlist = self._get('https://www.youtube.com/playlist?list={}'.format(id))
         assert playlist.get('_type', None) == 'playlist'
         return dict(id=playlist['id'],
                     url=playlist['webpage_url'],
@@ -71,7 +71,7 @@ class Client:
         )
 
     def get_channel_data(self, id):
-        channel = self._get(f'https://www.youtube.com/channel/{id}')
+        channel = self._get('https://www.youtube.com/channel/{}'.format(id))
         assert channel.get('_type', None) == 'playlist'
         entries = channel.get('entries')
         name = channel['title']

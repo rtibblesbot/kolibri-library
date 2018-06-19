@@ -7,7 +7,7 @@ from json import dump
 class Db:
     def __init__(self, basedir, suffix):
         self.basedir = basedir
-        self.db_path = join(basedir, f'cache-{suffix}')
+        self.db_path = join(basedir, 'cache-{}'.format(suffix))
         self.db = None
         self.hits = 0
         self.misses = 0
