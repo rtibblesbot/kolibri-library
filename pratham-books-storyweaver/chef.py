@@ -2,10 +2,8 @@
 
 import requests
 import argparse
-import cairosvg
 import uuid
 from bs4 import BeautifulSoup
-from itertools import groupby
 
 from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import ChannelNode,TopicNode, DocumentNode
@@ -23,7 +21,6 @@ SIGNIN_URL = 'https://storyweaver.org.in/users/sign_in'
 BOOK_SEARCH_URL = 'https://storyweaver.org.in/api/v1/books-search'
 DOWNLOAD_URL = 'http://storyweaver.org.in/v0/stories/download-story/{}.pdf'
 
-CHANNEL_TREE = {}
 # Cache
 session = requests.Session()
 cache = FileCache('.webcache')
@@ -213,7 +210,7 @@ def add_node_document(booklist, level_topic, as_booklist):
             source_id = book_id, 
             author = item['author'],
             files = [document_file], 
-            license = get_license(licenses.CC_BY),
+            license = get_license(licenses.CC_BY, copyright_holder='Pratham Books'),
             thumbnail = item.get('thumbnail'),
             description = item['description'],
             domain_ns = domain,
@@ -229,6 +226,7 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         self.arg_parser.add_argument('--login_email', default='lywang07@gmail.com', help='Login email for Pratham Books\' StoryWeaver website.')
         self.arg_parser.add_argument('--login_password', default='1234567890', help='Login password for Pratham Books\' StoryWeaver website.')
 
+
     # Get the login information and log into the website with download_session.
     def pre_run(self, args, options):
         # Get login authenticity token
@@ -243,10 +241,6 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         # Login to StoryWeaver website
         DOWNLOAD_SESSION.post(SIGNIN_URL, data=payload)
 
-        # Get the thumbnail
-        # thumbnail = html_doc.find('img', {'alt': 'Storyweaver beta'})['src']
-        # cairosvg.svg2png(url=thumbnail, scale=0.2, write_to="thumbnail.png")
-
 
     def get_channel(self, **kwargs):
         # Create a channel
@@ -255,6 +249,7 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
             source_id = 'Pratham_Books_StoryWeaver',
             title = 'Pratham Books\' StoryWeaver',
             description = '',
+            language = 'en',
         )
         return channel
 
