@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
 
+import os
+import tempfile
 import requests
 import argparse
 import uuid
 from bs4 import BeautifulSoup
+from jinja2 import Environment, FileSystemLoader
 
 from ricecooker.chefs import SushiChef
-from ricecooker.classes.nodes import ChannelNode,TopicNode, DocumentNode
-from ricecooker.classes.files import DocumentFile
+from ricecooker.classes.nodes import ChannelNode,TopicNode, HTML5AppNode
+from ricecooker.classes.files import HTMLZipFile
 from le_utils.constants import licenses
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.config import LOGGER, DOWNLOAD_SESSION
 from ricecooker.utils.html import WebDriver
+from ricecooker.utils.zip import create_predictable_zip
 
 # Variables
 BASE_API_URL = 'https://storyweaver.org.in/api/v1/'
 FILTERS_URL = 'https://storyweaver.org.in/api/v1/books/filters'
 SIGNIN_URL = 'https://storyweaver.org.in/users/sign_in'
 BOOK_SEARCH_URL = 'https://storyweaver.org.in/api/v1/books-search'
-DOWNLOAD_URL = 'http://storyweaver.org.in/v0/stories/download-story/{}.pdf'
+READ_URL = 'https://storyweaver.org.in/api/v1/stories/{}/read'
+
+# Template for HTML5 App
+PATH = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_ENVIRONMENT = Environment(
+    autoescape=False,
+    loader=FileSystemLoader(os.path.join(PATH, 'template')),
+    trim_blocks=False)
 
 # Cache
 session = requests.Session()
@@ -66,6 +77,30 @@ def get_AS_booklist_dict():
                 dictionary[name] = [book]
         return dictionary
 
+def get_html5_app_zip_path(slug):
+    resp = session.get(READ_URL.format(slug)).json()
+    content = ""
+    for page in (resp['data']['pages']):
+        soup = BeautifulSoup(page['html'], 'html.parser')
+        if page.get('coverImage', None):
+            img_src = page['coverImage']['sizes'][-1]['url']
+            soup.img['src'] = img_src
+        content = content + "\n" + str(soup)
+
+    context = {
+        'content': content
+    }
+
+    destination = tempfile.mkdtemp()
+    LOGGER.info('destination is {}'.format(destination))
+    output_name = os.path.join(destination, 'index.html')
+    with open(output_name, 'w') as f:
+        index_html = TEMPLATE_ENVIRONMENT.get_template('indexfile').render(context)
+        f.write(index_html)
+
+    zip_path = create_predictable_zip(destination)
+    return zip_path
+
 
 """
 Get all the information about the books from the json file of each page 
@@ -82,8 +117,10 @@ def get_books_from_results(books):
             thumbnail = books[i]['coverImage']['sizes'][0]['url']
         except TypeError:
             thumbnail = None
+        link = get_html5_app_zip_path(books[i]['slug'])
+
         book_dict = {
-            'link': DOWNLOAD_URL.format(books[i]['slug']),
+            'link': link,
             'source_id': books[i]['id'],
             'title': books[i]['title'],
             'author': ', '.join([item['name'] for item in books[i]['authors']]),
@@ -204,12 +241,12 @@ def add_node_document(booklist, level_topic, as_booklist):
                 domain = uuid.uuid5(uuid.NAMESPACE_DNS,'www.africanstorybook.org')
                 book_id = check[1]
 
-        document_file = DocumentFile(path=item['link'])
-        book = DocumentNode(
+        html5_file = HTMLZipFile(path=item['link'])
+        book = HTML5AppNode(
             title = item['title'], 
             source_id = book_id, 
             author = item['author'],
-            files = [document_file], 
+            files = [html5_file],
             license = get_license(licenses.CC_BY, copyright_holder='Pratham Books'),
             thumbnail = item.get('thumbnail'),
             description = item['description'],
