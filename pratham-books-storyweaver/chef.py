@@ -17,6 +17,7 @@ from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheCont
 from ricecooker.config import LOGGER, DOWNLOAD_SESSION
 from ricecooker.utils.html import WebDriver
 from ricecooker.utils.zip import create_predictable_zip
+from ricecooker.utils.html_writer import HTMLWriter
 
 # Variables
 BASE_API_URL = 'https://storyweaver.org.in/api/v1/'
@@ -78,7 +79,12 @@ def get_AS_booklist_dict():
         return dictionary
 
 def get_html5_app_zip_path(slug):
-    resp = session.get(READ_URL.format(slug)).json()
+    resp = session.get(READ_URL.format(slug))
+    if resp.status_code == 200:
+        resp = resp.json()
+    else:
+        LOGGER.info('The story {} is not available.\n'.format(slug))
+        return None
     content = ""
     for page in (resp['data']['pages']):
         soup = BeautifulSoup(page['html'], 'html.parser')
@@ -91,15 +97,15 @@ def get_html5_app_zip_path(slug):
         'content': content
     }
 
-    destination = tempfile.mkdtemp()
-    LOGGER.info('destination is {}'.format(destination))
-    output_name = os.path.join(destination, 'index.html')
-    with open(output_name, 'w') as f:
+    handle, destination = tempfile.mkstemp(suffix=".zip")
+    os.close(handle)
+    htmlwriter = HTMLWriter(destination)
+    with htmlwriter as f:
         index_html = TEMPLATE_ENVIRONMENT.get_template('indexfile').render(context)
-        f.write(index_html)
+        f.write_index_contents(index_html)
 
-    zip_path = create_predictable_zip(destination)
-    return zip_path
+    LOGGER.info(destination)
+    return destination
 
 
 """
@@ -117,10 +123,9 @@ def get_books_from_results(books):
             thumbnail = books[i]['coverImage']['sizes'][0]['url']
         except TypeError:
             thumbnail = None
-        link = get_html5_app_zip_path(books[i]['slug'])
 
         book_dict = {
-            'link': link,
+            'slug': books[i]['slug'],
             'source_id': books[i]['id'],
             'title': books[i]['title'],
             'author': ', '.join([item['name'] for item in books[i]['authors']]),
@@ -193,7 +198,7 @@ def download_all():
 
 
 def parse_through_tree(tree, parent_topic, as_booklist):
-    for topic_name in tree.keys():
+    for topic_name in sorted(tree):
         content = tree[topic_name]
         try:
             title = 'Level {}'.format(int(topic_name))
@@ -241,18 +246,20 @@ def add_node_document(booklist, level_topic, as_booklist):
                 domain = uuid.uuid5(uuid.NAMESPACE_DNS,'www.africanstorybook.org')
                 book_id = check[1]
 
-        html5_file = HTMLZipFile(path=item['link'])
-        book = HTML5AppNode(
-            title = item['title'], 
-            source_id = book_id, 
-            author = item['author'],
-            files = [html5_file],
-            license = get_license(licenses.CC_BY, copyright_holder='Pratham Books'),
-            thumbnail = item.get('thumbnail'),
-            description = item['description'],
-            domain_ns = domain,
-        )
-        level_topic.add_child(book)
+        link = get_html5_app_zip_path(item['slug'])
+        if link:
+            html5_file = HTMLZipFile(path=link)
+            book = HTML5AppNode(
+                title = item['title'], 
+                source_id = book_id, 
+                author = item['author'],
+                files = [html5_file],
+                license = get_license(licenses.CC_BY, copyright_holder='Pratham Books'),
+                thumbnail = item.get('thumbnail'),
+                description = item['description'],
+                domain_ns = domain,
+            )
+            level_topic.add_child(book)
 
 
 class PrathamBooksStoryWeaverSushiChef(SushiChef):
@@ -297,14 +304,13 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         # add topics and corresponding books to the channel
         channel_tree = download_all()
         as_booklist = get_AS_booklist_dict()
-        for category in channel_tree.keys():
+        for category in sorted(channel_tree):
             category_topic = TopicNode(
                 source_id = category.replace(' ', '_'), 
                 title = category,
             )
             channel.add_child(category_topic)
             parse_through_tree(channel_tree[category], category_topic, as_booklist)
-
         return channel
 
 
