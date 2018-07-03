@@ -2,10 +2,12 @@
 
 from bs4 import BeautifulSoup
 import codecs
+from collections import defaultdict
 import copy
 from git import Repo
 import glob
 from le_utils.constants import licenses, content_kinds, file_formats
+import hashlib
 import json
 import logging
 import markdown2
@@ -39,6 +41,7 @@ REPOSITORY_URL = {
 }
 DATA_DIR = "chefdata"
 COPYRIGHT_HOLDER = "Laboratoria"
+COUNTER_TITLE_KEYS = defaultdict(int)
 
 LOGGER = logging.getLogger()
 __logging_handler = logging.StreamHandler()
@@ -166,6 +169,33 @@ class MarkdownReader(object):
         self.url = self.pwd2url()
         self.content = None
         self.lang = "es"
+
+    @property
+    def title(self):
+        return self._title
+
+    @title.setter
+    def title(self, v):
+        pattern = r"^\d{2}-"
+        match = re.match(pattern, v)
+
+        if match:
+            clean_title = re.sub(pattern, "", v).title().replace("-", " ")
+            counter = self.level_counter(clean_title)
+            if counter > 1:
+                title_subfix = str(counter)
+            else:
+                title_subfix = ""
+            self._title = "{} {}".format(clean_title, title_subfix).strip()
+        else:
+            self._title = v
+
+    def level_counter(self, clean_title):
+        levels = self.filepath.replace("README.md", "")
+        path_str = "/".join(levels.split("/")[:-1]) + clean_title
+        key = hashlib.sha1(path_str.encode("utf-8")).hexdigest()
+        COUNTER_TITLE_KEYS[key] += 1
+        return COUNTER_TITLE_KEYS[key]
 
     def pwd2url(self):
         return urljoin(BASE_URL, "/".join(self.pwd[2:]+[""]))
@@ -457,10 +487,6 @@ class LocalVideoResource(object):
             with open(self.filepath, 'wb') as f:
                 LOGGER.info("   - Downloading {}".format(self.source_id))
                 save_response_content(response, self.filepath)
-                #for chunk in r.iter_content(chunk_size=1024*4): 
-                #    if chunk:
-                #        f.write(chunk)
-                #        f.flush()
         if self.filepath is not None and os.stat(self.filepath).st_size == 0:
             LOGGER.info("Empty file")
             self.filepath = None
@@ -742,8 +768,8 @@ def get_js_files(path):
     return js_files
 
 
-#When a node has only one child and this child does not have a child (leaf node),
-#the leaf node is moved to an upper level
+#When a node has only one child and this child it's a object (file, video, etc),
+#this is moved to an upper level
 def clean_leafs_nodes(channel_tree):
     children = channel_tree.get("children", [])
     if len(children) == 1 and not "children" in children[0]:
@@ -757,6 +783,8 @@ def clean_leafs_nodes(channel_tree):
                     parent_dir = levels[-2] #dirname
                     leaf_node["title"] = "{}_{}".format(parent_dir, leaf_node["title"])
                 children[i] = leaf_node
+            elif leaf_node == "empty":
+                del children[i]
 
 
 class LaboratoriaChef(JsonTreeChef):
@@ -796,24 +824,32 @@ class LaboratoriaChef(JsonTreeChef):
 
         path = build_path([DATA_DIR, "git"])
         repos = options.get('--repo', None)
+        download_video = options.get('--download-video', "1")
         if repos is None:
             repos = REPOSITORY_URL.keys()
         else:
             repos = [repos]
 
+        if int(download_video) == 0:
+            global DOWNLOAD_VIDEOS
+            DOWNLOAD_VIDEOS = False
+
         url_pdf_list = UrlPDFList("pdf_white_list.json")
         url_v_list = UrlVideoList("youtube_white_list.json")
         for repo in repos:
             repo_dir = os.path.join(path, repo)
+            clone_repo(REPOSITORY_URL[repo], repo_dir)
             readme = MarkdownReader(os.path.join(repo_dir, "README.md"), extra_files_path="files/")
             folder_walker_items(repo_dir, readme.read_dir(), url_pdf_list, attr='get_pdfs')
             folder_walker_items(repo_dir, readme.read_dir(), url_v_list, attr='get_videos')
             url_pdf_list.save()
             url_v_list.save()
 
+        #the counter is reset from previous ingest
+        global COUNTER_TITLE_KEYS
+        COUNTER_TITLE_KEYS = defaultdict(int)
         for repo in repos:
             repo_dir = os.path.join(path, repo)
-            clone_repo(REPOSITORY_URL[repo], repo_dir)
             self._build_scraping_json_tree(channel_tree, repo_dir)
         self.write_tree_to_json(channel_tree, "en")
 
