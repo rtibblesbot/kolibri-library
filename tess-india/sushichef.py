@@ -11,7 +11,7 @@ import json
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
 import os
-import pafy
+#import pafy
 from pathlib import Path
 import re
 import requests
@@ -235,7 +235,7 @@ class Resource(object):
             title=self.state,
             description="",
             license=None,
-            lang=self.lang,
+            language=self.lang,
             children=[]
         )
 
@@ -246,7 +246,7 @@ class Resource(object):
             title=self.subject,
             description="",
             license=None,
-            lang=self.lang,
+            language=self.lang,
             children=[]
         )
 
@@ -257,7 +257,7 @@ class Resource(object):
             title=self.level,
             description="",
             license=None,
-            lang=self.lang,
+            language=self.lang,
             children=[]
         )
 
@@ -334,7 +334,7 @@ class Lesson(object):
         for resource in extra_resources:
             LOGGER.info("   - Resource: {}".format(resource))
             if resource.endswith(".pdf"):
-                self.file = File(resource, lang=self.lang)
+                self.file = File(resource, lang=self.lang, name=self.title)
             elif resource.endswith(".doc") or resource.endswith(".docx"):
                 pass
             else:
@@ -356,7 +356,7 @@ class Lesson(object):
             source_id=self.key_resource_id,
             title=self.title,
             description="",
-            lang=self.lang,
+            language=self.lang,
             license=None,
             children=[]
         )
@@ -383,11 +383,12 @@ class Lesson(object):
         
 
 class File(object):
-    def __init__(self, source_id, lang="en", lincese=""):
+    def __init__(self, source_id, lang="en", lincese="", name=None):
         self.filename = get_name_from_url(source_id)
         self.source_id = urljoin(BASE_URL, source_id) if source_id.startswith("/") else source_id
         self.filepath = None
         self.lang = lang
+        self.name = "{}_{}".format(name, self.filename)
         self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def download(self, base_path):
@@ -400,7 +401,7 @@ class File(object):
                 with open(self.filepath, 'wb') as f:
                     for chunk in response.iter_content(10000):
                         f.write(chunk)
-                LOGGER.info("   - Get file: {}".format(self.filename))
+                LOGGER.info("   - Get file: {}, node name: {}".format(self.filename, self.name))
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
         except requests.exceptions.ConnectionError:
@@ -418,7 +419,7 @@ class File(object):
             node = dict(
                 kind=content_kinds.DOCUMENT,
                 source_id=self.source_id,
-                title=self.filename,
+                title=self.name,
                 description='',
                 files=[dict(
                     file_type=content_kinds.DOCUMENT,
@@ -435,7 +436,7 @@ class HTMLLesson(object):
         self.filepath = None
         self.name = name
         self.lang = lang
-        self.menu = Menu(lang=self.lang)
+        self.menu = Menu(lang=self.lang, name=name)
         self.license = get_license(licenses.CC_BY_NC_SA, copyright_holder=COPYRIGHT_HOLDER).as_dict()
 
     def sections_to_menu(self):
@@ -478,7 +479,7 @@ class HTMLLesson(object):
 
 
 class Menu(object):
-    def __init__(self, lang="en"):
+    def __init__(self, lang="en", name=None):
         self.items = OrderedDict()
         self.index_content = None
         self.images = {}
@@ -487,6 +488,7 @@ class Menu(object):
         self.ids = set([])
         self.is_valid = False
         self.lang = lang
+        self.name = name
 
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
@@ -561,7 +563,7 @@ class Menu(object):
             pdf_url = tag_a.get("href", "")
             if pdf_url not in self.pdfs_url and pdf_url:
                 self.pdfs_url.add(pdf_url)
-                pdf_file = File(pdf_url, lang=self.lang)
+                pdf_file = File(pdf_url, lang=self.lang, name=self.name)
                 pdf_file.download(base_path)
                 node = pdf_file.to_node()
                 if node is not None and node["source_id"] not in self.ids:
@@ -572,7 +574,7 @@ class Menu(object):
         videos = content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").find("youtube") != -1 or tag.attrs.get("href", "").find("youtu.be") != -1 or tag.text.lower() == "youtube")
         VIDEOS_DATA_DIR = build_path([base_path, 'videos'])
         for video in videos:
-            youtube = YouTubeResource(video.get("href", ""))
+            youtube = YouTubeResource(video.get("href", ""), lang=self.lang)
             node = get_node_from_channel(youtube.resource_url, channel_tree)
             if node is None:
                 youtube.to_file(filepath=VIDEOS_DATA_DIR)
@@ -630,10 +632,11 @@ class ResourceType(object):
     """
         Base class for File, WebPage, Video, Audio resources
     """
-    def __init__(self, type_name=None):
-        LOGGER.info("Resource Type: "+type_name)
+    def __init__(self, type_name=None, source_id=None):
+        LOGGER.info("Resource Type: {} [{}]".format(type_name, source_id))
         self.type_name = type_name
         self.node = None
+        self.resource_url = source_id
 
     def to_file(self, filepath=None):
         pass
@@ -641,10 +644,12 @@ class ResourceType(object):
 
 class YouTubeResource(ResourceType):
     def __init__(self, resource_url, type_name="Youtube", lang="en"):
-        super(YouTubeResource, self).__init__(type_name=type_name)
-        self.resource_url = self.clean_url(resource_url)
+        super(YouTubeResource, self).__init__(type_name=type_name, 
+            source_id=self.clean_url(resource_url))        
         self.file_format = file_formats.MP4
         self.lang = lang
+        self.filename = None
+        self.filepath = None
 
     def clean_url(self, url):
         if url[-1] == "/":
@@ -663,21 +668,23 @@ class YouTubeResource(ResourceType):
         url = "".join(url.split("?")[:1])
         return url.replace("embed/", "watch?v=").strip()
 
-    def get_video_info(self):
+    def get_video_info(self, download_to=None, subtitles=True):
         ydl_options = {
-                'writesubtitles': True,
-                'allsubtitles': True,
+                'writesubtitles': subtitles,
+                'allsubtitles': subtitles,
                 'no_warnings': True,
                 'restrictfilenames':True,
                 'continuedl': True,
                 'quiet': False,
-                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='720')
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
+                'outtmpl': '{}/%(id)s'.format(download_to),
+                'noplaylist': False
             }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
             try:
                 ydl.add_default_info_extractors()
-                info = ydl.extract_info(self.resource_url, download=False)
+                info = ydl.extract_info(self.resource_url, download=(download_to is not None))
                 return info
             except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError) as e:
@@ -693,51 +700,45 @@ class YouTubeResource(ResourceType):
             video_id = video_info["id"]
             if 'subtitles' in video_info:
                 subtitles_info = video_info["subtitles"]
+                LOGGER.info("Subtitles: {}".format(",".join(subtitles_info.keys())))
                 for language in subtitles_info.keys():
                     subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
         return subs
 
     def process_file(self, download=False, filepath=None):
-        if download is True:
-            video_filepath = self.video_download(download_to=filepath)
-        else:
-            video_filepath = None
-
-        if video_filepath is not None:
-            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)] 
-                    #ffmpeg_settings={"max_width": 480, "crf": 28})]
+        self.download(download=download, base_path=filepath)
+        if self.filepath:
+            files = [dict(file_type=content_kinds.VIDEO, path=self.filepath)]
             files += self.subtitles_dict()
 
             self.node = dict(
                 kind=content_kinds.VIDEO,
                 source_id=self.resource_url,
-                title=get_name_from_url_no_ext(video_filepath),
+                title=self.filename,
                 description='',
                 files=files,
                 language=self.lang,
                 license=get_license(licenses.CC_BY, copyright_holder=COPYRIGHT_HOLDER).as_dict())
 
-    #youtubedl has some troubles downloading videos in youtube,
-    #sometimes raises connection error
-    #for that I choose pafy for downloading
-    def video_download(self, download_to="/tmp/"):
-        for try_number in range(10):
+    def download(self, download=True, base_path=None):
+        if not "watch?" in self.resource_url or "/user/" in self.resource_url or\
+            download is False:
+            return
+
+        download_to = base_path
+        for i in range(4):
             try:
-                video = pafy.new(self.resource_url)
-                best = get_video_resolution_format(video, maxvres=480, ext="mp4")
-                LOGGER.info("Video resolution: {}".format(best.resolution))
-                video_filepath_tmp = os.path.join(download_to, best.filename)
-                if not if_file_exists(video_filepath_tmp):
-                    video_filepath = best.download(filepath=download_to)
-                else:
-                    LOGGER.info("Already downloded: {}".format(video_filepath_tmp))
-                    video_filepath = video_filepath_tmp
-                if os.stat(video_filepath).st_size == 0:
-                    LOGGER.info("Empty file")
-                    return
+                info = self.get_video_info(download_to=download_to, subtitles=False)
+                if info is not None:
+                    LOGGER.info("Video resolution: {}x{}".format(info.get("width", ""), info.get("height", "")))
+                    self.filepath = os.path.join(download_to, "{}.mp4".format(info["id"]))
+                    self.filename = info["title"]
+                    if self.filepath is not None and os.stat(self.filepath).st_size == 0:
+                        LOGGER.info("Empty file")
+                        self.filepath = None
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
-                LOGGER.info("Download retry:"+str(try_number))
+                LOGGER.info("Download retry")
                 time.sleep(.8)
             except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError, OSError) as e:
@@ -746,7 +747,7 @@ class YouTubeResource(ResourceType):
             except OSError:
                 return
             else:
-                return video_filepath
+                return
 
     def to_file(self, filepath=None):
         if "watch?" in self.resource_url or not "/user/" in self.resource_url: 
@@ -819,7 +820,7 @@ class TESSIndiaChef(JsonTreeChef):
         super(TESSIndiaChef, self).__init__()
 
     def pre_run(self, args, options):
-        self.crawl(args, options)
+        #self.crawl(args, options)
         self.scrape(args, options)
 
     def crawl(self, args, options):
@@ -839,11 +840,16 @@ class TESSIndiaChef(JsonTreeChef):
 
     def scrape(self, args, options):
         cache_tree = options.get('cache_tree', '1')
-        
+        download_video = options.get('--download-video', "1")
+
         with open(self.crawling_stage, 'r') as f:
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'TESSIndiaResourceTree'
          
+        if int(download_video) == 0:
+            global DOWNLOAD_VIDEOS
+            DOWNLOAD_VIDEOS = False
+
         #channel_tree = test()
         #test_lesson()
         channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
@@ -853,7 +859,7 @@ class TESSIndiaChef(JsonTreeChef):
         write_tree_to_json_tree(self.scrape_stage, channel_tree)
 
     def _build_scraping_json_tree(self, cache_tree, web_resource_tree):
-        LANG = 'en'
+        LANG = 'mul'
         global channel_tree
         channel_tree = dict(
                 source_domain=TESSIndiaChef.HOSTNAME,
@@ -867,7 +873,7 @@ class TESSIndiaChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = len(web_resource_tree["children"])
+        total_size = 1#len(web_resource_tree["children"])
         copyrights = []
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:

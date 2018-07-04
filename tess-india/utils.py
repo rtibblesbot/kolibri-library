@@ -9,17 +9,9 @@ from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheCont
 
 
 DATA_DIR = "chefdata"
-BASE_URL = "http://www.readwritethink.org"
-
-sess = requests.Session()
-cache = FileCache('.webcache')
-basic_adapter = CacheControlAdapter(cache=cache)
-forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
-sess.mount('http://', basic_adapter)
-sess.mount(BASE_URL, forever_adapter)
 
 
-def save_thumbnail(url, save_as):
+def save_thumbnail(url, save_as, sess):
     THUMB_DATA_DIR = build_path([DATA_DIR, 'thumbnail'])
     filepath = os.path.join(THUMB_DATA_DIR, save_as)
     try:
