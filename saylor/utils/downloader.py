@@ -1,6 +1,10 @@
+import asyncio
+import os
 import requests
 import time
-from selenium import webdriver
+
+from pyppeteer import launch
+
 from requests_file import FileAdapter
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
 
@@ -26,10 +30,8 @@ def read(path, loadjs=False, session=None, driver=None):
     session = session or DOWNLOAD_SESSION
     try:
         if loadjs:                                              # Wait until js loads then return contents
-            driver = driver or webdriver.PhantomJS()
-            driver.get(path)
-            time.sleep(5)
-            return driver.page_source
+            content = asyncio.get_event_loop().run_until_complete(load_page(path))
+            return content
         else:                                                   # Read page contents from url
             response = DOWNLOAD_SESSION.get(path, stream=True)
             response.raise_for_status()
@@ -37,3 +39,12 @@ def read(path, loadjs=False, session=None, driver=None):
     except (requests.exceptions.MissingSchema, requests.exceptions.InvalidSchema):
         with open(path, 'rb') as fobj:                          # If path is a local file path, try to open the file
             return fobj.read()
+
+async def load_page(path):
+    browser = await launch({'headless': True})
+    page = await browser.newPage()
+    await page.goto(path)
+    time.sleep(5)
+    content = await page.evaluate('document.body.innerHTML', force_expr=True)
+    await browser.close()
+    return content
