@@ -493,11 +493,13 @@ class Menu(object):
     def build_index(self, directory="files/"):
         items = iter(self.items.values())
         if self.index_content is not None:
+            self.index_content["class"] = "sidebar-items"
             for ul in self.index_content:
                 if hasattr(ul, 'findAll'):
                     for a in ul.findAll("a"):
                         item = next(items)
                         a["href"] = "{}{}".format(directory, item["filename"])
+                        a["class"] = "sidebar-link"
                 else:
                     return
             self.is_valid = True
@@ -593,8 +595,7 @@ class Menu(object):
 
     def write_contents(self, filepath_index, filename, content, directory="files"):
         with html_writer.HTMLWriter(filepath_index, "a") as zipper:
-            content = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
-                content)
+            content = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="../css/styles.css"></head><body>{}<script src="../js/scripts.js"></script></body></html>'.format(content)
             zipper.write_contents(filename, content, directory=directory)
     
     def write_images(self, filepath, content):
@@ -606,6 +607,15 @@ class Menu(object):
                 except requests.exceptions.HTTPError:
                     pass
 
+    def write_css_js(self, filepath):
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/styles.css") as f:
+            content = f.read()
+            zipper.write_contents("styles.css", content, directory="css/")
+
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/scripts.js") as f:
+            content = f.read()
+            zipper.write_contents("scripts.js", content, directory="js/")
+
     def item_to_filename(self, name):
         name = "_".join(name.lower().split(" "))
         hash_name = hashlib.sha1(name.encode("utf-8")).hexdigest()
@@ -614,15 +624,18 @@ class Menu(object):
     def to_file(self, filepath, base_path):
         index_content_str = self.build_index()
         if index_content_str is not None:
-            self.write_index(filepath, '<html><head><meta charset="UTF-8"></head><body>'+\
-                index_content_str+'</body></html>')
+            self.write_index(filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body>{}<script src="js/scripts.js"></script></body></html>'.format(index_content_str))
+            self.write_css_js(filepath)
             for i, item in enumerate(self.items.values()):
                 self.write_images(filepath, item["content"])
                 file_nodes = self.write_pdfs(base_path, item["content"])
                 video_nodes = self.write_video(base_path, item["content"])
                 self.pager(item["content"], i)
                 self.clean_content(item["content"])
-                self.write_contents(filepath, item["filename"], str(item["content"]))
+                content = '<div class="sidebar"><a class="sidebar-link toggle-sidebar-button" href="javascript:void(0)" onclick="javascript:toggleNavMenu();">&#9776;</a>'+\
+                self.build_index(directory="./") +"</div>"+\
+                '<div class="main-content-with-sidebar">'+str(item["content"])+'</div>'
+                self.write_contents(filepath, item["filename"], content)
 
     def to_nodes(self):
         return self.nodes
@@ -820,8 +833,22 @@ class TESSIndiaChef(JsonTreeChef):
         super(TESSIndiaChef, self).__init__()
 
     def pre_run(self, args, options):
+        css = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/styles.css")
+        js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/scripts.js")
+        if not if_file_exists(css) or not if_file_exists(js):
+            LOGGER.info("Downloading styles")
+            self.download_css_js()
         #self.crawl(args, options)
         self.scrape(args, options)
+
+    def download_css_js(self):
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
+        with open("chefdata/styles.css", "wb") as f:
+            f.write(r.content)
+
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/js/scripts.js")
+        with open("chefdata/scripts.js", "wb") as f:
+            f.write(r.content)
 
     def crawl(self, args, options):
         web_resource_tree = dict(
@@ -873,7 +900,7 @@ class TESSIndiaChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = 1#len(web_resource_tree["children"])
+        total_size = 3#len(web_resource_tree["children"])
         copyrights = []
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
