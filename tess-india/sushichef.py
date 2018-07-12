@@ -11,7 +11,6 @@ import json
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
 import os
-#import pafy
 from pathlib import Path
 import re
 import requests
@@ -787,17 +786,36 @@ def download(source_id):
     return False
 
 
-def get_video_resolution_format(video, maxvres=720, ext="mp4"):
-    formats = [(int(s.resolution.split("x")[1]), s.extension, s) for s in video.videostreams]
-    formats = sorted(formats, key=lambda x: x[0])
-    best = None
-    for r, x, stream in formats:
-        if r <= maxvres and x == ext:
-            best = stream
-    if best is None:
-        return video.getbest(preftype=ext)
+#When a node has only one child and this child it's a object (file, video, etc),
+#this is moved to an upper level
+def clean_leafs_nodes_plus(channel_tree):
+    children = channel_tree.get("children", None)
+    if children is None:
+        return
+    elif len(children) == 1 and not "children" in children[0]:
+        return channel_tree["children"][0]
+    elif len(children) == 0:
+        return -1
     else:
-        return best
+        del_nodes = []
+        for i, node in enumerate(children):
+            leaf_node = clean_leafs_nodes_plus(node)
+            if leaf_node is not None and leaf_node != -1:
+                if leaf_node["source_id"].endswith(".js"):
+                    levels = leaf_node["source_id"].split("/")
+                    parent_dir = levels[-2] #dirname
+                    leaf_node["title"] = "{}_{}".format(parent_dir, leaf_node["title"])
+                children[i] = leaf_node
+            elif leaf_node == -1:
+                del children[i]
+            elif leaf_node is None:
+                try:
+                    if len(node["children"]) == 0:
+                        del children[i]
+                    elif len(node["children"]) == 1:
+                        children[i] = node["children"][0]
+                except KeyError:
+                    pass
 
 
 def language_map(subject):
@@ -838,8 +856,14 @@ class TESSIndiaChef(JsonTreeChef):
         if not if_file_exists(css) or not if_file_exists(js):
             LOGGER.info("Downloading styles")
             self.download_css_js()
-        #self.crawl(args, options)
-        self.scrape(args, options)
+        self.crawl(args, options)
+        channel_tree = self.scrape(args, options)
+        #import json
+        #with open("/home/alejandro/git/sushi-chefs/sushi-chef-tess-india/chefdata/trees/ricecooker_json_tree_bak.json") as f:
+        #    global channel_tree
+        #    channel_tree = json.load(f)
+        clean_leafs_nodes_plus(channel_tree)
+        self.write_tree_to_json(channel_tree, "en")
 
     def download_css_js(self):
         r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
@@ -879,8 +903,7 @@ class TESSIndiaChef(JsonTreeChef):
 
         #channel_tree = test()
         #test_lesson()
-        channel_tree = self._build_scraping_json_tree(cache_tree, web_resource_tree)
-        self.write_tree_to_json(channel_tree, "en")
+        return self._build_scraping_json_tree(cache_tree, web_resource_tree)
 
     def write_tree_to_json(self, channel_tree, lang):
         write_tree_to_json_tree(self.scrape_stage, channel_tree)
@@ -900,7 +923,7 @@ class TESSIndiaChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = 3#len(web_resource_tree["children"])
+        total_size = len(web_resource_tree["children"])
         copyrights = []
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
