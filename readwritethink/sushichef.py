@@ -238,7 +238,8 @@ class Collection(object):
                 LOGGER.info("Connection error, the resource will be scraped in 5s...")
                 time.sleep(3)
             else:
-                return BeautifulSoup(document, 'html.parser') #html5lib
+                page = BeautifulSoup(document, 'html5lib')#'html.parser') #html5lib
+                return page.find("div", id="print-container")
             tries += 1
         return False
 
@@ -493,7 +494,7 @@ class CollectionSection(object):
         files_list = []
         for filename, name, pdf_url in pdfs_urls:
             try:
-                response = downloader.read(pdf_url)
+                response = downloader.read(pdf_url, session=sess, timeout=10)
                 pdf_filepath = os.path.join(PDFS_DATA_DIR, filename)
                 with open(pdf_filepath, 'wb') as f:
                     f.write(response)
@@ -680,10 +681,10 @@ class CollectionSection(object):
             content = self.get_content()
 
             if menu_index is not None:
-                html = '<html><head><meta charset="UTF-8"></head><body>{}{}</body></html>'.format(
+                html = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="../css/styles.css"></head><body><div class="sidebar"><a class="sidebar-link toggle-sidebar-button" href="javascript:void(0)" onclick="javascript:toggleNavMenu();">&#9776;</a>{}</div><div class="main-content-with-sidebar">{}</div><script src="../js/scripts.js"></script></body></html>'.format(
                     menu_index, content)
             else:
-                html = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
+                html = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="../css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="../js/scripts.js"></script></body></html>'.format(
                     content)
 
             self.write(filename, html)
@@ -866,6 +867,8 @@ class PrintContainer(CollectionSection):
             license=license)
 
     def clean_page(self):
+        for script_tag in self.body.find_all("script"):
+            script_tag.extract()
         self.body.find("p", id="page-url").decompose()
         tabs = self.body.find("div", class_="table-tabs-back")
         if tabs is not None:
@@ -889,12 +892,22 @@ class PrintContainer(CollectionSection):
         with html_writer.HTMLWriter(self.filepath, "w") as zipper:
             zipper.write_index_contents(content)
 
+    def write_css_js(self, filepath):
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/styles.css") as f:
+            content = f.read()
+            zipper.write_contents("styles.css", content, directory="css/")
+
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/scripts.js") as f:
+            content = f.read()
+            zipper.write_contents("scripts.js", content, directory="js/")
+
     def to_file(self):
         if self.body is not None:
             images = self.get_imgs(prefix="files/")
-            html = '<html><head><meta charset="UTF-8"></head><body>{}</body></html>'.format(
-                self.body)
+            html = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(self.body)
             self.write(html)
+            self.write_css_js(self.filepath)
+            LOGGER.info("  * " + self.filepath)
             for img_src, img_filename in images:
                 self.write_img(img_src, img_filename)
 
@@ -1151,9 +1164,9 @@ class ReadWriteThinkChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = 15#len(web_resource_tree["children"])
+        total_size = 10#len(web_resource_tree["children"])
         for resource in web_resource_tree["children"]:
-            if 0 <= counter <= total_size:
+            if 0 <= counter < total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
                 collection = Collection(source_id=resource["url"],
                                 type=resource["collection"],
