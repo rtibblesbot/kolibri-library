@@ -220,7 +220,7 @@ class MarkdownReader(object):
         except FileNotFoundError as e:
             LOGGER.info("Error: {}".format(e))
         else:
-            return '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/highlight_default.css"></head><body><div class="main-content">{}</div><script src="js/scripts.js"></script></body></html>'.format(html)
+            return '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/highlight_default.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(html)
 
     def parser(self, document):
         if document is not None:
