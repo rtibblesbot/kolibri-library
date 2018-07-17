@@ -10,7 +10,7 @@ import json
 from le_utils.constants import licenses, content_kinds, file_formats
 import logging
 import os
-import pafy
+#import pafy
 from pathlib import Path
 import re
 import requests
@@ -921,6 +921,8 @@ class YouTubeResource(ResourceType):
         self.resource_url = self.clean_url(resource_url)
         self.file_format = file_formats.MP4
         self.lang = lang
+        self.filepath = None
+        self.filename = None
 
     def clean_url(self, url):
         if url[-1] == "/":
@@ -939,21 +941,23 @@ class YouTubeResource(ResourceType):
         url = "".join(url.split("?")[:1])
         return url.replace("embed/", "watch?v=").strip()
 
-    def get_video_info(self):
+    def get_video_info(self, download_to=None, subtitles=True):
         ydl_options = {
-                'writesubtitles': True,
-                'allsubtitles': True,
+                'writesubtitles': subtitles,
+                'allsubtitles': subtitles,
                 'no_warnings': True,
                 'restrictfilenames':True,
                 'continuedl': True,
                 'quiet': False,
-                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='720')
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
+                'outtmpl': '{}/%(id)s'.format(download_to),
+                'noplaylist': False
             }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
             try:
                 ydl.add_default_info_extractors()
-                info = ydl.extract_info(self.resource_url, download=False)
+                info = ydl.extract_info(self.resource_url, download=(download_to is not None))
                 return info
             except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError) as e:
@@ -973,43 +977,48 @@ class YouTubeResource(ResourceType):
         return subs
 
     def process_file(self, download=False, filepath=None):
-        if download is True:
-            video_filepath = self.video_download(download_to=filepath)
-        else:
-            video_filepath = None
-
-        if video_filepath is not None:
-            files = [dict(file_type=content_kinds.VIDEO, path=video_filepath)]
+        self.download(download=download, base_path=filepath)
+        if self.filepath is not None:
+            files = [dict(file_type=content_kinds.VIDEO, path=self.filepath)]
             files += self.subtitles_dict()
 
             self.add_resource_file(dict(
                 kind=content_kinds.VIDEO,
                 source_id=self.resource_url,
-                title=get_name_from_url_no_ext(video_filepath),
+                title=self.filename,
                 description='',
                 files=files,
                 language=self.lang,
                 license=get_license(licenses.CC_BY, copyright_holder="ReadWriteThink").as_dict()))
 
-    #youtubedl has some troubles downloading videos in youtube,
-    #sometimes raises connection error
-    #for that I choose pafy for downloading
-    def video_download(self, download_to="/tmp/"):
-        for try_number in range(10):
+    def download(self, download=True, base_path=None):
+        if not "watch?" in self.resource_url or "/user/" in self.resource_url or\
+            download is False:
+            return
+
+        download_to = base_path
+        for i in range(4):
             try:
-                video = pafy.new(self.resource_url)
-                best = video.getbest(preftype="mp4")
-                video_filepath = best.download(filepath=download_to)
+                info = self.get_video_info(download_to=download_to, subtitles=False)
+                if info is not None:
+                    LOGGER.info("Video resolution: {}x{}".format(info.get("width", ""), info.get("height", "")))
+                    self.filepath = os.path.join(download_to, "{}.mp4".format(info["id"]))
+                    self.filename = info["title"]
+                    if self.filepath is not None and os.stat(self.filepath).st_size == 0:
+                        LOGGER.info("Empty file")
+                        self.filepath = None
             except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
                 LOGGER.info(e)
-                LOGGER.info("Download retry:"+str(try_number))
+                LOGGER.info("Download retry")
                 time.sleep(.8)
             except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError, OSError) as e:
                 LOGGER.info("An error ocurred, may be the video is not available.")
                 return
+            except OSError:
+                return
             else:
-                return video_filepath
+                return
 
     def to_file(self, filepath=None):
         self.process_file(download=DOWNLOAD_VIDEOS, filepath=filepath)
@@ -1072,8 +1081,22 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
         super(ReadWriteThinkChef, self).__init__()
 
+    def download_css_js(self):
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
+        with open("chefdata/styles.css", "wb") as f:
+            f.write(r.content)
+
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/js/scripts.js")
+        with open("chefdata/scripts.js", "wb") as f:
+            f.write(r.content)
+
     def pre_run(self, args, options):
-        self.crawl(args, options)
+        css = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/styles.css")
+        js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/scripts.js")
+        if not if_file_exists(css) or not if_file_exists(js):
+            LOGGER.info("Downloading styles")
+            self.download_css_js()
+        #self.crawl(args, options)
         self.scrape(args, options)
 
     def crawl(self, args, options):
@@ -1098,7 +1121,11 @@ class ReadWriteThinkChef(JsonTreeChef):
 
     def scrape(self, args, options):
         cache_tree = options.get('cache_tree', '1')
-        
+        download_video = options.get('--download-video', "1")
+        if int(download_video) == 0:
+            global DOWNLOAD_VIDEOS
+            DOWNLOAD_VIDEOS = False
+
         with open(self.crawling_stage, 'r') as f:
             web_resource_tree = json.load(f)
             assert web_resource_tree['kind'] == 'ReadWriteThinkResourceTree'
@@ -1124,7 +1151,7 @@ class ReadWriteThinkChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = len(web_resource_tree["children"])
+        total_size = 15#len(web_resource_tree["children"])
         for resource in web_resource_tree["children"]:
             if 0 <= counter <= total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
