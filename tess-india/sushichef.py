@@ -623,7 +623,7 @@ class Menu(object):
     def to_file(self, filepath, base_path):
         index_content_str = self.build_index()
         if index_content_str is not None:
-            self.write_index(filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body>{}<script src="js/scripts.js"></script></body></html>'.format(index_content_str))
+            self.write_index(filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(index_content_str))
             self.write_css_js(filepath)
             for i, item in enumerate(self.items.values()):
                 self.write_images(filepath, item["content"])
