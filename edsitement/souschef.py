@@ -34,8 +34,10 @@ CHANNEL_NAME = "EDSITEment"              # Name of channel
 CHANNEL_SOURCE_ID = "edsitement-testing" # Channel's unique id    # change to just 'edsitement' for prod
 CHANNEL_DOMAIN = "edsitement.neh.gov"         # Who is providing the content
 CHANNEL_LANGUAGE = "en"      # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_DESCRIPTION = """EDSITEment is a partnership between the National Endowment for the Humanities and the National Trust for the Humanities.
+
+EDSITEment offers a treasure trove for teachers, students, and parents searching for high-quality material on the Internet in the subject areas of literature and language arts, foreign languages, art and culture, and history and social studies."""                                  # Description of the channel (optional)
+CHANNEL_THUMBNAIL = "https://www.neh.gov/files/imagecache/explore_large/explore/images/edsitement.jpg"                                    # Local path or url to image file (optional)
 PATH = path_builder.PathBuilder(channel_name=CHANNEL_NAME)  # Keeps track of path to write to csv
 WRITE_TO_PATH = "{}{}{}.zip".format(os.path.dirname(os.path.realpath(__file__)), os.path.sep, CHANNEL_NAME) # Where to generate zip file
 
@@ -56,21 +58,21 @@ BASE_URL = "http://edsitement.neh.gov"
 # doing the scrape
 # for debugging proporses
 STUDENT_RESOURCE_SUBJECT_INIT = 0
-STUDENT_RESOURCE_SUBJECT_END = 4 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_SUBJECT_END = 1 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
-STUDENT_RESOURCE_END = None
+STUDENT_RESOURCE_END = 4#None
 
 # Same with these, restrict the number of subjects and lessons plans when it's
 # doing the scrape
 # for debugging proporses
 LESSON_PLANS_SUBJECT_INIT = 0
-LESSON_PLANS_SUBJECT_END = 4
+LESSON_PLANS_SUBJECT_END = 1#4
 LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = None
+LESSON_PLANS_END = 4#None
 
 # If False then no download is made
 # for debugging proporses
-DOWNLOAD_VIDEOS = False
+DOWNLOAD_VIDEOS = True
 
 # time.sleep for debugging proporses, it helps to check log messages
 TIME_SLEEP = .2
@@ -231,7 +233,8 @@ class Menu(object):
             zipper.write_index_contents(content)
 
     def to_file(self):
-        self.write('<html><body><meta charset="UTF-8"></head><ul>'+self.to_html()+'</ul></body></html>')
+        html = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(self.to_html())
+        self.write(html)
 
     def menu_titles(self, titles):
         for title in titles:
@@ -251,14 +254,15 @@ class Menu(object):
         }
 
     def to_html(self, directory="files/", active_li=None):
-        li = []
+        li = ['<ul class="sidebar-items">']
         for e in self.menu.values():
             li.append("<li>")
-            if active_li is not None and e["filename"] == active_li:
-                li.append('{text}'.format(text=e["text"]))
-            else:
-                li.append('<a href="{directory}{filename}">{text}</a>'.format(directory=directory, **e))
+            #if active_li is not None and e["filename"] == active_li:
+            #    li.append('{text}'.format(text=e["text"]))
+            #else:
+            li.append('<a href="{directory}{filename}" class="sidebar-link">{text}</a>'.format(directory=directory, **e))
             li.append("</li>")
+        li.append("</ul>")
         return "".join(li)
 
 
@@ -288,6 +292,15 @@ class LessonSection(object):
         with html_writer.HTMLWriter(self.filename, "a") as zipper:
             zipper.write_contents(filename, content, directory="files")
 
+    def write_css_js(self, filepath):
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/styles.css") as f:
+            content = f.read()
+            zipper.write_contents("styles.css", content, directory="css/")
+
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/scripts.js") as f:
+            content = f.read()
+            zipper.write_contents("scripts.js", content, directory="js/")
+
     def to_file(self, filename, menu_index=None):
         if self.body is not None and filename is not None:
             content = self.get_content()
@@ -295,13 +308,12 @@ class LessonSection(object):
                 content = self.title+""+content
 
             if menu_index is not None:
-                html = '<html><head><meta charset="UTF-8"></head><body>{}{}<body></html>'.format(
-                    menu_index, content)
+                html = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="../css/styles.css"></head><body><div class="sidebar"><a class="sidebar-link toggle-sidebar-button" href="javascript:void(0)" onclick="javascript:toggleNavMenu();">&#9776;</a>{}</div><div class="main-content-with-sidebar">{}</div><script src="../js/scripts.js"></script></body></html>'.format(menu_index, content)
             else:
-                html = '<html><head><meta charset="UTF-8"></head><body>{}<body></html>'.format(
-                    content)
+                html = '<html><head><meta charset="utf-8"><link rel="stylesheet" href="../css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="../js/scripts.js"></script></body></html>'.format(content)
 
             self.write(filename, html)
+            self.write_css_js(self.filename)
 
 
 class Introduction(LessonSection):
@@ -390,10 +402,13 @@ class Resources(object):
 
     def get_pdfs(self):
         resource_links = self.body.find_all("a")
+        pdfs = []
         for link in resource_links:
             if link["href"].endswith(".pdf"):
                 name = get_name_from_url(link["href"])
-                yield name, urljoin(BASE_URL, link["href"])
+                LOGGER.info("   + Filename: {}".format(name))
+                pdfs.append((name, urljoin(BASE_URL, link["href"])))
+        return pdfs
 
     def student_resources(self):
         resources = self.body.find("dd", id="student-resources")
@@ -455,6 +470,14 @@ class LessonPlan(object):
             title = re.sub(" +", " ", title)
         return title
 
+    def rename_pdfs(self, pdfs):
+        renamed_pdf_files = []
+        for _, pdf_url in pdfs:
+            name = "{}.pdf".format(self.title)
+            LOGGER.info("   + Filename renamed: {}".format(name))
+            renamed_pdf_files.append((name, pdf_url))
+        return renamed_pdf_files
+
     def to_file(self, PATH, levels):
         LOGGER.info(" + Lesson:"+ self.title)
         self.menu.to_file()
@@ -463,7 +486,7 @@ class LessonPlan(object):
             menu_filename = self.menu.get(section.menu_name)
             menu_index = self.menu.to_html(directory="", active_li=menu_filename)
             section.to_file(menu_filename, menu_index=menu_index)
-        self.resources.to_file()
+        #self.resources.to_file() download and save images
         metadata_dict = {"description": "",
             "language": "en",
             "license": licenses.CC_BY,
@@ -476,7 +499,12 @@ class LessonPlan(object):
         writer.add_file(str(PATH), "THE LESSON", self.menu.filename, **metadata_dict)
         writer.add_folder(str(PATH), "RESOURCES", **metadata_dict)
         PATH.set(*(levels+["RESOURCES"]))
-        for name, pdf_url in self.resources.get_pdfs():
+        ##rename pdf files when the lesson have only one file
+        pdfs = self.resources.get_pdfs()
+        if len(pdfs) == 1:
+            pdfs = self.rename_pdfs(pdfs)
+
+        for name, pdf_url in pdfs:
             meta = metadata_dict.copy()
             meta["source_id"] = pdf_url
             try:
@@ -544,7 +572,7 @@ class StudentResourceIndex(object):
             self.write_img(img_url, filename)
 
     def to_file(self):
-        img_url = self.get_img_url()
+        img_url = None#self.get_img_url()
         if img_url is not None:
             filename_img = get_name_from_url(img_url)
             img_tag = "<img alt='{img}' src='files/{img}'>".format(img=filename_img)
@@ -570,7 +598,11 @@ class StudentResourceIndex(object):
                 for file_src, file_metadata in resource.resources_files:
                     try:
                         meta = file_metadata if len(file_metadata) > 0 else metadata_dict
-                        writer.add_file(str(PATH), get_name_from_url_no_ext(file_src), file_src, **meta)
+                        filename = get_name_from_url_no_ext(file_src)
+                        if file_src.endswith(".pdf"):
+                            filename = "{}_{}".format(self.title.text, filename)
+                            LOGGER.info("   * " + filename)
+                        writer.add_file(str(PATH), filename, file_src, **meta)
                     except requests.exceptions.HTTPError as e:
                         LOGGER.info("Error: {}".format(e))
                 PATH.go_to_parent_folder()
@@ -696,6 +728,15 @@ class WebPageSource(ResourceType):
         with html_writer.HTMLWriter(filepath, "w") as zipper:
             zipper.write_index_contents(content)
 
+    def write_css_js(self, filepath):
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/styles.css") as f:
+            content = f.read()
+            zipper.write_contents("styles.css", content, directory="css/")
+
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/scripts.js") as f:
+            content = f.read()
+            zipper.write_contents("scripts.js", content, directory="js/")
+
     def swf_content(self, content):
         obj = content.find("object")
         if obj is not None and obj["type"] == "application/x-shockwave-flash":
@@ -728,8 +769,8 @@ class WebPageSource(ResourceType):
                 self.add_resources_files(file_, metadata_files)
             #for img in images:
             #    self.add_resources_files(img)
-            self.write('<html><body><head><meta charset="UTF-8"></head>'+\
-                        str(content)+'</body><html>', filepath)
+            self.write('<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">'+str(content)+'</div><script src="js/scripts.js"></script></body></html>', filepath)
+            self.write_css_js(filepath)
             return metadata_dict
 
     def remove_external_links(self, content):
@@ -881,10 +922,24 @@ class SoundCloudResource(VimeoResource):
         self.file_format = file_formats.MP3
 
 
+def download_css_js():
+    css = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/styles.css")
+    js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "chefdata/scripts.js")
+    if not if_file_exists(css) or not if_file_exists(js):
+        LOGGER.info("Downloading styles")
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
+        with open("chefdata/styles.css", "wb") as f:
+            f.write(r.content)
+
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/js/scripts.js")
+        with open("chefdata/scripts.js", "wb") as f:
+            f.write(r.content)
+
+
 # CLI: This code will run when the sous chef is called from the command line
 ################################################################################
 if __name__ == '__main__':
-
+    download_css_js()
     # Open a writer to generate files
     with data_writer.DataWriter(write_to_path=WRITE_TO_PATH) as writer:
 
