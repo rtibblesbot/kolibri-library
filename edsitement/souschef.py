@@ -17,7 +17,7 @@ import time
 from urllib.error import URLError
 from urllib.parse import urlparse, urljoin
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from le_utils.constants import licenses, file_formats
 import pafy
 import requests
@@ -58,17 +58,17 @@ BASE_URL = "http://edsitement.neh.gov"
 # doing the scrape
 # for debugging proporses
 STUDENT_RESOURCE_SUBJECT_INIT = 0
-STUDENT_RESOURCE_SUBJECT_END = 1 #MAX 4 TOPICS OR NONE
+STUDENT_RESOURCE_SUBJECT_END = 4 #MAX 4 TOPICS OR NONE
 STUDENT_RESOURCE_INIT = 0
-STUDENT_RESOURCE_END = 4#None
+STUDENT_RESOURCE_END = None
 
 # Same with these, restrict the number of subjects and lessons plans when it's
 # doing the scrape
 # for debugging proporses
 LESSON_PLANS_SUBJECT_INIT = 0
-LESSON_PLANS_SUBJECT_END = 1#4
+LESSON_PLANS_SUBJECT_END = 4
 LESSON_PLANS_INIT = 0
-LESSON_PLANS_END = 4#None
+LESSON_PLANS_END = None
 
 # If False then no download is made
 # for debugging proporses
@@ -205,6 +205,20 @@ def remove_links(content):
             link.replaceWithChildren()
 
 
+#add a span tag as parent to an "a" element and his href 
+def link_to_text(content):
+    if content is not None:
+        for tag in content.find_all("a"):
+            span = Tag(name="span")
+            if tag.get("href", ""):
+                url = tag["href"]
+                if url.endswith(".pdf"):
+                    pass
+                elif url.startswith("http") or url.startswith("/"):
+                    tag.wrap(span)
+                    span.insert(1, " ("+url+")")
+
+
 def has_copyright(content):
     for license in content.findAll(text=re.compile('license', flags=re.IGNORECASE)):
         license = license.lower()
@@ -257,9 +271,6 @@ class Menu(object):
         li = ['<ul class="sidebar-items">']
         for e in self.menu.values():
             li.append("<li>")
-            #if active_li is not None and e["filename"] == active_li:
-            #    li.append('{text}'.format(text=e["text"]))
-            #else:
             li.append('<a href="{directory}{filename}" class="sidebar-link">{text}</a>'.format(directory=directory, **e))
             li.append("</li>")
         li.append("</ul>")
@@ -285,6 +296,7 @@ class LessonSection(object):
 
     def get_content(self):
         content = self.body.find("div", class_="text")
+        link_to_text(content)
         remove_links(content)
         return "".join([str(p) for p in content])
 
@@ -370,6 +382,7 @@ class TheBasics(LessonSection):
             id_="sect-thebasics", menu_name="the_basics")
 
     def get_content(self):
+        link_to_text(self.body)
         remove_links(self.body)
         return str(self.body)
 
@@ -396,6 +409,7 @@ class Resources(object):
     def get_credits(self):
         resource_img = self.body.find("li", class_="lesson-image")
         if resource_img is not None:
+            link_to_text(resource_img)
             remove_links(resource_img)
             credits = "".join(map(str, resource_img.findChildren("p")))
             return credits
@@ -555,6 +569,7 @@ class StudentResourceIndex(object):
         created = content.find("div", class_="created")
         self.description = content.find("p")
         if self.description is not None:
+            link_to_text(self.description)
             remove_links(self.description)
         return "".join(map(str, [self.title, created, self.description]))
 
