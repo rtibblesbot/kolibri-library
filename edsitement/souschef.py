@@ -418,7 +418,7 @@ class Resources(object):
         resource_links = self.body.find_all("a")
         pdfs = []
         for link in resource_links:
-            if link["href"].endswith(".pdf"):
+            if link.get("href", "").endswith(".pdf"):
                 name = get_name_from_url(link["href"])
                 LOGGER.info("   + Filename: {}".format(name))
                 pdfs.append((name, urljoin(BASE_URL, link["href"])))
