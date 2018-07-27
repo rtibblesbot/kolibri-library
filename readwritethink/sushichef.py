@@ -63,6 +63,7 @@ forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=c
 sess.mount('http://', basic_adapter)
 sess.mount(BASE_URL, forever_adapter)
 
+
 # Main Scraping Method
 ################################################################################
 
@@ -78,7 +79,8 @@ def test():
     #obj_id = "30837"
     #obj_id = "31046"
     #obj_id = "1075" #--
-    obj_id = "411"
+    #obj_id = "411"
+    obj_id = "322"
     #obj_id = "30721"
     collection_type = "Lesson Plan"
     #obj_id = "31023"
@@ -100,6 +102,11 @@ def test():
     )
 
     try:
+        print_page = PrintPage()
+        print_page.search_printpage_url(url)
+        print_page.get_type()
+        print_page.get_grades()
+
         collection = Collection(source_id=url,
             type=collection_type,
             obj_id=obj_id)
@@ -113,8 +120,9 @@ def test():
 
 
 class ResourceBrowser(object):
-    def __init__(self, resource_url):
+    def __init__(self, resource_url, get_only_id=False):
         self.resource_url = resource_url
+        self.get_only_id = get_only_id
 
     def get_resource_data(self, limit_page=1):
         pass
@@ -153,12 +161,15 @@ class ResourceBrowser(object):
                     url = urljoin(BASE_URL, a["href"])
                     print_page = PrintPage()
                     print_page.search_printpage_url(url)
-                    print_page.get_type()
+                    if self.get_only_id is False:
+                        print_page.get_type()
+                        print_page.get_grades()
                     counter += 1
                     yield dict(url=print_page.url, 
                         collection=print_page.type,
                         id=print_page.resource_id,
-                        sub_type=print_page.sub_type)
+                        sub_type=print_page.sub_type,
+                        grades=print_page.grades)
                 LOGGER.info("  - {} of {}".format(counter, total_items))
                 time.sleep(TIME_SLEEP)
                 page_number += 1
@@ -171,30 +182,54 @@ class PrintPage(object):
         self.url = None
         self.type = None
         self.sub_type = None
+        self.grades = None
         self.resource_id = None
+        self.page = None
 
     def search_printpage_url(self, url):
         try:
             page_contents = downloader.read(url, loadjs=False)
         except requests.exceptions.HTTPError as e:
             LOGGER.info("Error: {}".format(e))
-        page = BeautifulSoup(page_contents, 'html.parser')
-        print_page = page.find(lambda tag: tag.name == "a" and tag.findParent("img", id="icon-materials"))
-        self.url = self.parse_js(print_page.attrs["onclick"])
-        self.resource_id = self.url.split("id=")[-1]
+        else:
+            page = BeautifulSoup(page_contents, 'html.parser')
+            print_page = page.find(lambda tag: tag.name == "a" and tag.findParent("img", id="icon-materials"))
+            if print_page is not None:
+                self.url = self.parse_js(print_page.attrs["onclick"])
+                self.resource_id = self.url.split("id=")[-1]
 
     def get_type(self):
-        try:
-            page_contents = downloader.read(self.url, loadjs=False)
-        except requests.exceptions.HTTPError as e:
-            LOGGER.info("Error: {}".format(e))
-        page = BeautifulSoup(page_contents, 'html.parser')
-        h3 = page.find("h3", class_="pad3b")
-        self.type = h3.text
-        try:
-            self.sub_type = page.find(text="Lesson Plan Type").findNext("td").text
-        except:
-            pass
+        if self.page is None and self.url is not None:
+            try:
+                page_contents = downloader.read(self.url, loadjs=False)
+            except requests.exceptions.HTTPError as e:
+                LOGGER.info("Error: {}".format(e))
+            else:
+                self.page = BeautifulSoup(page_contents, 'html.parser')
+
+        if self.page is not None:
+            h3 = self.page.find("h3", class_="pad3b")
+            self.type = h3.text
+            try:
+                self.sub_type = self.page.find(text="Lesson Plan Type").findNext("td").text
+            except:
+                pass
+
+    def get_grades(self):
+        if self.page is None and self.url is not None:
+            try:
+                page_contents = downloader.read(self.url, loadjs=False)
+            except requests.exceptions.HTTPError as e:
+                LOGGER.info("Error: {}".format(e))
+            else:
+                self.page = BeautifulSoup(page_contents, 'html.parser')
+
+        if self.page is not None:
+            h3 = self.page.find("h3", class_="pad3b")
+            try:
+                self.grades = self.page.find(text=re.compile(r"^Grade")).findNext("td").text        
+            except:
+                pass
 
     def parse_js(self, value):
         init = value.find("/")
@@ -203,7 +238,8 @@ class PrintPage(object):
 
 
 class Collection(object):
-    def __init__(self, source_id, type, obj_id=None, subtype=None):
+    def __init__(self, source_id, type, obj_id=None, subtype=None, grades=None, 
+        theme=None):
         self.page = self.download_page(source_id)
         if self.page is not False:
             self.title = self.clean_title(self.page.find("h1"))
@@ -213,6 +249,8 @@ class Collection(object):
             self.lang = "en"
             self.obj_id = obj_id
             self.subtype = subtype
+            self.grades = grades
+            self.theme = "General" if theme is None or theme == "" else theme
             
             if self.type == "Lesson Plan":
                 self.curriculum_type = LessonPlan()
@@ -257,6 +295,15 @@ class Collection(object):
 
     ##activities, lessons, etc
     def topic_info(self):
+        theme_node = dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.theme,
+            title=self.theme,
+            description="",
+            license=None,
+            children=[]
+        )
+
         topic_node = dict(
             kind=content_kinds.TOPIC,
             source_id=self.type,
@@ -265,6 +312,7 @@ class Collection(object):
             license=None,
             children=[]
         )
+        theme_node["children"].append(topic_node)
         if self.subtype is not None:
             subtopic_node = dict(
                 kind=content_kinds.TOPIC,
@@ -277,22 +325,22 @@ class Collection(object):
             topic_node["children"].append(subtopic_node)
         else:
             subtopic_node = None
-        return topic_node, subtopic_node
+        return theme_node, topic_node, subtopic_node
 
-    def empty_info(self, url):
-        return dict(
-                kind=content_kinds.TOPIC,
-                source_id=url,
-                title="TMP",
-                thumbnail=None,
-                description="",
-                license=get_license(licenses.CC_BY, copyright_holder="X").as_dict(),
-                children=[]
-            )
+    #def empty_info(self, url):
+    #    return dict(
+    #            kind=content_kinds.TOPIC,
+    #            source_id=url,
+    #            title="TMP",
+    #            thumbnail=None,
+    #            description="",
+    #            license=get_license(licenses.CC_BY, copyright_holder="X").as_dict(),
+    #            children=[]
+    #        )
 
     def to_file(self):
         from collections import namedtuple
-        LOGGER.info(" + [{}|{}]: {}".format(self.type, self.subtype, self.title))
+        LOGGER.info(" + [{}|{}|{}]: {}".format(self.theme, self.type, self.subtype, self.title))
         LOGGER.info("   - URL: {}".format(self.source_id))
         copy_page = copy.copy(self.page)
         base_path = build_path([DATA_DIR, self.type, self.obj_id])
@@ -330,22 +378,22 @@ class Collection(object):
     def to_node(self, tree):
         if tree is not None and tree.get("source_id", None) != self.type and self.subtype is not None:
             subnode = get_level_map(tree, [self.type, self.subtype])
-            node = get_level_map(tree, [self.type])
+            node = get_level_map(tree, [self.theme, self.type])
         elif tree is not None and tree.get("source_id", None) != self.type:
-            node = get_level_map(tree, [self.type])
+            node = get_level_map(tree, [self.theme, self.type])
             subnode = None
         else:
             node = tree
             subnode = None
 
         if node is None:
-            node, subtopic_node = self.topic_info()
+            theme_node, node, subtopic_node = self.topic_info()
             if subtopic_node is not None:
                 subtopic_node["children"].append(self.info)
             else:
                 node["children"].append(self.info)
         elif node is not None and subnode is None:
-            _, subtopic_node = self.topic_info()
+            _, _, subtopic_node = self.topic_info()
             if subtopic_node is not None:
                 subtopic_node["children"].append(self.info)
                 node["children"].append(subtopic_node)
@@ -1120,12 +1168,41 @@ class ReadWriteThinkChef(JsonTreeChef):
         )
         crawling_stage = os.path.join(ReadWriteThinkChef.TREES_DATA_DIR,                     
                                     ReadWriteThinkChef.CRAWLING_STAGE_OUTPUT_TPL)
+        resources_theme = {
+            "10": "Arts",
+            "16": "Careers",
+            "11": "Community",
+            "13": "Drama",
+            "18": "English-Language Learners",
+            "17": "Family",
+            "6": "Fiction",
+            "19": "Mathematics",
+            "25": "Mobile Learning",
+            "9": "Non Fiction",
+            "7": "Poetry",
+            "5": "Science",
+            "23": "Season / Holiday",
+            "15": "Social Action",
+            "22": "Social Studies / History",
+            "21": "Sports",
+            "24": "STEM"
+        }
+
+        themes_map = {}
+        for theme_id, theme_name in resources_theme.items():
+            curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?theme={}".format(theme_id))
+            resource_browser = ResourceBrowser(curriculum_url, get_only_id=True)
+            for data in resource_browser.run(limit_page=None):
+                themes_map[data["id"]] = theme_name
+
         resources_types = [(6, "Lesson Plans"), (70, "Activities & Projects"), 
             (74, "Tips & Howtos"), (56, "Strategy Guide"), (18, "Printouts")]
         for resource_id, resource_name in resources_types:
             curriculum_url = urljoin(ReadWriteThinkChef.ROOT_URL.format(HOSTNAME=ReadWriteThinkChef.HOSTNAME), "search/?resource_type={}".format(resource_id))
             resource_browser = ResourceBrowser(curriculum_url)
             for data in resource_browser.run(limit_page=None):
+                theme_name = themes_map.get(data["id"], "")
+                data["theme"] = theme_name
                 web_resource_tree["children"][data["url"]] = data
         web_resource_tree["children"] = list(web_resource_tree["children"].values())
         with open(crawling_stage, 'w') as f:
@@ -1164,14 +1241,16 @@ class ReadWriteThinkChef(JsonTreeChef):
             )
         counter = 0
         types = set([])
-        total_size = 10#len(web_resource_tree["children"])
+        total_size = 3#len(web_resource_tree["children"])
         for resource in web_resource_tree["children"]:
             if 0 <= counter < total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
                 collection = Collection(source_id=resource["url"],
                                 type=resource["collection"],
                                 obj_id=resource["id"],
-                                subtype=resource["sub_type"])
+                                subtype=resource["sub_type"],
+                                grades=resource["grades"],
+                                theme=resource["theme"])
                 collection.to_file()
                 node = collection.to_node(channel_tree)
                 if collection.type not in types and node is not None:
