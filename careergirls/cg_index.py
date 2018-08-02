@@ -3,9 +3,25 @@ import lxml.html
 from lxml.html.clean import Cleaner
 import requests_cache
 import re
-requests_cache.install_cache()
 from urllib.parse import urljoin
+from zipfile import ZipFile
+from io import BytesIO
+requests_cache.install_cache()
+
 super_cluster_url = "https://www.careergirls.org/explore-careers/career-clusters/"
+
+html_template = """
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <title>Resource</title>
+  </head>
+  <body>
+    {}
+  </body>
+</html>"""
+
+
 
 def clean_html(source):
     "see https://lxml.de/4.1/api/lxml.html.clean.Cleaner-class.html"
@@ -87,7 +103,14 @@ def index_job(job_url):
         tag.insert(0, h3)
         
     # apparently this'll trash the original structure, but I'm not convinced that's true.
+    
     job.html = clean_html(raw_accordion)
+    
+    io = BytesIO()
+    with ZipFile(io, mode="w") as z:
+        z.writestr("index.html", html_template.format(job.html))
+        z.write("styles.css")
+    job.app = io.getvalue()
     return job
 
 def index_skill(skill_url):
@@ -126,8 +149,9 @@ def index_role(role_url):
     return role
 
 
-acc = index_job("https://www.careergirls.org/career/architect/").html
-print (acc)
+app = index_job("https://www.careergirls.org/career/architect/").app
+with open("app.zip", "wb") as f:
+    f.write(app)
 
 exit()
     
