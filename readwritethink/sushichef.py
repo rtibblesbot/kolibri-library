@@ -111,8 +111,7 @@ def test():
             type=collection_type,
             obj_id=obj_id)
         collection.to_file()
-        node = collection.to_node(channel_tree)
-        channel_tree["children"].append(node)
+        collection.to_node(channel_tree)
     except requests.exceptions.HTTPError as e:
         LOGGER.info("Error: {}".format(e))
 
@@ -312,7 +311,7 @@ class Collection(object):
             license=None,
             children=[]
         )
-        theme_node["children"].append(topic_node)
+        topic_node["children"].append(theme_node)
         if self.subtype is not None:
             subtopic_node = dict(
                 kind=content_kinds.TOPIC,
@@ -322,10 +321,10 @@ class Collection(object):
                 license=None,
                 children=[]
             )
-            topic_node["children"].append(subtopic_node)
+            theme_node["children"].append(subtopic_node)
         else:
             subtopic_node = None
-        return theme_node, topic_node, subtopic_node
+        return topic_node, theme_node, subtopic_node
 
     #def empty_info(self, url):
     #    return dict(
@@ -375,33 +374,75 @@ class Collection(object):
         if printouts_info is not None:
             self.info["children"] += printouts_info
 
-    def to_node(self, tree):
-        if tree is not None and tree.get("source_id", None) != self.type and self.subtype is not None:
-            subnode = get_level_map(tree, [self.type, self.subtype])
-            node = get_level_map(tree, [self.theme, self.type])
-        elif tree is not None and tree.get("source_id", None) != self.type:
-            node = get_level_map(tree, [self.theme, self.type])
-            subnode = None
+    def add_nodes(self, topic_node, theme_node):
+        for children in topic_node["children"]:
+            if children["source_id"] == theme_node["source_id"]:
+                break
         else:
-            node = tree
-            subnode = None
+            topic_node["children"].append(theme_node)
 
-        if node is None:
-            theme_node, node, subtopic_node = self.topic_info()
+    def to_node(self, tree):
+        if tree is not None and\
+            tree.get("source_id", None) != self.theme and\
+            tree.get("source_id", None) != self.type and\
+            self.subtype is not None:
+            subtopic_node = get_level_map(tree, [self.type, self.theme, self.subtype])
+            theme_node = get_level_map(tree, [self.type, self.theme])
+            topic_node = get_level_map(tree, [self.type])
+        elif tree is not None and\
+            tree.get("source_id", None) != self.theme and\
+            tree.get("source_id", None) != self.type:
+            theme_node = get_level_map(tree, [self.type, self.theme])
+            topic_node = get_level_map(tree, [self.type])
+            subtopic_node = None
+        elif tree is not None and tree.get("source_id", None) != self.type:
+            topic_node = get_level_map(tree, [self.type])
+            theme_node = None
+            subtopic_node = None
+        elif tree is None:
+            theme_node = None
+            topic_node = None
+            subtopic_node = None
+        else:
+            topic_node = tree
+            theme_node = None
+            subtopic_node = None
+
+        if self.type == "Printout":
+            if tree is None:
+                return self.info
+            else:
+                if topic_node is None:
+                    topic_node, _, _ = self.topic_info()
+                topic_node["children"].append(self.info)
+                return topic_node
+        elif topic_node is None:
+            topic_node, theme_node, subtopic_node = self.topic_info()
             if subtopic_node is not None:
                 subtopic_node["children"].append(self.info)
             else:
-                node["children"].append(self.info)
-        elif node is not None and subnode is None:
+                self.add_nodes(theme_node, self.info)
+            self.add_nodes(topic_node, theme_node)
+            tree["children"].append(topic_node)
+        elif topic_node is not None and theme_node is None:
+            _, theme_node, subtopic_node = self.topic_info()
+            if subtopic_node is not None:
+                subtopic_node["children"].append(self.info)
+                self.add_nodes(theme_node, subtopic_node)
+            else:
+                self.add_nodes(theme_node, self.info)
+            self.add_nodes(topic_node, theme_node)
+        elif topic_node is not None and theme_node is not None and subtopic_node is None:
             _, _, subtopic_node = self.topic_info()
             if subtopic_node is not None:
                 subtopic_node["children"].append(self.info)
-                node["children"].append(subtopic_node)
+                theme_node["children"].append(subtopic_node)
             else:
-                node["children"].append(self.info)
+                theme_node["children"].append(self.info)
+            self.add_nodes(topic_node, theme_node)
         else:
-            subnode["children"].append(self.info)
-        return node
+            subtopic_node["children"].append(self.info)
+        return theme_node
 
 
 class CurriculumType(object):
@@ -584,7 +625,10 @@ class CollectionSection(object):
                 obj_id=print_page.resource_id)
             collection.to_file()
             node = collection.to_node(node)
-        return [node]
+        if node is not None:
+            return [node]
+        else:
+            return []
 
     def get_domain_links(self):
         return set([link.get("href", "") for link in self.body.find_all("a") if link.get("href", "").startswith("/")])
@@ -1240,8 +1284,8 @@ class ReadWriteThinkChef(JsonTreeChef):
                 license=ReadWriteThinkChef.LICENSE,
             )
         counter = 0
-        types = set([])
-        total_size = 3#len(web_resource_tree["children"])
+        #types = set([])
+        total_size = len(web_resource_tree["children"])
         for resource in web_resource_tree["children"]:
             if 0 <= counter < total_size:
                 LOGGER.info("{} of {}".format(counter, total_size))
@@ -1252,10 +1296,10 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 grades=resource["grades"],
                                 theme=resource["theme"])
                 collection.to_file()
-                node = collection.to_node(channel_tree)
-                if collection.type not in types and node is not None:
-                    channel_tree["children"].append(node)
-                    types.add(collection.type)
+                collection.to_node(channel_tree)
+                #if collection.theme not in types and node is not None:
+                #    channel_tree["children"].append(node)
+                #    types.add(collection.theme)
             counter += 1
         return channel_tree
 
