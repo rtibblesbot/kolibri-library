@@ -80,12 +80,13 @@ def test():
     #obj_id = "31046"
     #obj_id = "1075" #--
     #obj_id = "411"
-    obj_id = "322"
+    #obj_id = "322"
     #obj_id = "30721"
-    collection_type = "Lesson Plan"
+    obj_id = "30100"
+    #collection_type = "Lesson Plan"
     #obj_id = "31023"
     #obj_id = "31034"
-    #collection_type = "Strategy Guide"
+    collection_type = "Strategy Guide"
     #obj_id = "31049"
     #obj_id = "30654"
     #collection_type = "Printout"
@@ -870,13 +871,14 @@ class AboutThis(CollectionSection):
     def get_overview(self):
         self.overview = self.collection.page.find(lambda tag: tag.name == "h3" and\
             tag.text == "About This Strategy Guide")
-        node = self.overview.findNext("div")
-        for i in range(5):
-            if node.text is None or len(node.text) < 2:
-                node = node.findNext("p")
-            else:
-                break
-        self.overview = node.text
+        if self.overview is not None:
+            node = self.overview.findNext("div")
+            for i in range(5):
+                if node.text is None or len(node.text) < 2:
+                    node = node.findNext("p")
+                else:
+                    break
+            self.overview = node.text
 
 
 class AboutThisPrintout(CollectionSection):
@@ -927,13 +929,17 @@ class Copyright(CollectionSection):
         self.get_copyright_info()
 
     def get_copyright_info(self):
-        p = self.collection.page.find("p", id="footer-l").text
-        index = p.find("©")
-        if index != -1:
-            self.copyright = p[index:].strip().replace("\n", "").replace("\t", "")
-            LOGGER.info("   - COPYRIGHT INFO:" + self.copyright)
+        p = self.collection.page.find("p", id="footer-l")
+        if p is not None:
+            p_text = p.text
+            index = p_text.find("©")
+            if index != -1:
+                self.copyright = p_text[index:].strip().replace("\n", "").replace("\t", "")
+                LOGGER.info("   - COPYRIGHT INFO:" + self.copyright)
+            else:
+                self.copyright = "ReadWriteThink"
         else:
-            self.copyright = ""
+            self.copyright = "ReadWriteThink"
 
 
 class PrintContainer(CollectionSection):
@@ -1201,7 +1207,7 @@ class ReadWriteThinkChef(JsonTreeChef):
         if not if_file_exists(css) or not if_file_exists(js):
             LOGGER.info("Downloading styles")
             self.download_css_js()
-        #self.crawl(args, options)
+        self.crawl(args, options)
         self.scrape(args, options)
 
     def crawl(self, args, options):
@@ -1284,7 +1290,6 @@ class ReadWriteThinkChef(JsonTreeChef):
                 license=ReadWriteThinkChef.LICENSE,
             )
         counter = 0
-        #types = set([])
         total_size = len(web_resource_tree["children"])
         for resource in web_resource_tree["children"]:
             if 0 <= counter < total_size:
@@ -1297,9 +1302,6 @@ class ReadWriteThinkChef(JsonTreeChef):
                                 theme=resource["theme"])
                 collection.to_file()
                 collection.to_node(channel_tree)
-                #if collection.theme not in types and node is not None:
-                #    channel_tree["children"].append(node)
-                #    types.add(collection.theme)
             counter += 1
         return channel_tree
 
