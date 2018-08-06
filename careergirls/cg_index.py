@@ -78,14 +78,16 @@ def full_urls(_list):
     
 def index_cluster(cluster_url):
     cluster = Record(cluster_url)
-    cluster.title = root.xpath("//h1[@class='cluster__title']/span/text()")
-    cluster.description = root.xpath("//div[@class='cluster__introduction']/p/text()")
-    cluster.jobs = full_urls(root.xpath("//li[@class='career-glossary__title']/a/@href"))
-    cluster.skills = root.xpath("//ul[@class='listing']//a/@href")
+    cluster.title = cluster.root.xpath("//h1[@class='cluster__title']/span/text()")
+    cluster.description = cluster.root.xpath("//div[@class='cluster__introduction']/p/text()")
+    cluster.jobs = full_urls(cluster.root.xpath("//li[@class='career-glossary__title']/a/@href"))
+    cluster.skills = cluster.root.xpath("//ul[@class='listing']//a/@href")
     return cluster
 
 def index_job(job_url):
+    # TODO -- get job name
     job = Record(job_url)
+    job.title = job.root.xpath("//h1[@class='video__title']/text()")[0]
     job.roles = full_urls(job.root.xpath("//div[@class='role-models-related listing-grid listing-container']//a/@href"))
     try:
         job.youtube = re.search("videoId: '([^']+)'", job.response.text).groups()[0]
@@ -148,26 +150,27 @@ def index_role(role_url):
     assert len(role.skill_names)== len(role.skill_links)
     return role
 
-
-app = index_job("https://www.careergirls.org/career/architect/").app
-with open("app.zip", "wb") as f:
-    f.write(app)
-
-exit()
+def all_jobs():
+    cluster = index_cluster("https://www.careergirls.org/explore-careers/careers/")
+    for job_url in cluster.jobs:
+        yield index_job(job_url)
     
-response = requests.get(super_cluster_url)
-root = lxml.html.fromstring(response.content)
-hrefs = root.xpath("//a[./div[@class='cluster-listing__title']]/@href")
-hrefs = [full_url(url) for url in hrefs]
 
-cluster = index_cluster("https://www.careergirls.org/explore-careers/careers/")
-#for job_url in cluster.jobs:
-#    index_job(job_url)
+if __name__ == "__main__":
+    app = index_job("https://www.careergirls.org/career/architect/").app
+    with open("app.zip", "wb") as f:
+        f.write(app)
     
-print (index_role("https://www.careergirls.org/role-model/cultural-anthropologist/").keys())
-
-print(index_skill("https://www.careergirls.org/video/importance-of-math/"))
-
-#for cluster_url in hrefs:
-#    cluster = index_cluster(cluster_url)
-#    print (cluster.jobs)
+    response = requests.get(super_cluster_url)
+    root = lxml.html.fromstring(response.content)
+    hrefs = root.xpath("//a[./div[@class='cluster-listing__title']]/@href")
+    hrefs = [full_url(url) for url in hrefs]
+    
+        
+    print (index_role("https://www.careergirls.org/role-model/cultural-anthropologist/").keys())
+    
+    print(index_skill("https://www.careergirls.org/video/importance-of-math/"))
+    
+    #for cluster_url in hrefs:
+    #    cluster = index_cluster(cluster_url)
+    #    print (cluster.jobs)
