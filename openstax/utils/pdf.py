@@ -90,13 +90,12 @@ class PDFParser(object):
 
         return pages
 
-    def split_chapters(self):
+    def split_chapters(self, jsondata=None):
         self.check_path()
 
-        toc = self.get_toc()
+        toc = jsondata or self.get_toc()
         directory = os.path.dirname(self.path)
         chapters = []
-
         for index, chapter in enumerate(toc):
             writer = PdfFileWriter()
             slug = "".join([c for c in chapter['title'].replace(" ", "-") if c.isalnum() or c == "-"])
@@ -104,9 +103,12 @@ class PDFParser(object):
 
             for page in range(chapter['page_start'], chapter['page_end']):
                 writer.addPage(self.pdf.getPage(page))
+                writer.removeLinks() # Must be done every page
 
             with open(write_to_path, 'wb') as outfile:
+
                 writer.write(outfile)
+
             chapters.append({"title": chapter['title'], "path": write_to_path})
 
         return chapters

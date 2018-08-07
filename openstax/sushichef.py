@@ -13,13 +13,13 @@ from ricecooker.exceptions import raise_for_invalid_channel
 ###########################################################
 import logging
 import json
-import tempfile
 from le_utils.constants import licenses, file_formats, roles
 from bs4 import BeautifulSoup
-from selenium import webdriver
 
-
+import cssutils
 from utils.pdf import PDFParser
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPM
 
 
 
@@ -38,10 +38,15 @@ CHANNEL_THUMBNAIL = "https://pbs.twimg.com/profile_images/461533721493897216/Q-k
 
 BASE_URL = "https://openstax.org/api"
 DOWNLOAD_DIRECTORY = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "downloads"])
+THUMBNAILS_DIRECTORY = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "downloads", "thumbnails"])
 
 # Create download directory if it doesn't already exist
 if not os.path.exists(DOWNLOAD_DIRECTORY):
     os.makedirs(DOWNLOAD_DIRECTORY)
+
+# Create thumbnails directory if it doesn't already exist
+if not os.path.exists(THUMBNAILS_DIRECTORY):
+    os.makedirs(THUMBNAILS_DIRECTORY)
 
 # Map for Open Stax licenses to le_utils license constants
 LICENSE_MAPPING = {
@@ -127,10 +132,12 @@ class MyChef(SushiChef):
 
             # Create high resolution document
             LOGGER.info("   Writing {} documents...".format(book.get('title')))
-            add_file_node(book_node, content.get("high_resolution_pdf_url"), content['title'], split=True, **auth_info, **details)
+            add_file_node(book_node, content.get("low_resolution_pdf_url") or content.get("high_resolution_pdf_url"), \
+                        content['title'], split=True, contents=content['table_of_contents']['contents'], **auth_info, **details)
 
             # Create student handbook document
-            add_file_node(book_node, content.get("student_handbook_url"), "Student Handbook", **auth_info, **details)
+            if content.get("student_handbook_url"):
+                add_file_node(book_node, content["student_handbook_url"], "Student Handbook", source_id="student-handbook", **auth_info, **details)
 
             # Parse resource materials
             LOGGER.info("   Writing {} resources...".format(book.get('title')))
@@ -138,7 +145,6 @@ class MyChef(SushiChef):
             parse_resources("Student Resources", content.get('book_student_resources'), book_node, **auth_info)
 
         raise_for_invalid_channel(channel)                           # Check for errors in channel construction
-
         return channel
 
 
@@ -150,15 +156,54 @@ def read_source(endpoint="books"):
     page_contents = downloader.read("{baseurl}/{endpoint}".format(baseurl=BASE_URL, endpoint=endpoint))
     return json.loads(page_contents) # Open Stax url returns json object
 
+
+
 def get_thumbnail(url):
-    """ Reads page source using downloader class to get json data """
-    # Hacky method to get images, but much more lightweight than converting svg to png
     filename, _ext = os.path.splitext(os.path.basename(url))
-    img_path = os.path.sep.join([DOWNLOAD_DIRECTORY, "{}.png".format(filename)])
-    driver = webdriver.PhantomJS()
-    driver.set_script_timeout(30)
-    driver.get(url)
-    driver.save_screenshot(img_path)
+    img_path = os.path.sep.join([THUMBNAILS_DIRECTORY, "{}.png".format(filename)])
+    svg_path = os.path.sep.join([THUMBNAILS_DIRECTORY, "{}.svg".format(filename)])
+
+    # This thumbnail gets converted with an error, so download it separately for now
+    if "US_history" in filename:
+        return files.ThumbnailFile(path="US_history.png")
+
+    # Copy pngs to local storage
+    if url.endswith("png"):
+        with open(img_path, 'wb') as pngobj:
+            pngobj.write(downloader.read(url))
+
+    elif url.endswith("svg"):
+        with open(svg_path, 'wb') as svgobj:
+            # renderPM doesn't read <style> tags, so add style to individual elements
+            svg_contents = BeautifulSoup(downloader.read(url), 'html.parser')
+            svg_contents = BeautifulSoup(svg_contents.find('svg').prettify(), 'html.parser')
+            if svg_contents.find('style'):
+                sheet = cssutils.parseString(svg_contents.find('style').string)
+                for rule in sheet:
+                    rectangles = svg_contents.find_all('rect', {'class': rule.selectorText.lstrip('.')})
+                    paths = svg_contents.find_all('path', {'class': rule.selectorText.lstrip('.')})
+                    polygons = svg_contents.find_all('polygon', {'class': rule.selectorText.lstrip('.')})
+                    for el in rectangles + paths + polygons:
+                        el['style'] = ""
+                        for prop in rule.style:
+                            el['style'] += "{}:{};".format(prop.name, prop.value)
+
+            # Beautifulsoup autocorrects some words to be all lowercase, so undo correction
+            autocorrected_fields = ["baseProfile", "viewBox"]
+            svg = svg_contents.find('svg')
+            for field in autocorrected_fields:
+                if svg.get(field.lower()):
+                    svg[field] = svg[field.lower()]
+                    del svg[field.lower()]
+
+
+            svgobj.write(svg_contents.renderContents())
+        drawing = svg2rlg(svg_path)
+        renderPM.drawToFile(drawing, img_path)
+
+    else:
+        import pdb; pdb.set_trace()
+
     return files.ThumbnailFile(path=img_path)
 
 
@@ -168,6 +213,7 @@ def parse_description(description):
 
 
 def parse_resources(resource_name, resource_data, book_node, **auth_info):
+
     """ Creates resource topics """
     resource_data = resource_data or []
     resource_str = "{}-{}".format(book_node.source_id, resource_name.replace(' ', '-').lower())
@@ -182,12 +228,15 @@ def parse_resources(resource_name, resource_data, book_node, **auth_info):
             description = parse_description(resource.get('resource_description'))
             add_file_node(resource_node, resource.get("link_document_url"), resource.get('resource_heading'), description=description, **auth_info)
 
+JSONDATA = {}
+with open("pages.json", "rb") as jsonfile:
+    JSONDATA = json.load(jsonfile)
 
-def add_file_node(target_node, url, title, split=False, **details):
+def add_file_node(target_node, url, title, split=False, contents=None, source_id=None, **details):
     """ Creates file nodes at target topic node """
     if split:
         book_node = nodes.TopicNode(
-            source_id=target_node.source_id + "-main",
+            source_id=source_id or target_node.source_id + "-main",
             title=title,
             description=details.get('description'),
             thumbnail=details.get('thumbnail'),
@@ -197,12 +246,12 @@ def add_file_node(target_node, url, title, split=False, **details):
         chapter_details = copy.deepcopy(details)
         del chapter_details['description']
         with PDFParser(url, directory=DOWNLOAD_DIRECTORY) as parser:
-            chapters = parser.split_chapters()
+            chapters = parser.split_chapters(jsondata=JSONDATA.get(book_node.source_id))
             for index, chapter in enumerate(chapters):
-                source_id = "{}-{}".format(book_node.source_id, index)
+                source_id = contents[index]['id'] if index < len(contents) else "{}-{}".format(book_node.source_id, index)
                 create_document_node(chapter['path'], chapter['title'], book_node, source_id, **chapter_details)
     else:
-        create_document_node(url, title, target_node, target_node.source_id, **details)
+        create_document_node(url, title, target_node, source_id or target_node.source_id, **details)
 
 def create_document_node(path, title, target_node, source_id, **details):
     document_file = files.DocumentFile(path)
