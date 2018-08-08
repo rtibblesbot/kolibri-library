@@ -129,7 +129,9 @@ def index_role(role_url):
     role = Record(role_url)
     role.name = role.root.xpath("//div[@class='role-model__name']")[0].text
     role.title = role.root.xpath("//h1[@class='role-model__title']")[0].text
-    role.bio = role.root.xpath("//div[@class='role-model__body wysiwyg']/p")[0].text_content()
+    bio = role.root.xpath("//div[@class='role-model__body wysiwyg']/p")
+    if bio:
+        role.bio = bio[0].text_content()
     
     # videos: delete later videos which have the same ID.
     videos = role.root.xpath("//li[@data-video-id]")

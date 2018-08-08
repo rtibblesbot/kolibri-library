@@ -12,6 +12,24 @@ from le_utils.constants.languages import getlang
 
 LOGGER = logging.getLogger()
 
+def make_youtube_video(tubeid, name, _id):
+    video_file = YouTubeVideoFile(youtube_id = tubeid, language=getlang('en').code)
+    subtitle_file = YouTubeSubtitleFile(youtube_id = tubeid, language=getlang('en').code)
+    if not isinstance(_id, str):
+        print (_id, type(_id))
+    content_node = VideoNode(
+          source_id= str(_id),
+          title= name,
+          #author='First Last (author\'s name)',
+          #description='Put file description here',
+          language=getlang('en').code,
+          license=licenses.PUBLIC_DOMAIN,  # TODO - fix!
+          files=[video_file, subtitle_file],
+    )
+    return content_node
+    
+    
+
 
 class CareerGirlsChef(SushiChef):
     channel_info = {
@@ -31,23 +49,28 @@ class CareerGirlsChef(SushiChef):
         channel.add_child(job_node)
         channel.add_child(role_node)
         
-        for job in cg_index.all_jobs():
+        all_jobs = list(cg_index.all_jobs())
+        
+        for job in all_jobs:
             _id = job.url.strip('/').split('/')[-1]
-            this_node = TopicNode(source_id = job.url,
+            this_job = TopicNode(source_id = job.url,
                                   title=job.title)
-            video_file = YouTubeVideoFile(youtube_id = job.youtube, language=getlang('en').code)
-            subtitle_file = YouTubeSubtitleFile(youtube_id = job.youtube, language=getlang('en').code)
-            content_node = VideoNode(
-                  source_id='video__{}'.format(job.url),
-                  title="Video: {}".format(job.title),
-                  #author='First Last (author\'s name)',
-                  #description='Put file description here',
-                  language=getlang('en').code,
-                  license=licenses.PUBLIC_DOMAIN,  # TODO - fix!
-                  files=[video_file, subtitle_file],
-            )            
+            content_node = make_youtube_video(job.youtube, "Video: {}".format(job.title), "video__{}".format(job.url))
             
-            this_node.add_child(content_node)
+            
+            #video_file = YouTubeVideoFile(youtube_id = job.youtube, language=getlang('en').code)
+            #subtitle_file = YouTubeSubtitleFile(youtube_id = job.youtube, language=getlang('en').code)
+            #content_node = VideoNode(
+                  #source_id='video__{}'.format(job.url),
+                  #title="Video: {}".format(job.title),
+                  ##author='First Last (author\'s name)',
+                  ##description='Put file description here',
+                  #language=getlang('en').code,
+                  #license=licenses.PUBLIC_DOMAIN,  # TODO - fix!
+                  #files=[video_file, subtitle_file],
+            #)            
+            
+            this_job.add_child(content_node)
             
             try:
                 os.mkdir('html')
@@ -63,8 +86,33 @@ class CareerGirlsChef(SushiChef):
                                license = licenses.PUBLIC_DOMAIN,
                                files=[app_zip])
             
-            this_node.add_child(app_node)
-            job_node.add_child(this_node)
+            this_job.add_child(app_node)
+            job_node.add_child(this_job)
+            
+        # role models
+        role_urls = set()
+        for job in all_jobs:
+            for role in job.roles:
+                role_urls.add(role)
+        
+        for role_url in role_urls:
+            _id = role_url.strip('/').split('/')[-1]
+            role = cg_index.index_role(role_url)
+            this_role = TopicNode(source_id = "role__{}".format(_id),
+                                  title="{}, {}".format(role.title, role.name),
+                                  description = role.bio)
+            for v_id, v_name in zip(role.video_ids, role.video_names):
+                if v_id is not None:
+                    video_node = make_youtube_video(v_id[0], v_name, v_id[0])
+                    this_role.add_child(video_node)
+            role_node.add_child(this_role)
+        print ("DONE")
+            
+            # todo? : role.skill_links, role.skill_names
+                        
+            
+            
+        
             
         
         return channel
