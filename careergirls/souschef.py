@@ -42,6 +42,8 @@ class CareerGirlsChef(SushiChef):
     }
 
     def construct_channel(self, **kwargs):
+        video_list = []
+        video_set = set()
         channel = self.get_channel(**kwargs)
         job_node = TopicNode(source_id="jobs", title="Jobs")
         role_node = TopicNode(source_id="roles", title="Role Models")
@@ -103,9 +105,13 @@ class CareerGirlsChef(SushiChef):
                                   description = role.bio)
             for v_id, v_name in zip(role.video_ids, role.video_names):
                 if v_id is not None:
-                    video_node = make_youtube_video(v_id[0], v_name, v_id[0])
+                    video_node = make_youtube_video(v_id[0], v_name[0], v_id[0])
                     this_role.add_child(video_node)
+                    video_list.append(v_id[0])
+                    video_set.add(v_id[0])
+                            
             role_node.add_child(this_role)
+        
         print ("DONE")
             
             # todo? : role.skill_links, role.skill_names

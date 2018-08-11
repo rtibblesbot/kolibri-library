@@ -88,6 +88,7 @@ def index_job(job_url):
     # TODO -- get job name
     job = Record(job_url)
     job.title = job.root.xpath("//h1[@class='video__title']/text()")[0]
+    assert isinstance(job.title, str)
     job.roles = full_urls(job.root.xpath("//div[@class='role-models-related listing-grid listing-container']//a/@href"))
     try:
         job.youtube = re.search("videoId: '([^']+)'", job.response.text).groups()[0]
@@ -127,11 +128,14 @@ def index_skill(skill_url):
 def index_role(role_url):
     # Note, we'll need to do these from the jobs since there doesn't appear to be a master list
     role = Record(role_url)
-    role.name = role.root.xpath("//div[@class='role-model__name']")[0].text
-    role.title = role.root.xpath("//h1[@class='role-model__title']")[0].text
+    role.name = role.root.xpath("//div[@class='role-model__name']")[0].text.strip()
+    role.title = role.root.xpath("//h1[@class='role-model__title']")[0].text.strip()
+    assert isinstance(role.title, str)
     bio = role.root.xpath("//div[@class='role-model__body wysiwyg']/p")
     if bio:
         role.bio = bio[0].text_content()
+    else:
+        role.bio = ""
     
     # videos: delete later videos which have the same ID.
     videos = role.root.xpath("//li[@data-video-id]")
