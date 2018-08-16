@@ -7,14 +7,16 @@ import requests_cache
 import codecs
 import shutil
 from mime import mime
+import magic
 import urllib3
+from demo import download_video, VIDEO_DIR, TEMP_VIDEO_DIR, html_template
 urllib3.disable_warnings()
 requests_cache.install_cache()
 
 DOMAINS = ["nok6a.net", "", "www.nok6a.net"]
 LINK_ATTRIBUTES = ["src", "href"]
 DOWNLOAD_FOLDER = "temp_downloads"
-sample_url = "https://www.nok6a.net/?p=24029"
+#sample_url = "https://www.nok6a.net/?p=24029"
 sample_url = "https://www.nok6a.net/?p=23979"
 
 response = requests.get(sample_url)
@@ -62,6 +64,9 @@ def get_resources(soup):
         href = tag.attrs.get("href")
         if href and href[0]== "#":
             return False
+        # do not rewrite tags I've already rewritten
+        if tag.attrs.get("dragon"):
+            return False
         return True
 
     resources = set()
@@ -69,6 +74,18 @@ def get_resources(soup):
         l = soup.find_all(lambda tag: is_valid_tag(tag))
         resources.update(l)
     return resources
+
+def clean_soup(soup):
+    for _class in ["post-block", "post-views-label", "post-views-icon", "post-views-count", "shareaholic-canvas", "post-views"]:
+        tag = soup.find(None, {"class": _class})
+        if tag:
+            tag.decompose()
+            
+    for tagname in ["ins", "script"]:
+        tags = soup.findAll(tagname)
+        for tag in tags:
+            tag.decompose()
+    return soup
 
 
 def make_local(soup, page_url):
@@ -83,6 +100,27 @@ def make_local(soup, page_url):
     def hashed_url(url):
         return hashlib.sha1(full_url(url).encode('utf-8')).hexdigest() + guess_extension(full_url(url))
 
+    attachments = []
+    page_soup = soup
+    body = soup.find("div", {"class": "post-text"})     
+    title = soup.find("h1", {"class": "post-title"}).text
+    img_tag = soup.find("div", {"class": "post-img"}).find("img")
+    img = img_tag['src']
+    body.insert(0, img_tag)
+    soup = body
+    soup = clean_soup(soup)    
+    for iframe in soup.findAll("iframe"):
+        src = iframe['src']
+        if not src: continue
+        if "youtube.com" not in src: continue
+        filename = download_video(src)
+        mime_type = magic.from_file(VIDEO_DIR+filename, mime=True)
+            
+        video_tag = page_soup.new_tag('video', controls=True, dragon=True)
+        source_tag = page_soup.new_tag('source', src=filename, type_=mime_type, dragon=True)
+        attachments.append(VIDEO_DIR+filename) 
+        video_tag.append(source_tag)
+        iframe.replace_with(video_tag) ## hope this doesn't break for loop!
 
     try:
         shutil.rmtree(DOWNLOAD_FOLDER)
@@ -91,6 +129,7 @@ def make_local(soup, page_url):
 
     make_links_absolute(soup, page_url)
     resources = get_resources(soup)
+    resources.add(img_tag)  # force banner image to be downloaded
 
     try:
         os.mkdir(DOWNLOAD_FOLDER)
@@ -149,14 +188,16 @@ def make_local(soup, page_url):
                     resource.attrs[attribute] = resource_filenames[attribute_value]
                     continue
 
-    html = nice_html(soup)
-
+    html = html_template.format(body=soup, title=title)
+    
     with codecs.open(DOWNLOAD_FOLDER+"/index.html", "wb") as f:
-        f.write(html)
+        f.write(html.encode('utf-8'))
         
     # add modified CSS file
-    os.mkdir(DOWNLOAD_FOLDER+"/resources")
+    for item in attachments:
+        shutil.copy(item, DOWNLOAD_FOLDER)
     shutil.copy("styles.css", DOWNLOAD_FOLDER)
+    
 
     # create zip file
     zipfile_name = shutil.make_archive("__"+DOWNLOAD_FOLDER+"/"+hashed_url(page_url), "zip", # automatically adds .zip extension!

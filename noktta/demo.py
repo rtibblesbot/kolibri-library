@@ -25,7 +25,6 @@ html_template = """
   </head>
   <body>
   <h1>{title}</h1>
-  <p><img src="{img}"></p>
     {body}
   </body>
 </html>"""
@@ -89,68 +88,69 @@ def recode_video(filename, outfile, encode=True):
     os.remove(filename)
     return outfile
 
-url = "https://www.nok6a.net/wp-admin/admin-ajax.php"
-r = requests.post(url, data={'action': 'load_posts',
-                             'next_page': 2,
-                             'cat': 34,
-                             'tag': ''})
-j = json.loads(r.text)
-## print (j.keys())  ## note there is a max_pages response!
-soup = BeautifulSoup(j['html'], "html5lib")
-for panel in soup.findAll("div", {"class": "panel"}):
-    h2 = panel.find("h2")
-    a = h2.find("a")
-    ap("*"+ a['href'])
-    break
-
-video_url = "https://www.nok6a.net/%D9%85%D8%A7-%D9%87%D9%8A-%D8%AA%D9%82%D9%86%D9%8A%D8%A9-%D9%87%D8%A7%D9%8A%D8%A8%D8%B1%D9%84%D9%88%D8%A8%D8%9F-%D9%83%D9%8A%D9%81-%D8%AA%D8%B9%D9%85%D9%84%D8%9F-%D9%87%D9%84-%D8%B3%D8%AA%D8%BA%D9%8A/"
-twitter_url = "https://www.nok6a.net/%D8%A8%D9%84%D8%A7-%D8%A7%D8%B4%D8%A7%D8%B1%D8%A7%D8%AA-%D8%AD%D9%85%D8%B1%D8%A7%D8%A1%D8%8C-%D8%B4%D9%88%D8%A7%D8%B1%D8%B9-%D8%AA%D8%AD%D8%AA-%D8%A7%D9%84%D8%A3%D8%B1%D8%B6-%D9%84%D8%B3%D9%8A%D8%A7/"
-
-attachments = ["styles.css"]
-r = requests.get(video_url)
-soup = BeautifulSoup(r.text, "html5lib")
-
-#block = soup.find("div", {"class": "post-block"})
-#
-#
-#block.decompose()
-for _class in ["post-block", "post-views-label", "post-views-icon", "post-views-count", "shareaholic-canvas", "post-views"]:
-    tag = soup.find(None, {"class": _class})
-    if tag:
-        tag.decompose()
-        
-for tagname in ["ins", "script"]:
-    tags = soup.findAll(tagname)
-    for tag in tags:
-        tag.decompose()
-        
-#<iframe width="900" height="506" src="https://www.youtube.com/embed/u5V_VzRrSBI?feature=oembed" frameborder="0"
-# allow="autoplay; encrypted-media" allowfullscreen></iframe>
-
-for iframe in soup.findAll("iframe"):
-    src = iframe['src']
-    if not src: continue
-    if "youtube.com" not in src: continue
-    filename = download_video(src)
-    mime_type = magic.from_file(VIDEO_DIR+filename, mime=True)
-        
-    video_tag = soup.new_tag('video', controls=True)
-    source_tag = soup.new_tag('source', src=filename, type_=mime_type)
-    attachments.append(VIDEO_DIR+filename)
-    video_tag.append(source_tag)
-    iframe.replace_with(video_tag) ## hope this doesn't break for loop!
-       
-body = soup.find("div", {"class": "post-text"})       
-#ap(body)
-title = soup.find("h1", {"class": "post-title"}).text
-#ap(title)
-img = soup.find("div", {"class": "post-img"}).find("img")['src']
-#ap(img)
-with open("zipdemo.zip", "wb") as f:
-    f.write(make_zip(body, title, img, attachments))
-
-
-
-
-
-
+if __name__ == "__main__":
+    url = "https://www.nok6a.net/wp-admin/admin-ajax.php"
+    r = requests.post(url, data={'action': 'load_posts',
+                                 'next_page': 2,
+                                 'cat': 34,
+                                 'tag': ''})
+    j = json.loads(r.text)
+    ## print (j.keys())  ## note there is a max_pages response!
+    soup = BeautifulSoup(j['html'], "html5lib")
+    for panel in soup.findAll("div", {"class": "panel"}):
+        h2 = panel.find("h2")
+        a = h2.find("a")
+        ap("*"+ a['href'])
+        break
+    
+    video_url = "https://www.nok6a.net/%D9%85%D8%A7-%D9%87%D9%8A-%D8%AA%D9%82%D9%86%D9%8A%D8%A9-%D9%87%D8%A7%D9%8A%D8%A8%D8%B1%D9%84%D9%88%D8%A8%D8%9F-%D9%83%D9%8A%D9%81-%D8%AA%D8%B9%D9%85%D9%84%D8%9F-%D9%87%D9%84-%D8%B3%D8%AA%D8%BA%D9%8A/"
+    twitter_url = "https://www.nok6a.net/%D8%A8%D9%84%D8%A7-%D8%A7%D8%B4%D8%A7%D8%B1%D8%A7%D8%AA-%D8%AD%D9%85%D8%B1%D8%A7%D8%A1%D8%8C-%D8%B4%D9%88%D8%A7%D8%B1%D8%B9-%D8%AA%D8%AD%D8%AA-%D8%A7%D9%84%D8%A3%D8%B1%D8%B6-%D9%84%D8%B3%D9%8A%D8%A7/"
+    
+    attachments = ["styles.css"]
+    r = requests.get(video_url)
+    soup = BeautifulSoup(r.text, "html5lib")
+    
+    #block = soup.find("div", {"class": "post-block"})
+    #
+    #
+    #block.decompose()
+    for _class in ["post-block", "post-views-label", "post-views-icon", "post-views-count", "shareaholic-canvas", "post-views"]:
+        tag = soup.find(None, {"class": _class})
+        if tag:
+            tag.decompose()
+            
+    for tagname in ["ins", "script"]:
+        tags = soup.findAll(tagname)
+        for tag in tags:
+            tag.decompose()
+            
+    #<iframe width="900" height="506" src="https://www.youtube.com/embed/u5V_VzRrSBI?feature=oembed" frameborder="0"
+    # allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    
+    for iframe in soup.findAll("iframe"):
+        src = iframe['src']
+        if not src: continue
+        if "youtube.com" not in src: continue
+        filename = download_video(src)
+        mime_type = magic.from_file(VIDEO_DIR+filename, mime=True)
+            
+        video_tag = soup.new_tag('video', controls=True)
+        source_tag = soup.new_tag('source', src=filename, type_=mime_type)
+        attachments.append(VIDEO_DIR+filename)
+        video_tag.append(source_tag)
+        iframe.replace_with(video_tag) ## hope this doesn't break for loop!
+           
+    body = soup.find("div", {"class": "post-text"})       
+    #ap(body)
+    title = soup.find("h1", {"class": "post-title"}).text
+    #ap(title)
+    img = soup.find("div", {"class": "post-img"}).find("img")['src']
+    #ap(img)
+    with open("zipdemo.zip", "wb") as f:
+        f.write(make_zip(body, title, img, attachments))
+    
+    
+    
+    
+    
+    
