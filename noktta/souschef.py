@@ -30,7 +30,7 @@ class Nok6aChef(SushiChef):
             cat_node = TopicNode(source_id=str(_id), title=name)
             channel.add_child(cat_node)
             links = crawl.get_all_links(_id)
-            for link in list(links)[:4]:
+            for link in list(links):
                 zipfilename, title = localise.zip_from_url(link)
                 appzip = HTMLZipFile(zipfilename)
                 zipnode = HTML5AppNode(source_id=link,
@@ -40,12 +40,12 @@ class Nok6aChef(SushiChef):
                                        files = [appzip])
                 zipnode.validate()
                 cat_node.add_child(zipnode)
-                
-            
+
+
             cat_node.validate()
         print ("DONE")
         return channel
-    
+
 if __name__ == '__main__':
     """
     Set the environment var `CONTENT_CURATION_TOKEN` (or `KOLIBRI_STUDIO_TOKEN`)
