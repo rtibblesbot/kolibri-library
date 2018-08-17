@@ -68,7 +68,7 @@ def download_video(url):
             print ("removing "+item)
             os.remove(item)            
         with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([src])
+            ydl.download([url])
         for item in glob(TEMP_VIDEO_DIR+".*"):
             print ("removing "+item)
             os.remove(item)

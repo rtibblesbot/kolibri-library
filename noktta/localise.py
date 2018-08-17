@@ -16,11 +16,6 @@ requests_cache.install_cache()
 DOMAINS = ["nok6a.net", "", "www.nok6a.net"]
 LINK_ATTRIBUTES = ["src", "href"]
 DOWNLOAD_FOLDER = "temp_downloads"
-#sample_url = "https://www.nok6a.net/?p=24029"
-sample_url = "https://www.nok6a.net/?p=23979"
-
-response = requests.get(sample_url)
-soup = BeautifulSoup(response.content, "html5lib")
 
 """
 TODO LIST:
@@ -105,8 +100,12 @@ def make_local(soup, page_url):
     body = soup.find("div", {"class": "post-text"})     
     title = soup.find("h1", {"class": "post-title"}).text
     img_tag = soup.find("div", {"class": "post-img"}).find("img")
-    img = img_tag['src']
-    body.insert(0, img_tag)
+    if img_tag:
+        img = img_tag['src']
+        new_img = page_soup.new_tag("img", src=img)
+        body.insert(0, new_img)
+    else:
+        img = None
     soup = body
     soup = clean_soup(soup)    
     for iframe in soup.findAll("iframe"):
@@ -129,7 +128,8 @@ def make_local(soup, page_url):
 
     make_links_absolute(soup, page_url)
     resources = get_resources(soup)
-    resources.add(img_tag)  # force banner image to be downloaded
+    if img_tag:
+        resources.add(img_tag)  # force banner image to be downloaded
 
     try:
         os.mkdir(DOWNLOAD_FOLDER)
@@ -155,8 +155,8 @@ def make_local(soup, page_url):
                 if resource.name == "a" and urlparse(attribute_value).netloc not in DOMAINS:
                     #print (urlparse(attribute_value).netloc)
                     # print ("rewriting non-local URL {} in {}".format(attribute_value, resource.name))
-                    new_tag = soup.new_tag("span")
-                    u = soup.new_tag("u")
+                    new_tag = page_soup.new_tag("span")
+                    u = page_soup.new_tag("u")
                     u.insert(0, resource.text)
                     new_tag.insert(0, " (url:\xa0{})".format(resource.attrs['href']))
                     new_tag.insert(0, u)
@@ -209,7 +209,20 @@ def make_local(soup, page_url):
     print(os.path.getsize(zipfile_name))
     
 
-    return zipfile_name
+    return zipfile_name, title
+
+def zip_from_url(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, "html5lib")
+    return make_local(soup, url) # zipfile_name, title
+    
+
 
 if __name__ == "__main__":
+    #sample_url = "https://www.nok6a.net/?p=24029"
+    sample_url = "https://www.nok6a.net/?p=23979"
+    
+    response = requests.get(sample_url)
+    soup = BeautifulSoup(response.content, "html5lib")
+    
     print (make_local(soup, sample_url))

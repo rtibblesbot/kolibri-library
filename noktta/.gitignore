@@ -5,3 +5,6 @@ videos
 *.sqlite
 __pycache__/
 __temp_downloads/
+environment
+restore
+.ricecookerfilecache/
