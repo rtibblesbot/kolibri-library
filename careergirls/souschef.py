@@ -38,7 +38,7 @@ class CareerGirlsChef(SushiChef):
         'CHANNEL_TITLE': 'Career Girls',
         'CHANNEL_LANGUAGE': 'en',                          # Use language codes from le_utils
         # 'CHANNEL_THUMBNAIL': 'https://im.openupresources.org/assets/im-logo.svg', # (optional) local path or url to image file
-        'CHANNEL_DESCRIPTION': "Career Girls is founded on the dream that every girl around the world has access to diverse and accomplished women role models to learn from their experiences and discover their own path to empowerment.",  # (optional) description of the channel (optional)
+        'CHANNEL_DESCRIPTION': "CareerGirls.org is a comprehensive video-based career exploration tool for girls. It contains the largest online collection of career guidance videos focusing exclusively on diverse and accomplished women. The Career Girls collection includes video clips featuring women role models who work in hundreds of wide-ranging careers with an emphasis on Science, Technology, Engineering, and Math (STEM).",  # (optional) description of the channel (optional)
     }
 
     def construct_channel(self, **kwargs):
