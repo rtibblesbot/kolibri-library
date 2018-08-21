@@ -15,7 +15,8 @@ CHANNEL_NAME = "Espresso English"                       # Name of channel
 CHANNEL_SOURCE_ID = "sushi-chef-espresso-english-en"    # Channel's unique id
 CHANNEL_DOMAIN = "learningequality.org"                 # Who is providing the content
 CHANNEL_LANGUAGE = "en"                                 # Language of channel
-CHANNEL_DESCRIPTION = None                              # Description of the channel (optional)
+# Description of the channel
+CHANNEL_DESCRIPTION = "Espresso English is a YouTube channel that features Shayna, an experienced ESL teacher who provides learners with English lessons in vocabulary, grammar and conversational English as well."
 CHANNEL_THUMBNAIL = "thumbnail.jpg"                     # Local path or url to image file (optional)
 
 # Additional constants
