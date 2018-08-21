@@ -847,7 +847,6 @@ class TESSIndiaChef(JsonTreeChef):
                                 TESSIndiaChef.SCRAPING_STAGE_OUTPUT_TPL)
         self.crawling_stage = os.path.join(TESSIndiaChef.TREES_DATA_DIR, 
                                 TESSIndiaChef.CRAWLING_STAGE_OUTPUT_TPL)
-        #self.thumbnail = save_thumbnail()
         super(TESSIndiaChef, self).__init__()
 
     def pre_run(self, args, options):
@@ -858,10 +857,6 @@ class TESSIndiaChef(JsonTreeChef):
             self.download_css_js()
         self.crawl(args, options)
         channel_tree = self.scrape(args, options)
-        #import json
-        #with open("/home/alejandro/git/sushi-chefs/sushi-chef-tess-india/chefdata/trees/ricecooker_json_tree_bak.json") as f:
-        #    global channel_tree
-        #    channel_tree = json.load(f)
         clean_leafs_nodes_plus(channel_tree)
         self.write_tree_to_json(channel_tree, "en")
 
