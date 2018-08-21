@@ -8,6 +8,14 @@ from ricecooker.classes.licenses import get_license
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages, licenses
+THUMBNAIL_SIZES = ['high', 'medium', 'default']
+def get_largest_thumbnail(thumbnails):
+    for size in THUMBNAIL_SIZES:
+        try:
+            return thumbnails[size]
+        except Exception as e:
+            pass
+    return {}
 
 # Run constants
 ################################################################################
@@ -81,6 +89,15 @@ class YouTubeChannelChef(SushiChef):
             maxResults=50
         ).execute()['items']
 
+        # For getting the thumbnail automatically
+        
+        # youtube_channel = youtube.channels().list(
+        #     id=YOUTUBE_CHANNEL_ID,
+        #     part='snippet'
+        # ).execute()['items'][0]
+
+        # channel.thumbnail = get_largest_thumbnail(youtube_channel['snippet']['thumbnails']).get('url')
+
         for playlist in playlists:
             topic = nodes.TopicNode(title=playlist['snippet']['title'], source_id=playlist['id'])
             first_page = True
@@ -110,7 +127,7 @@ class YouTubeChannelChef(SushiChef):
                                 title=video['snippet']['title'],
                                 language=CHANNEL_LANGUAGE,
                                 license=get_license(licenses.CC_BY, copyright_holder='Espresso English'),
-                                thumbnail=video['snippet']['thumbnails']['high']['url'],
+                                thumbnail=get_largest_thumbnail(video['snippet']['thumbnails']).get('url'),
                                 files=[
                                     files.YouTubeVideoFile(video['id']),
                                 ]
