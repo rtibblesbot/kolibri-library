@@ -74,56 +74,73 @@ class YouTubeChannelChef(SushiChef):
         from apiclient.discovery import build
         # instantiate a YouTube Data API v3 client
         youtube = build('youtube', 'v3', developerKey=kwargs['--youtube-api-token'])
-
         playlists = youtube.playlists().list( # list all of the YouTube channel's playlists
             part='snippet',
             channelId=YOUTUBE_CHANNEL_ID,
-            maxResults=25
+            maxResults=50
         ).execute()['items']
 
         for playlist in playlists:
-            playlist_items = youtube.playlistItems().list( # list the contents of this playlist
-                part='contentDetails',
-                maxResults=50,
-                playlistId=playlist['id']
-            ).execute()['items']
-
-            video_ids = [vid['contentDetails']['videoId'] for vid in playlist_items]
-            videos = youtube.videos().list(
-                part='status,snippet',
-                id=','.join(video_ids)
-            ).execute()['items']
             topic = nodes.TopicNode(title=playlist['snippet']['title'], source_id=playlist['id'])
-            for video in videos:
-                if video['status']['license'] == 'creativeCommon':
-                    try:
-                        video_node = nodes.VideoNode(
-                            source_id=video['id'],
-                            title=video['snippet']['title'],
-                            language=CHANNEL_LANGUAGE,
-                            license=get_license(licenses.CC_BY, copyright_holder='Espresso English'),
-                            thumbnail=video['snippet']['thumbnails']['high']['url'],
-                            files=[
-                                files.YouTubeVideoFile(video['id']),
-                            ]
-                        )
+            first_page = True
+            next_page_token = None
+            playlist_request_kwargs = {
+                'part': 'contentDetails',
+                'maxResults': 50,
+                'playlistId': playlist['id'],
+            }
 
-                        topic.add_child(video_node)
-                        
-                        # Get subtitles for languages designated in SUBTITLE_LANGUAGES
-                        for lang_code in SUBTITLE_LANGUAGES:
-                            if files.is_youtube_subtitle_file_supported_language(lang_code):
-                                video_node.add_file(
-                                    files.YouTubeSubtitleFile(
-                                        youtube_id=video['id'],
-                                        language=lang_code
+            while first_page or next_page_token:
+                first_page = False # we're visiting the first page now!
+                playlist_info = youtube.playlistItems().list(**playlist_request_kwargs).execute()
+                playlist_items = playlist_info['items']
+
+                video_ids = [vid['contentDetails']['videoId'] for vid in playlist_items]
+                videos = youtube.videos().list(
+                    part='status,snippet',
+                    id=','.join(video_ids)
+                ).execute()['items']
+
+                for video in videos:
+                    if video['status']['license'] == 'creativeCommon':
+                        try:
+                            video_node = nodes.VideoNode(
+                                source_id=video['id'],
+                                title=video['snippet']['title'],
+                                language=CHANNEL_LANGUAGE,
+                                license=get_license(licenses.CC_BY, copyright_holder='Espresso English'),
+                                thumbnail=video['snippet']['thumbnails']['high']['url'],
+                                files=[
+                                    files.YouTubeVideoFile(video['id']),
+                                ]
+                            )
+
+                            topic.add_child(video_node)
+                            
+                            # Get subtitles for languages designated in SUBTITLE_LANGUAGES
+                            for lang_code in SUBTITLE_LANGUAGES:
+                                if files.is_youtube_subtitle_file_supported_language(lang_code):
+                                    video_node.add_file(
+                                        files.YouTubeSubtitleFile(
+                                            youtube_id=video['id'],
+                                            language=lang_code
+                                        )
                                     )
-                                )
-                            else:
-                                print('Unsupported subtitle language code:', lang_code)
+                                else:
+                                    print('Unsupported subtitle language code:', lang_code)
 
+                        except Exception as e:
+                            raise e
+                
+                # set up the next page, if there is one
+                next_page_token = playlist_info.get('nextPageToken')
+                if next_page_token:
+                    playlist_request_kwargs['pageToken'] = next_page_token
+                else:
+                    try:
+                        del playlist_request_kwargs['pageToken']
                     except Exception as e:
-                        raise e
+                        pass
 
             channel.add_child(topic)
 
