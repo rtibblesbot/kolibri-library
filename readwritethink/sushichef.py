@@ -71,25 +71,8 @@ def test():
     """
     Test individual resources
     """
-    #obj_id = "1121"
-    #obj_id = "1166"
-    #obj_id = "31054"
-    #obj_id = "30279"
-    #obj_id = "30636"
-    #obj_id = "30837"
-    #obj_id = "31046"
-    #obj_id = "1075" #--
-    #obj_id = "411"
-    #obj_id = "322"
-    #obj_id = "30721"
     obj_id = "30100"
-    #collection_type = "Lesson Plan"
-    #obj_id = "31023"
-    #obj_id = "31034"
     collection_type = "Strategy Guide"
-    #obj_id = "31049"
-    #obj_id = "30654"
-    #collection_type = "Printout"
     url = "http://www.readwritethink.org/resources/resource-print.html?id={}".format(obj_id)
     channel_tree = dict(
         source_domain="www.readwritethink.org",
@@ -326,17 +309,6 @@ class Collection(object):
         else:
             subtopic_node = None
         return topic_node, theme_node, subtopic_node
-
-    #def empty_info(self, url):
-    #    return dict(
-    #            kind=content_kinds.TOPIC,
-    #            source_id=url,
-    #            title="TMP",
-    #            thumbnail=None,
-    #            description="",
-    #            license=get_license(licenses.CC_BY, copyright_holder="X").as_dict(),
-    #            children=[]
-    #        )
 
     def to_file(self):
         from collections import namedtuple
