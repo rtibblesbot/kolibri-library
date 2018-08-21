@@ -770,23 +770,6 @@ def get_js_files(path):
 
 #When a node has only one child and this child it's a object (file, video, etc),
 #this is moved to an upper level
-#def clean_leafs_nodes(channel_tree):
-#    children = channel_tree.get("children", [])
-#    if len(children) == 1 and not "children" in children[0]:
-#        return channel_tree["children"][0]
-#    else:
-#        for i, node in enumerate(children):
-#            leaf_node = clean_leafs_nodes(node)
-#            if leaf_node is not None:
-#                if leaf_node["source_id"].endswith(".js"):
-#                    levels = leaf_node["source_id"].split("/")
-#                    parent_dir = levels[-2] #dirname
-#                    leaf_node["title"] = "{}_{}".format(parent_dir, leaf_node["title"])
-#                children[i] = leaf_node
-
-
-#When a node has only one child and this child it's a object (file, video, etc),
-#this is moved to an upper level
 def clean_leafs_nodes_plus(channel_tree):
     children = channel_tree.get("children", None)
     if children is None:
@@ -878,9 +861,6 @@ class LaboratoriaChef(JsonTreeChef):
         #the counter is reset from previous ingest
         global COUNTER_TITLE_KEYS
         COUNTER_TITLE_KEYS = defaultdict(int)
-        #import json
-        #with open("/home/alejandro/git/sushi-chefs/sushi-chef-laboratoria/chefdata/trees/ricecooker_json_tree_0.json", "r") as f:
-        #    channel_tree = json.load(f)
         for repo in repos:
             repo_dir = os.path.join(path, repo)
             self._build_scraping_json_tree(channel_tree, repo_dir)
