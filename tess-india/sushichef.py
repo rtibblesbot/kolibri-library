@@ -896,8 +896,6 @@ class TESSIndiaChef(JsonTreeChef):
             global DOWNLOAD_VIDEOS
             DOWNLOAD_VIDEOS = False
 
-        #channel_tree = test()
-        #test_lesson()
         return self._build_scraping_json_tree(cache_tree, web_resource_tree)
 
     def write_tree_to_json(self, channel_tree, lang):
