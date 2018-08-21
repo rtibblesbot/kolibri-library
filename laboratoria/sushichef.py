@@ -878,7 +878,6 @@ class LaboratoriaChef(JsonTreeChef):
         if "00-template" in dirs:
             dirs = dirs[1:] #skiped 00-template dir
         folder_walker(repo_dir, dirs, channel_tree)
-        #clean_leafs_nodes(channel_tree)
         clean_leafs_nodes_plus(channel_tree)
 
     def download_css_js(self):
