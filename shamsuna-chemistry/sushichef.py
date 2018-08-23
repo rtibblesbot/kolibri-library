@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding: utf-8
 import os
 import sys
 from ricecooker.utils import downloader, html_writer
@@ -11,23 +12,20 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Healing Classrooms"                                # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-healing-classrooms"                # Channel's unique id
-CHANNEL_DOMAIN = "www.youtube.com/user/HealingClassrooms"          # Who is providing the content
-CHANNEL_LANGUAGE = "mul"                                           # Language of channel
-CHANNEL_DESCRIPTION = "The IRC's Healing Classrooms began in 2004 as a global "\
-                    + "organizational learning initiative focused on the broad "\
-                    + "theme of teacher development for student well-being. It "\
-                    + "was created in recognition of and response to the special "\
-                    + "role of teachers in crisis and post-crisis education. "
-CHANNEL_THUMBNAIL = "https://yt3.ggpht.com/-NJ6anwslbKA/AAAAAAAAAAI/AAAAAAAAAAA/w8SpF-eWqRA/s288-mo-c-c0xffffffff-rj-k-no/photo.jpg"
+CHANNEL_NAME = "MIT-مبادىء علم الكيمياء"                                # Name of channel
+CHANNEL_SOURCE_ID = "sushi-chef-chem-ar"
+CHANNEL_DOMAIN = "https://www.youtube.com/channel/UCQtFMzEj81ZvIDjDzY6r4XA"          # Who is providing the content
+CHANNEL_LANGUAGE = "ar"                                           # Language of channel
+CHANNEL_DESCRIPTION = ""
+CHANNEL_THUMBNAIL = None
 
 # Additional constants
 ################################################################################
 import youtube_dl
 
-PLAYLISTS_URL = "https://www.youtube.com/user/HealingClassrooms/playlists"
-AUTHOR = "International Rescue Committee"
+# PLAYLISTS_URL = "https://www.youtube.com/user/HealingClassrooms/playlists"
+PLAYLISTS_URL = "https://www.youtube.com/watch?v=XeKL2sUSowE&list=PLgtqMzuQ7viozAz2dhPY-khXGQKExdKt8"
+AUTHOR = "Shamsuna Al Arabia"
 
 # The chef subclass
 ################################################################################
@@ -75,39 +73,47 @@ class MyChef(SushiChef):
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
         # Download the playlist/video information
-        with youtube_dl.YoutubeDL({'skip_download': True}) as ydl:
-            info_dict = ydl.extract_info(PLAYLISTS_URL, download=False)
+        try:
+            with youtube_dl.YoutubeDL({'skip_download': True}) as ydl:
+              info_dict = ydl.extract_info(PLAYLISTS_URL, download=False)
+              print (info_dict.keys())
 
-            # Generate topics based off playlist entries in dict
-            for playlist in info_dict['entries']:
+              # Generate topics based off playlist entries in dict
+              #for playlist in info_dict['entries']:
+  
+                  # Get language of playlist (hack)
+              #    language = "fr"
+              #    if "English" in playlist['title']:
+              #        language = "en"
+              #    elif "Arabic" in playlist['title']:
+              language = "ar"
+  
+              #    playlist_topic = nodes.TopicNode(title=playlist['title'], source_id=playlist['id'], language=language)
+              #    channel.add_child(playlist_topic)
+  
 
-                # Get language of playlist (hack)
-                language = "fr"
-                if "English" in playlist['title']:
-                    language = "en"
-                elif "Arabic" in playlist['title']:
-                    language = "ar"
+                  # Generate videos based off video entries in dict
+              print("A")
+              for video in info_dict['entries']:
+                  print("B")
+                  thumbnail_url = len(video['thumbnails']) and video['thumbnails'][0]['url']
 
-                playlist_topic = nodes.TopicNode(title=playlist['title'], source_id=playlist['id'], language=language)
-                channel.add_child(playlist_topic)
-
-
-                # Generate videos based off video entries in dict
-                for video in playlist['entries']:
-                    thumbnail_url = len(video['thumbnails']) and video['thumbnails'][0]['url']
-
-                    playlist_topic.add_child(nodes.VideoNode(
-                        title = video['title'],
-                        source_id = video['id'],
-                        license = licenses.PublicDomainLicense(),
-                        description = video['description'],
-                        derive_thumbnail = not thumbnail_url,
-                        files = [files.WebVideoFile(video['webpage_url'])],
-                        thumbnail = thumbnail_url,
-                        author = AUTHOR,
-                        # tags = video['categories'] + video['tags'], # TODO: uncomment this when added
-                    ))
-
+                  channel.add_child(nodes.VideoNode(
+                      title = video['title'],
+                      source_id = video['id'],
+                      license = licenses.PublicDomainLicense(),
+                      description = video['description'],
+                      derive_thumbnail = not thumbnail_url,
+                      files = [files.WebVideoFile(video['webpage_url'])],
+                      thumbnail = thumbnail_url,
+                      author = AUTHOR,
+                      # tags = video['categories'] + video['tags'], # TODO: uncomment this when added
+                      ))
+        except Exception as e:
+            import traceback, sys
+            traceback.print_exc(file=sys.stdout)
+            raise
+    
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
