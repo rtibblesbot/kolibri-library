@@ -112,7 +112,12 @@ def make_local(soup, page_url):
         src = iframe['src']
         if not src: continue
         if "youtube.com" not in src: continue
-        filename = download_video(src)
+        try:
+            filename = download_video(src)
+        except Exception as e:
+            print ("Unable to download {}: {}".format(src, e))
+            iframe.decompose()
+            continue
         mime_type = magic.from_file(VIDEO_DIR+filename, mime=True)
             
         video_tag = page_soup.new_tag('video', controls=True, dragon=True)
@@ -167,7 +172,7 @@ def make_local(soup, page_url):
                     if attribute_value not in resource_filenames:
                         try:
                             r = requests.get(attribute_value, verify=False)
-                        except requests.exceptions.InvalidURL:
+                        except Exception:
                             continue
                         content = r.content
                         try:
