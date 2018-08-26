@@ -78,19 +78,37 @@ class Browser:
 
     def run(self, from_i=1, to_i=None):
         for topic in TOPICS:
-            page = 1                
+            topic_page = TopicPage()
+            LOGGER.info("* Section: {}".format(topic))
             while True:
-                url = "{}?language=ar&sort=newest&topics[]={}&page={}".format(self.url, topic, page)
-                LOGGER.info("Parsing: {}".format(url))
-                LOGGER.info("* Section: {}".format(topic))
-                if from_i <= page < to_i:
+                url = "{}?language=ar&sort=newest&topics[]={}&page={}".format(self.url, topic, topic_page.page_i)       
+                if from_i <= topic_page.page_i < to_i:
                     page_parser = PageParser(url, title=topic, lang=CHANNEL_LANGUAGE)
                     if page_parser.is_null():
                         break
-                    yield page_parser
-                elif page > to_i:
+                    topic_page.add(page_parser)
+                elif topic_page.page_i > to_i:
                     break
-                page += 1
+                topic_page.page_i += 1
+            yield topic_page
+
+
+class TopicPage:
+    def __init__(self):
+        self.pages = []
+        self.page_i = 1
+
+    def add(self, page):
+        self.pages.append(page)
+
+    def merge(self, from_i=1, to_i=None):
+        topic = self.pages[0].write_videos(from_i=from_i, to_i=to_i)
+        topic_node = topic.to_node()
+        for page_parser in self.pages[1:]:
+            topic = page_parser.write_videos(from_i=from_i, to_i=to_i)
+            node = topic.to_node()
+            topic_node["children"].extend(node["children"])
+        return topic_node
 
 
 class PageParser:
@@ -117,13 +135,14 @@ class PageParser:
                     lang=parse_qs(parsed.query)['language'])
 
     def write_videos(self, from_i=0, to_i=None):
+        LOGGER.info("Parsing: {}".format(self.page_url))
         path = [DATA_DIR] + ["tedtalks_videos"]
         path = build_path(path)
         topic = Topic(self.title, lang=self.lang)
         for tedtalk in self.get_tedtalk(from_i=from_i, to_i=to_i):
             tedtalk.download(download=DOWNLOAD_VIDEOS, base_path=path)
             topic.add(tedtalk.to_node())
-        return topic.to_node()
+        return topic
 
     def is_null(self):
         return len(self.section_nodes) == 0
@@ -381,8 +400,9 @@ class TEDTalksChef(JsonTreeChef):
         p_from_i, p_to_i = get_index_range(only_pages)
         v_from_i, v_to_i = get_index_range(only_videos)
         browser = Browser()
-        for sections in browser.run(p_from_i, p_to_i):
-            channel_tree["children"].append(sections.write_videos(v_from_i, v_to_i))
+        for topic_page in browser.run(p_from_i, p_to_i):
+            topic_videos_node = topic_page.merge(v_from_i, v_to_i)
+            channel_tree["children"].append(topic_videos_node)
         return channel_tree
 
     def write_tree_to_json(self, channel_tree):
