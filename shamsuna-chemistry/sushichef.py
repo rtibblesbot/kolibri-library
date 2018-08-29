@@ -8,12 +8,12 @@ from ricecooker.classes import nodes, files, questions, licenses
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
-
+import re
 
 # Run constants
 ################################################################################
 CHANNEL_NAME = "MIT-مبادىء علم الكيمياء"                                # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-chem-ar"
+CHANNEL_SOURCE_ID = "shamsuna_chemistry_ar"
 CHANNEL_DOMAIN = "https://www.youtube.com/channel/UCQtFMzEj81ZvIDjDzY6r4XA"          # Who is providing the content
 CHANNEL_LANGUAGE = "ar"                                           # Language of channel
 CHANNEL_DESCRIPTION = ""
@@ -93,9 +93,20 @@ class MyChef(SushiChef):
   
 
                   # Generate videos based off video entries in dict
-              print("A")
-              for video in info_dict['entries']:
-                  print("B")
+              videos = sorted(info_dict['entries'], key=lambda x: int(re.search("\d+", x['title']).group()))
+              print( [v['title'] for v in videos])
+              import time
+              time.sleep(15)
+              for video in videos:
+                  #try:
+                  #    num, = re.findall("\d+",video['title'])
+                  #    title = re.sub(video['title'], num, "")
+                  #    title = ("0"+num)[-2:] + " " + title 
+                  #except Exception as e:
+                  #    print (e)
+                  #    print (video['title'])
+                  #    print (repr(video['title']))
+                  #    raise
                   thumbnail_url = len(video['thumbnails']) and video['thumbnails'][0]['url']
 
                   channel.add_child(nodes.VideoNode(
