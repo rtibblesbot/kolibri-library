@@ -80,6 +80,12 @@ def clean_soup(soup):
         tags = soup.findAll(tagname)
         for tag in tags:
             tag.decompose()
+
+    for attribute in ["srcset", ]:
+        tags = soup.findAll(True, {attribute: True})
+        for tag in tags:
+            del tag[attribute]
+            print ("removed attribute ", attribute, " from ", tag)
     return soup
 
 
