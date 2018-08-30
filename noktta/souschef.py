@@ -8,7 +8,7 @@ from le_utils.constants import licenses
 from ricecooker.classes.nodes import DocumentNode, VideoNode, TopicNode, HTML5AppNode
 from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile
 from le_utils.constants.languages import getlang
-from arabic import catnum, CHANNEL_NAME
+from arabic import catnum, CHANNEL_NAME, CHANNEL_DESCRIPTION
 import crawl
 import localise
 
@@ -20,8 +20,8 @@ class Nok6aChef(SushiChef):
         'CHANNEL_SOURCE_ID': 'sushi-chef-noktta-ar',         # channel's unique id
         'CHANNEL_TITLE': CHANNEL_NAME,
         'CHANNEL_LANGUAGE': 'ar',                          # Use language codes from le_utils
-        # 'CHANNEL_THUMBNAIL': 'https://im.openupresources.org/assets/im-logo.svg', # (optional) local path or url to image file
-        #'CHANNEL_DESCRIPTION': "",  # (optional) description of the channel (optional)
+        'CHANNEL_THUMBNAIL': 'http://www.nok6a.net/wp-content/themes/nok6a/img/logo.png', 
+        'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,  # (optional) description of the channel (optional)
     }
 
     def construct_channel(self, **kwargs):
