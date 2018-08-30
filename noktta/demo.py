@@ -17,7 +17,7 @@ TEMP_VIDEO_DIR = "current-video/"  # must end in /
 VIDEO_DIR = "videos/"
 
 html_template = """
-<html>
+<html dir="rtl">
   <head>
     <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="styles.css">
