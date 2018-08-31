@@ -603,7 +603,7 @@ def download(url, write_to_path, attempts=DOWNLOAD_ATTEMPTS):
             attempts (int): how many times to reattempt a download
     """
     try:
-        video_format = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]"
+        video_format = "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]"
         with youtube_dl.YoutubeDL({"format": video_format, "outtmpl": write_to_path}) as ydl:
             ydl.download([url])
     except youtube_dl.utils.DownloadError as e:
