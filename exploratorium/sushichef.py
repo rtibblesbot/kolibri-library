@@ -216,7 +216,7 @@ def scrape_video_menu(url):
     contents = BeautifulSoup(read(url), 'html5lib')
 
     for subject in contents.find_all('div', {'class': 'subject'}):
-        title = subject.find('div', {'class': 'name'}).text.strip()
+        title = subject.find('div', {'class': 'name'}).text.strip().replace("’", "'")
         LOGGER.info("    {}".format(title))
         topic = nodes.TopicNode(
             title=title,
@@ -238,7 +238,7 @@ def scrape_video_subject(url, topic):
     contents = BeautifulSoup(read(url), 'html5lib')
     sidebar = contents.find("div", {"id": "filter_content"}).find("div", {"class": "content"})
     for collection in sidebar.find_all("li"):
-        title = collection.find('span').text.replace('filter', '').replace("Apply", "").strip()
+        title = collection.find('span').text.replace('filter', '').replace("Apply", "").strip().replace("’", "'")
         LOGGER.info("        {}".format(title))
         collection_topic = nodes.TopicNode(title=title, source_id="videos-collection-{}".format(title))
         topic.add_child(collection_topic)
@@ -263,7 +263,7 @@ def scrape_video_collection(url, topic):
             for k, v in get_brightcove_mapping(video_contents).items():
                 video_node = nodes.VideoNode(
                     source_id = k,
-                    title = header.text.strip(),
+                    title = header.text.strip().replace("’", "'"),
                     description = description.text.strip() if description else "",
                     license = LICENSE,
                     copyright_holder = COPYRIGHT_HOLDER,
@@ -312,14 +312,14 @@ def scrape_snack_menu(url):
         for li in column.find_all('li', recursive=False):
             link = li.find('a')
             LOGGER.info("    {}".format(link['title']))
-            topic = nodes.TopicNode(title=link['title'], source_id=link['href'])
+            topic = nodes.TopicNode(title=link['title'].replace("’", "'"), source_id=link['href'])
             snack_topic.add_child(topic)
 
             # Scrape subcategories (if any)
             if li.find('ul'):
                 for sublink in li.find('ul').find_all('a'):
                     LOGGER.info("    > {}".format(sublink['title']))
-                    subtopic = nodes.TopicNode(title=sublink['title'], source_id=sublink['href'])
+                    subtopic = nodes.TopicNode(title=sublink['title'].replace("’", "'"), source_id=sublink['href'])
                     topic.add_child(subtopic)
                     scrape_snack_subject(sublink['href'], subtopic)
             else:
@@ -347,7 +347,7 @@ def scrape_snack_subject(slug, topic):
         description = activity.find('div', {'class': 'pod-description'})
         topic.add_child(nodes.HTML5AppNode(
             source_id = activity.find('a')['href'],
-            title = activity.find('h5').text.strip(),
+            title = activity.find('h5').text.strip().replace("’", "'"),
             description = description.text.strip() if description else "",
             license = LICENSE,
             copyright_holder = COPYRIGHT_HOLDER,
