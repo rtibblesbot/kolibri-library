@@ -1,2 +1,5 @@
 le_utils>=0.1.4
 ricecooker>=0.6.11
+beautifulsoup4==4.5.1
+cssutils==1.0
+youtube-dl

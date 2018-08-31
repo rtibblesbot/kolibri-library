@@ -72,3 +72,5 @@ storage/*
 restore/*
 ghostdriver.log
 .webcache/*
+snacks/*
+videos/*
