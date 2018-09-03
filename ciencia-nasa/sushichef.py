@@ -34,6 +34,7 @@ from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
 from utils import remove_iframes, get_confirm_token, save_response_content
 from utils import link_to_text, remove_scripts
 import youtube_dl
+import uuid
 
 
 BASE_URL = "https://ciencia.nasa.gov/"
@@ -71,7 +72,7 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 # Additional constants
 ################################################################################
 
-TOPICS = {"Ciencia Especial": "ciencias-espaciales", 
+TOPICS = {"Ciencia Espacial": "ciencias-espaciales", 
         "Ciencia Terrestre": "ciencias-de-la-tierra", 
         "Ciencia Fisica": "ciencias-f%C3%ADsicas", 
         "Miscelanea": "m%C3%A1s-all%C3%A1-de-la-coheter%C3%ADa"}
@@ -83,21 +84,21 @@ class Browser:
 
     def run(self, from_i=1, to_i=None):
         for title, topic_page_name in sorted(TOPICS.items(), key=lambda x: x[0]):
+            if title == "Ciencia Espacial":
+                continue
             url = urljoin(self.url, topic_page_name)
             topic = Topic(title, url)
             topic.articles()
             yield topic.to_node()
-            break
+            #break
 
 
 class Topic(object):
     def __init__(self, title, url):
         self.source_id = url
         self.title = title
-        #self.urls = Browser(self.source_id).run()
         self.lang = CHANNEL_LANGUAGE
         self.tree_nodes = OrderedDict()
-        #self.thumbnails_links = {}
         self.soup = self.to_soup()
         self.description = self.get_description()
         LOGGER.info("- " + self.title)
@@ -115,11 +116,18 @@ class Topic(object):
 
     def articles(self):
         page = 0
-        articles = [1,2]
-        while len(articles) > 1:
-            articles = TopicPage(self, page=0).articles()
+        num_articles = 0
+        while True:
+            LOGGER.info("PAGE: " + str(page))
+            for article_node in TopicPage(self, page=page).articles():
+                self.tree_nodes[article_node["source_id"]] = article_node
+                num_articles += 1
             page += 1
-            break
+            if num_articles <= 1:
+                break
+            else:
+                num_articles = 0
+            #break            
 
     def to_node(self):
         return dict(
@@ -133,11 +141,13 @@ class Topic(object):
             children=list(self.tree_nodes.values())
         )
 
+
 class TopicPage(object):
     def __init__(self, topic, page=0):
-        self.source_id = topic.source_id+"?page=".format(page)
+        self.source_id = topic.source_id+"?page={}".format(page)
         self.soup = self.to_soup()
         self.topic = topic
+        LOGGER.info(self.source_id)
         
     def to_soup(self):
         document = download(self.source_id)
@@ -145,12 +155,15 @@ class TopicPage(object):
             return BeautifulSoup(document, 'html5lib') #html5lib
 
     def articles(self):
-        for article in self.soup.find_all("div", class_="views-row"):
-            title = article.find("div", class_="views-field-title")
-            print(title.text)
-            print(article.find("img").get("src"))
-            print(urljoin(BASE_URL, title.find("a").get("href")))
-            break
+        for article_tag in self.soup.find_all("div", class_="views-row"):
+            title = article_tag.find("div", class_="views-field-title")
+            url = urljoin(BASE_URL, title.find("a").get("href"))
+            article = Article(title.text, url)
+            article.thumbnail = article_tag.find("img").get("src")
+            base_path = build_path([DATA_DIR, self.topic.title, article.title])
+            if article.to_file(base_path) is True:
+                yield article.to_node()
+            #break
 
 
 def thumbnails_links(soup, tag, class_):
@@ -187,7 +200,7 @@ def save_thumbnail(url, title):
 
 class Article(object):
     def __init__(self, title, url):
-        self.title = title.replace("/", "_")
+        self.title = title.replace("/", "_").replace("\n", "").strip()
         self.source_id = url
         self.soup = self.to_soup()
         self.lang = CHANNEL_LANGUAGE
@@ -195,12 +208,21 @@ class Article(object):
         self.video_nodes = None
         self.pdf_nodes = None
         self.author = self.get_author()
-        LOGGER.info("--------- " + self.title)        
+        LOGGER.info("--------- " + self.title)
+        LOGGER.info("          " + self.source_id) 
 
     def get_author(self):
         tag_a = self.soup.find(lambda tag: tag.name == "a" and tag.findParent("li", "mt-author-information"))
         if tag_a is not None:
             return tag_a.text
+
+    @property
+    def thumbnail(self):
+        return self._thumbnail
+
+    @thumbnail.setter
+    def thumbnail(self, url):
+        self._thumbnail = save_thumbnail(url, uuid.uuid4().hex)
 
     def to_local_images(self, content):
         images_urls = {}
@@ -259,9 +281,12 @@ class Article(object):
                     if img_src.startswith("data:image/"):
                         pass
                     else:
+                        requests.get(img_src, timeout=40)
                         zipper.write_url(img_src, img_filename, directory="")
                 except requests.exceptions.HTTPError:
                     pass
+                except requests.exceptions.ConnectTimeout as e:
+                    LOGGER.info(str(e))
         
     def build_pdfs_nodes(self, base_path, content):
         pdfs_urls = self.get_pdfs_urls(content)
@@ -277,6 +302,8 @@ class Article(object):
 
     def to_file(self, base_path):
         self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title)
+        if self.body() is None:
+            return False
         self.video_nodes = self.build_video_nodes(base_path, self.body())
         self.pdf_nodes = self.build_pdfs_nodes(base_path, self.body())
         body = self.clean(self.body())
@@ -284,6 +311,7 @@ class Article(object):
         self.write_index(self.filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(body))
         self.write_images(self.filepath, images)
         self.write_css_js(self.filepath)
+        return True
 
     def write_css_js(self, filepath):
         with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/styles.css") as f:
@@ -322,7 +350,7 @@ class Article(object):
             language=self.lang,
             author="",
             license=LICENSE,
-            thumbnail=None,
+            thumbnail=self.thumbnail,
             children=[]
         )
 
@@ -332,7 +360,7 @@ class Article(object):
             source_id=self.source_id,
             title=self.title,
             description="",
-            thumbnail=None,
+            thumbnail=self.thumbnail,
             author=self.author,
             files=[dict(
                 file_type=content_kinds.HTML5,
@@ -347,7 +375,8 @@ class Article(object):
                 node["children"].append(node_)
 
     def to_node(self):
-        if len(self.video_nodes) > 0 or len(self.pdf_nodes) > 0:
+        if self.video_nodes is not None and len(self.video_nodes) > 0 or\
+            self.pdf_nodes is not None and len(self.pdf_nodes) > 0:
             node = self.topic_node()
             node["children"].append(self.html_node())
             self.add_to_node(node, self.video_nodes)
@@ -355,28 +384,6 @@ class Article(object):
         else:
             node = self.html_node()
         return node
-
-
-class QueryPage:
-    def __init__(self, soup):
-        self.soup = soup
-        self.get_id()
-
-    def get_id(self):
-        query_param = self.soup.find("div", class_="mt-guide-tabs-container")
-        if query_param is not None:
-            self.page_id = query_param.attrs.get("data-page-id", "")
-            query_param = self.soup.find("li", class_="mt-guide-tab")
-            self.guid = query_param.attrs.get("data-guid", "")
-        else:
-            self.page_id = None
-            self.guid = None
-
-    def body(self):
-        if self.page_id is not None and self.guid is not None:
-            url = "{}@api/deki/pages/=Template%253AMindTouch%252FIDF3%252FViews%252FTopic_hierarchy/contents?dream.out.format=json&origin=mt-web&pageid={}&draft=false&guid={}".format(BASE_URL, self.page_id, self.guid)
-            json = requests.get(url).json()
-            return BeautifulSoup(json["body"], 'html.parser')
 
 
 class YouTubeResource(object):
@@ -416,7 +423,7 @@ class YouTubeResource(object):
     def is_youtube(self, url, get_channel=False):
         youtube = url.find("youtube") != -1 or url.find("youtu.be") != -1
         if get_channel is False:
-            youtube = youtube and url.find("user") == -1 and url.find("/c/") == -1
+            youtube = youtube and url.find("user") == -1 and url.find("/c/") == -1 and url.find("/u/") == -1
         return youtube
 
     @classmethod
@@ -434,7 +441,7 @@ class YouTubeResource(object):
                 'quiet': False,
                 'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
                 'outtmpl': '{}/%(id)s'.format(download_to),
-                'noplaylist': False
+                'noplaylist': True
             }
 
         with youtube_dl.YoutubeDL(ydl_options) as ydl:
@@ -518,7 +525,7 @@ class File(object):
         try:
             if download is False:
                 return
-            response = sess.get(self.source_id)
+            response = sess.get(self.source_id, timeout=60)
             content_type = response.headers.get('content-type')
             if 'application/pdf' in content_type:
                 self.filepath = os.path.join(base_path, self.filename)
@@ -640,7 +647,7 @@ class CienciaNasaChef(JsonTreeChef):
                 description="""Exploración de las actividades de ciencia de NASA con blogs, videos, y artículos cortos adecuados por todas las edades. Este recurso incluye contenidos sobre la ciencia espacial, la ciencia terrestre, la ciencia física, y más.
 """
 [:400], #400 UPPER LIMIT characters allowed 
-                thumbnail=None,
+                thumbnail="https://ciencia.nasa.gov/sites/all/themes/science_nasa/logo.png",
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],
@@ -660,7 +667,7 @@ class CienciaNasaChef(JsonTreeChef):
         #article.to_file(base_path)
         #print(article.to_node())
         for node in Browser(BASE_URL).run():
-            print(node)
+            channel_tree["children"].append(node)
         return channel_tree
 
     def write_tree_to_json(self, channel_tree):
