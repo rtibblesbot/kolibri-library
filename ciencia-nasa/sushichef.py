@@ -84,8 +84,6 @@ class Browser:
 
     def run(self, from_i=1, to_i=None):
         for title, topic_page_name in sorted(TOPICS.items(), key=lambda x: x[0]):
-            if title == "Ciencia Espacial":
-                continue
             url = urljoin(self.url, topic_page_name)
             topic = Topic(title, url)
             topic.articles()
@@ -166,18 +164,6 @@ class TopicPage(object):
             #break
 
 
-def thumbnails_links(soup, tag, class_):
-    if soup is not None:
-        courses_list = soup.find_all(tag, class_=class_)
-        thumnails = {}
-        for course_li in courses_list:
-            link = course_li.find("a").get("href")
-            img = course_li.find("img")
-            if img is not None:
-                thumnails[link] = img["src"]
-        return thumnails
-
-
 def save_thumbnail(url, title):
     import imghdr
     from io import BytesIO
@@ -188,7 +174,7 @@ def save_thumbnail(url, title):
     else:
         img_buffer = BytesIO(r.content)
         img_ext = imghdr.what(img_buffer)
-        if img_ext != "gif":
+        if img_ext != "gif" or img_ext is not None:
             filename = "{}.{}".format(title, img_ext)
             base_dir = build_path([DATA_DIR, "thumbnails"])
             filepath = os.path.join(base_dir, filename)
@@ -581,28 +567,6 @@ def download(source_id):
     return False
 
 
-def get_index_range(only_pages):
-    if only_pages is None:
-            from_i = 0
-            to_i = None
-    else:
-        index = only_pages.split(":")
-        if len(index) == 2:
-            if index[0] == "":
-                from_i = 0
-                to_i = int(index[1])
-            elif index[1] == "":
-                from_i = int(index[0])
-                to_i = None
-            else:
-                index = map(int, index)
-                from_i, to_i = index
-        elif len(index) == 1:
-            from_i = int(index[0])
-            to_i = from_i + 1
-    return from_i, to_i
-
-
 # The chef subclass
 ################################################################################
 class CienciaNasaChef(JsonTreeChef):
@@ -654,18 +618,6 @@ class CienciaNasaChef(JsonTreeChef):
                 license=LICENSE,
             )
 
-        #p_from_i, p_to_i = get_index_range(only_pages)
-        #v_from_i, v_to_i = get_index_range(only_videos)
-        #browser = Browser(BASE_URL)
-        #links = browser.run(p_from_i, p_to_i)
-        #collections = LinkCollection(links)
-        #for collection_node in collections.to_node():
-        #    if collection_node is not None:
-        #        channel_tree["children"].append(collection_node)
-        #base_path = build_path([DATA_DIR, "test"])
-        #article = Article("Siga al Sol", "https://ciencia.nasa.gov/siga-al-sol")
-        #article.to_file(base_path)
-        #print(article.to_node())
         for node in Browser(BASE_URL).run():
             channel_tree["children"].append(node)
         return channel_tree
