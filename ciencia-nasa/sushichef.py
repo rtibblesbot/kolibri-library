@@ -174,7 +174,7 @@ def save_thumbnail(url, title):
     else:
         img_buffer = BytesIO(r.content)
         img_ext = imghdr.what(img_buffer)
-        if img_ext != "gif" or img_ext is not None:
+        if img_ext != "gif" and img_ext is not None:
             filename = "{}.{}".format(title, img_ext)
             base_dir = build_path([DATA_DIR, "thumbnails"])
             filepath = os.path.join(base_dir, filename)
@@ -340,6 +340,19 @@ class Article(object):
             children=[]
         )
 
+    def empty_node(self, source_id, title):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=source_id,
+            title=title,
+            description="",
+            language=self.lang,
+            author="",
+            license=LICENSE,
+            thumbnail=None,
+            children=[]
+        )
+
     def html_node(self):
         return dict(
             kind=content_kinds.HTML5,
@@ -361,14 +374,21 @@ class Article(object):
                 node["children"].append(node_)
 
     def to_node(self):
+        article_node = self.empty_node("Artículos", "Artículos")
+        article_node["children"].append(self.html_node())
         if self.video_nodes is not None and len(self.video_nodes) > 0 or\
             self.pdf_nodes is not None and len(self.pdf_nodes) > 0:
+            self.add_to_node(article_node, self.pdf_nodes)
             node = self.topic_node()
-            node["children"].append(self.html_node())
-            self.add_to_node(node, self.video_nodes)
-            self.add_to_node(node, self.pdf_nodes)
+            node["children"].append(article_node)
+            if self.video_nodes is not None and len(self.video_nodes) > 0:
+                video_node = self.empty_node("Videos", "Videos")
+                self.add_to_node(video_node, self.video_nodes)
+                node["children"].append(video_node)            
         else:
-            node = self.html_node()
+            node = self.topic_node()
+            node["children"].append(article_node)
+            #node = self.html_node()
         return node
 
 
