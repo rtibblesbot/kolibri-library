@@ -35,7 +35,7 @@ into a format that can be imported into Kolibri Studio.
 
 ## Usage
 
-./sushichef.py -v --reset --token='.token'
+     ./sushichef.py -v --reset --token='.token'
 
 
 
