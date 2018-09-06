@@ -16,6 +16,7 @@ from ricecooker.utils.browser import preview_in_browser
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.html import download_file
 from ricecooker.utils.zip import create_predictable_zip
+from le_utils.constants.languages import getlang
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -24,30 +25,70 @@ forever_adapter= CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=ca
 sess.mount('http://', forever_adapter)
 sess.mount('https://', forever_adapter)
 
-ID_BLACKLIST = ["html", "by-device", "new", "quantum", "general"]
+ID_BLACKLIST = ["html", "by-device", "new", "quantum", "general", "by-level"]
+ARABIC_NAME_CATEGORY = {
+    "Physics": "الفيزياء",
+    "Biology": "الأحياء",
+    "Chemistry": "الكيمياء",
+    "Motion": "الحركة",
+    "Sound and Waves": "الصوت والأمواج",
+    "Work Energy and Power": "الشغل والطاقة",
+    "Earth Science": "علوم الأرض",
+    "Math": "الرياضيات",
+    "Heat and Thermodynamics": "الحرارة والديناميكا الحرارية",
+    "Quantum Phenomena": "فيزياء الكم",
+    "Light and Radiation": "الضوء والإشعاعات",
+    "Electricity Magnets and Circuits": "المغناطيس الكهربائي والدّارة الكهربائية",
+    "pH Scale": "مقياس معامل الحموضة pH",
+    "مقياس pH  : إبتدائي": "مقياس معامل الحموضة pH  : إبتدائي",
+    "Beer's Law Lab": "مختبر قانون بير",
+    "Bending Light": "انكسار الضوء",
+    "Concepts": "مفاهيم",
+    "Applications": "تطبيقات",
+}
+
+SIM_TYPO = {
+    "أشكال الجزئ": "أشكال الجزيء",
+    "مولارية": "المولارية",
+    "محاليل حمض-قلوي ": "المحاليل حمضي-قلوي ",
+    "بناء ذرة": "بناء الذرة",
+    "المظائر والكتلة الذرية": "النظائر والكتلة الذرية",
+    "تحت ضغط": "تحت الضغط",
+    "انشاء الدّالة": "إنشاء الدّالة",
+    "تكوين العشرة": "تكوين العشرات",
+    "رؤية اللّون": "رؤية الألوان",
+}
 
 
 class PhETSushiChef(SushiChef):
 
-    channel_info = {
-        'CHANNEL_SOURCE_DOMAIN': 'phet.colorado.edu',
-        'CHANNEL_SOURCE_ID': 'phet-html5-simulations',
-        'CHANNEL_TITLE': 'PhET Interactive Simulations',
-        'CHANNEL_THUMBNAIL': 'https://phet.colorado.edu/images/phet-social-media-logo.png',
-        'CHANNEL_DESCRIPTION': 'The PhET Interactive Simulations project at the University of Colorado Boulder creates free interactive math and science simulations that engage students through an intuitive, game-like environment where students learn through exploration and discovery.',
-    }
+    def get_channel(self, **kwargs):
+        LANGUAGE = kwargs.get("lang", "en")
+        lang_obj = getlang(LANGUAGE)
+
+        title_id_suffix = LANGUAGE
+        source_id_suffix = '-{}'.format(LANGUAGE)
+
+        if LANGUAGE == "en":
+            source_id_suffix = ''
+        elif LANGUAGE == "ar":
+            title_id_suffix = lang_obj.native_name
+
+        channel = ChannelNode(
+            source_domain = 'phet.colorado.edu',
+            source_id = 'phet-html5-simulations{}'.format(source_id_suffix),
+            title = 'PhET Interactive Simulations ({})'.format(title_id_suffix),
+            thumbnail = 'https://phet.colorado.edu/images/phet-social-media-logo.png',
+            description = 'The PhET Interactive Simulations project at the University of Colorado Boulder provides a collection of 140 interactive simulations for teaching and learning science and math for upper middle school and high school students. Most content available supports chemistry and physics learning.',
+            language=lang_obj,
+        )
+
+        return channel
 
     def construct_channel(self, **kwargs):
 
-        channel = ChannelNode(
-            source_domain = self.channel_info['CHANNEL_SOURCE_DOMAIN'],
-            source_id = self.channel_info['CHANNEL_SOURCE_ID'],
-            title = self.channel_info['CHANNEL_TITLE'],
-            thumbnail = self.channel_info.get('CHANNEL_THUMBNAIL'),
-            description = self.channel_info.get('CHANNEL_DESCRIPTION'),
-        )
-
-        LANGUAGE = "en"
+        channel = self.get_channel(**kwargs)
+        LANGUAGE = kwargs.get("lang", "en")
 
         r = sess.get("https://phet.colorado.edu/services/metadata/1.1/simulations?format=json&type=html&locale=" + LANGUAGE)
         data = json.loads(r.content.decode())
@@ -84,6 +125,9 @@ class PhETSushiChef(SushiChef):
             title = title.replace(" And ", " and ")
             title = title.replace("Mathconcepts", "Concepts")
             title = title.replace("Mathapplications", "Applications")
+
+            if language == "ar":
+                title = ARABIC_NAME_CATEGORY[title]
             # create the topic node, and add it to the parent
             subtopic = TopicNode(
                 source_id=subcat["name"],
@@ -95,7 +139,7 @@ class PhETSushiChef(SushiChef):
 
         # loop through all sims in this topic and add them, but only if we're at a leaf topic
         if len(parent.children) == 0:
-            for sim_id in cat["simulationIds"]:
+            for sim_id in list(set(cat["simulationIds"])):
                 # skip ones that aren't found (probably as they aren't HTML5)
                 if sim_id not in sims:
                     continue
@@ -124,16 +168,24 @@ class PhETSushiChef(SushiChef):
         authors = re.sub(" \(.*?\)", "", sim["credits"]["designTeam"])
         authors = re.sub("<br\/?>", ", ", authors)
 
+        title = localized_sim["title"]
+        if language == "ar":
+            if title in ARABIC_NAME_CATEGORY:
+                title = ARABIC_NAME_CATEGORY[title]
+            if title in SIM_TYPO:
+                title = SIM_TYPO[title]
+
         # create a node for the sim
         simnode = HTML5AppNode(
-            source_id="sim-%d" % sim["id"],
+            source_id="sim-%d" % localized_sim["id"],
             files=[HTMLZipFile(zippath)],
-            title=localized_sim["title"],
+            title=title,
             description=sim["description"][language][:200],
             license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
             # author=authors,
             # tags=[keywords[topic] for topic in sim["topicIds"]],
             thumbnail=sim["media"]["thumbnailUrl"],
+            language=getlang(language),
         )
 
         # if there's a video, extract it and put it in the topic right before the sim
@@ -142,7 +194,7 @@ class PhETSushiChef(SushiChef):
             video_url = [v for v in videos if v.get("height") == 540][0]["link"]
 
             videonode = VideoNode(
-                source_id="video-%d" % sim["id"],
+                source_id="video-%d" % localized_sim["id"],
                 files=[VideoFile(video_url)],
                 title="Video: %s" % localized_sim["title"],
                 license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
