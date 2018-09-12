@@ -35,12 +35,10 @@ into a format that can be imported into Kolibri Studio.
 
 ## Usage
 
-TODO: Explain how to run the Al-Riyadiyat with Basil Al-Zubaidi العربيّة chef
+This sushi chef script relies on the YouTube Data API (v3).  For instructions on registering an application and attaining an API key for the YouTube Data API, [see here](https://developers.google.com/youtube/registering_an_application).  You will also need to attain an authentication token for Kolibri Studio.
 
-      export SOMEVAR=someval
-      ./script.py -v --option2 --kwoard="val"
-
-
+### To run the sushi chef script:
+      python sushichef.py -v --reset --token=<Kolibri Studio token> --youtube-api-token=<YouTube Data API v3 key>
 
 ## Description
 
