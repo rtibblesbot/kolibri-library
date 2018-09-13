@@ -72,7 +72,7 @@ class YoutubePlaylistTopicNode(nodes.TopicNode):
             # video_ids = [v['id'] for v in videos]
             # duplicated_videos = [v for v in video_ids if video_ids.count(v) > 1]
             # print("The following videos are duplicated: {}".format(duplicated_videos))
-            
+
             for video in videos:
                 if video['id'] in videos_added:
                     continue
@@ -156,8 +156,6 @@ class ChefAlRiyadiyat(SushiChef):
             "fr" will be passed along to `construct_channel` as kwargs['lang'].
         Returns: ChannelNode
         """
-        channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
-        
         from apiclient.discovery import build
         # instantiate a YouTube Data API v3 client
         youtube = build('youtube', 'v3', developerKey=kwargs['--youtube-api-token'])
@@ -166,7 +164,11 @@ class ChefAlRiyadiyat(SushiChef):
             part='snippet'
         ).execute()['items'][0]
 
-        channel.thumbnail = get_largest_thumbnail(youtube_channel_info['snippet']['thumbnails']).get('url')
+        self.channel_info['CHANNEL_THUMBNAIL'] = get_largest_thumbnail(youtube_channel_info['snippet']['thumbnails']).get('url')
+
+
+        channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
+        
         # Grade 1 Topic
         grade1_playlist_id = "PL7PgvYjSilJD6uFfdqbQBUAZzbE48c8ns"
         grade1 = YoutubePlaylistTopicNode(title="الرابع العلمي", source_id=grade1_playlist_id)
