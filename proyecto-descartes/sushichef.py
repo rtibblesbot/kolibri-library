@@ -1,30 +1,29 @@
 #!/usr/bin/env python
 import os
 import re
-import sys
 import requests
 import tempfile
 import zipfile
-from ricecooker.utils import downloader, html_writer
+from math import ceil
+from bs4 import BeautifulSoup
+from urllib.parse import unquote
+from collections import OrderedDict
+from ricecooker.utils import downloader
 from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files, questions, licenses
+from ricecooker.classes import files
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
-from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
-from bs4 import BeautifulSoup
-from ricecooker.classes.nodes import ChannelNode, HTML5AppNode, TopicNode, VideoNode
-from collections import OrderedDict
-from math import ceil
+from ricecooker.classes.nodes import HTML5AppNode, TopicNode
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.classes.licenses import CC_BY_NC_SALicense
+from ricecooker.utils.zip import create_predictable_zip
+
 
 sess = requests.Session()
 cache = FileCache('.webcache')
 forever_adapter= CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
 sess.mount('http://', forever_adapter)
-sess.mount('https://', forever_adapter)
-
 
 
 # Run constants
@@ -91,24 +90,24 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        resp = sess.get("http://proyectodescartes.org/descartescms/")
+        # Parse the index page to get the topics
+        resp = downloader.make_request("http://proyectodescartes.org/descartescms/")
         soup = BeautifulSoup(resp.content, "html.parser")
         topics = soup.find_all("a", "item")
-
         final_topics = self.parse_topics(topics, channel)
 
         for topic in final_topics:
-            # No need to parse the content under the topic when link is not valid
-            if "javascript:void(0);" in topic[1]:
-                continue
-            self.download_subject(topic[0], topic[1])
+            self.download_subject(topic[0], topic[1], topic[2])
 
-        # raise NotImplementedError("constuct_channel method not implemented yet...")
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
 
+
     def parse_topics(self, topics, channel):
+        """
+        Parse the topics on the site.
+        """
         final_topics = []
         main_topics = []
         
@@ -131,142 +130,161 @@ class MyChef(SushiChef):
                 parent = channel
                 main_topics.append(subject_topic)
 
-            topic_tuple = (subject_topic, subjectLink)
-            parent.add_child(subject_topic)
+            topic_tuple = (subject_topic, subjectLink, parent)
             final_topics.append(topic_tuple)
 
         return final_topics
 
-    def download_subject(self, parent, link):
-        print ("Processing subject: ", parent.title)
-        resp = sess.get(link)
+
+    def download_subject(self, subject, link, parent):
+        """
+        Parse each subject page.
+        """
+        LOGGER.info("Processing subject: {}".format(subject.title))
+
+        # No need to parse the content under the subject when link is not valid
+        if "javascript:void(0);" in link:
+            parent.add_child(subject)
+            return
+
+        # Parse each subject's index page
+        resp = downloader.make_request(link)
         soup = BeautifulSoup(resp.content, "html.parser")
 
-        selected_category = soup.find("option", {"class": "level0", "selected": "selected"})["value"]
+        selected_category = soup.find("option", {"class": "level0", "selected": "selected"})
+        if not selected_category:
+            return
+
+        parent.add_child(subject)
 
         for item in AGE_RANGE.keys():
-            params = {
-                "category": selected_category,
-                "moduleId": "282",
-                "format": "count",
-            }
+            params = OrderedDict([
+                ("category", selected_category["value"]),
+                ("moduleId", "282"),
+                ("format", "count")
+            ])
             for index in range(len(AGE_RANGE[item])):
                 params["taga[{}]".format(index)] = AGE_RANGE[item][index]
-            resp = sess.get("{}/itemlist/filter".format(link), params=params)
+
+            # Parse the topics of age range under each subject
+            resp = downloader.make_request("{}/itemlist/filter".format(link), params=params)
             count = int(resp.text.split('\n')[0])
             if count == 0:
-                return
+                continue
 
-            print ("Processing topic: ", item)
+            LOGGER.info("Processing topic: {}".format(item))
             age_topic = TopicNode(source_id=item, title=item)
-            parent.add_child(age_topic)
+            subject.add_child(age_topic)
             total_pages = ceil(count/20)
 
             for i in range(total_pages):
-                page_params = dict(params)
-                self.download_content(age_topic, link, page_params, selected_category, i*20)
+                page_params = OrderedDict(params)
+                LOGGER.info("Processing page: {}".format(i))
+                self.download_content(age_topic, link, page_params, selected_category["value"], i*20)
 
 
     def download_content(self, parent, link, params, selected_category, start):
+        """
+        Parse each content page.
+        """
         params["start"] = start
         params.pop("format")
 
-        resp = sess.get("{}/itemlist/filter".format(link), params=params)
-        print (resp.url)
+        # Parse each page of the result
+        resp = downloader.make_request("{}/itemlist/filter".format(link), params=params)
         soup = BeautifulSoup(resp.content, "html.parser")
+
+        # Find the all the content in each page
         for item in soup.find("tbody").find_all("a"):
             content_url = "http://proyectodescartes.org{}".format(item["href"])
             title = item.text.strip()
             source_id = item["href"].split("/")[-1]
-            print (content_url)
-            response = sess.get(content_url)
+
+            # Parse each content's page
+            response = downloader.make_request(content_url)
             page = BeautifulSoup(response.content, "html.parser")
-            author_tag = page.find(string="Autoría")
-            if author_tag:
-                author = str(soup.find(string="Autoría").parent.parent).split("Autoría</strong>:")[-1].split("<")[0].strip()
-            else:
-                author = str(soup.find(string="Autores").parent.parent).split("Autores</strong>:")[-1].split("<")[0].strip()
-            zip_href = page.find("a", href=re.compile(".zip"))
-            if not zip_href:
-                print ("The url for the Zip file does not exist in this page: ", content_url)
+
+            thumbnail_url = "http://proyectodescartes.org{}".format(
+                page.find("div", class_="itemFullText").find("img")["src"])
+            author = self.get_content_author(page)
+            zip_path = self.get_content_zip(page)
+            if not zip_path:
+                LOGGER.info("The url for the zip file does not exist in this page: {}".format(content_url))
                 continue
-            zip_url = "http://proyectodescartes.org{}".format(zip_href["href"])
-            filepath = "/tmp/{}".format(zip_url.split("/")[-1])
-            zip_resp = sess.get(zip_url)
-
-            if zip_resp.status_code != 200:
-                print ("The url for the Zip file does not work: ", zip_url)
-                continue
-
-            if not os.path.exists(filepath):
-                with open(filepath, "wb") as f:
-                    f.write(zip_resp.content)
-
-            zip_path = create_predictable_zip(filepath)
 
             content_node = HTML5AppNode(
                 source_id=source_id,
                 title=title,
-                license=CC_BY_NC_SALicense(),
+                license=CC_BY_NC_SALicense(copyright_holder="Proyecto Descartes"),
                 language=CHANNEL_LANGUAGE,
                 files=[files.HTMLZipFile(zip_path)],
                 author=author,
+                thumbnail=thumbnail_url,
             )
 
             parent.add_child(content_node)
 
 
-def _read_file(path):
-    with open(path, "rb") as f:
-        return f.read()
+    def get_content_author(self, page):
+        """
+        Get the author name in each content page.
+        """
+        # On the site, the author section is indicated in three different ways.
+        autoria_tag = page.find(string="Autoría")
+        autores_tag = page.find(string="Autores")
+        autor_tag = page.find(string="Autor")
 
-def create_predictable_zip(path):
-    """ create_predictable_zip: Create a zip file with predictable sort order and metadata, for MD5 consistency.
-        Args:
-            path (str): absolute path either to a directory to zip up, or an existing zip file to convert.
-        Returns: path (str) to the output zip file
-    """
+        if autoria_tag:
+            author = str(page.find(string="Autoría").parent.parent).split(
+                "Autoría</strong>:")[-1].split("<")[0].strip()
+        elif autores_tag:
+            author = str(page.find(string="Autores").parent.parent).split(
+                "Autores</strong>:")[-1].split("<")[0].strip()
+        elif autor_tag:
+            author = str(page.find(string="Autor").parent.parent).split(
+                "Autores</strong>:")[-1].split("<")[0].strip()
+        else:
+            author = ""
 
-    # if path is a directory, recursively enumerate all the files under the directory
-    if os.path.isdir(path): 
-        paths = []
-        for root, directories, filenames in os.walk(path):
-            paths += [os.path.join(root, filename)[len(path)+1:] for filename in filenames]
-        reader = lambda x: _read_file(os.path.join(path, x))
-    # otherwise, if it's a zip file, open it up and pull out the list of names
-    elif os.path.isfile(path) and os.path.splitext(path)[1] == ".zip":
-        inputzip = zipfile.ZipFile(path)
-        paths = inputzip.namelist()
-        reader = lambda x: inputzip.read(x)
-    else:
-        raise Exception("The `path` must either point to a directory or to a zip file.")
-
-    # create a temporary zip file path to write the output into
-    handle, zippath = tempfile.mkstemp(suffix=".zip")
-
-    with zipfile.ZipFile(zippath, "w") as outputzip:
-        # loop over the file paths in sorted order, to ensure a predictable zip
-        for filepath in sorted(paths):
-            write_file_to_zip_with_neutral_metadata(outputzip, filepath, reader(filepath))
-    os.close(handle)
-    return zippath
+        return author
 
 
-def write_file_to_zip_with_neutral_metadata(zfile, filename, content):
-    """ write_file_to_zip_with_neutral_metadata: Write a string into an open ZipFile with predictable metadata.
-        Args:
-            zfile (ZipFile): open ZipFile to write the content into
-            filename (str): the file path within the zip file to write into
-            content (str): the content to write into the zip
-        Returns: None
-    """
+    def get_content_zip(self, page):
+        """
+        Get the zip path of the content.
+        """
+        # Find the zip url of the content and check if it's valid.
+        zip_href = page.find("a", href=re.compile(".zip"))
+        if not zip_href:
+            return None
+        zip_url = "http://proyectodescartes.org{}".format(zip_href["href"])
+        zip_resp = downloader.make_request(zip_url)
 
-    info = zipfile.ZipInfo(filename, date_time=(2015, 10, 21, 7, 28, 0))
-    info.compress_type = zipfile.ZIP_DEFLATED
-    info.comment = "".encode()
-    info.create_system = 0
-    zfile.writestr(info, content)
+        if zip_resp.status_code != 200:
+            return None
 
+        filepath = "/tmp/{}".format(zip_url.split("/")[-1])
+        with open(filepath, "wb") as f:
+            f.write(zip_resp.content)
+
+        dst = tempfile.mkdtemp()
+        html_name = page.find(
+            "div", class_="itemFullText").find("a")["href"].split("/")[-1]
+
+        # Unzip the downloaded zip file and zip the folder again. In case that
+        # index.html does not exist on the top most level, rename the index page 
+        # in the folder to index.html before zipping the folder again.
+        with zipfile.ZipFile(filepath) as zf:
+            extracted_src = unquote(filepath.split("/")[-1].split(".zip")[0])
+            zf.extractall(dst)
+            if html_name != "index.html":
+                src_index = os.path.join(dst, extracted_src, html_name)
+                dst_index = src_index.replace(html_name, "index.html")
+                if os.path.exists(src_index):
+                    os.rename(src_index, dst_index) 
+            zip_path = create_predictable_zip(os.path.join(dst, extracted_src))
+
+        return zip_path
 
 
 # CLI
