@@ -117,14 +117,45 @@ def index_job(job_url):
     return job
 
 def index_skill(skill_url):
+    from urllib.parse import urljoin
     # TODO: add other bits, should we care about this.
     skill = Record(skill_url)
     try:
         skill.youtube = re.search("videoId: '([^']+)'", skill.response.text).groups()[0]
     except AttributeError:
         skill.youtube = None
-    return skill    
+    try:
+        skill.title = skill.root.xpath("//h1[@class='video__title']/text()")[0]
+    except Exception as e:
+        print ("No title for ", skill.url)
+        skill.title = "Video"
+    skill.preamble = skill.root.xpath("//div[@class='video__introduction wysiwyg']")[0]
+
+    skill.body = skill.root.xpath("//div[@class='video__body wysiwyg']")[0]
+    skill.body.insert(0, skill.preamble)
+    skill.html = clean_html(skill.body)
     
+    io = BytesIO()
+    with ZipFile(io, mode="w") as z:
+        z.writestr("index.html", html_template.format(skill.html))
+        z.write("styles.css")
+    skill.app = io.getvalue()
+
+    
+    links = [urljoin("https://careergirls.org/x", x) for x in skill.body.xpath(".//a/@href")]
+    skill.downloads = [get_resource(x) for x in links]
+    return skill
+
+def get_resource(resource_url):
+    print(resource_url)
+    if "careergirls.org" not in resource_url:
+        target_url = resource_url
+    else:
+        resource = Record(resource_url)
+        target_url = resource.root.xpath("//a[@class='button']/@href")[0]
+    binary = requests.get(target_url).content
+    return binary
+ 
 def index_role(role_url):
     # Note, we'll need to do these from the jobs since there doesn't appear to be a master list
     role = Record(role_url)
@@ -160,9 +191,22 @@ def all_jobs():
     cluster = index_cluster("https://www.careergirls.org/explore-careers/careers/")
     for job_url in cluster.jobs:
         yield index_job(job_url)
-    
+
+def all_life_skills():
+    response = requests.get("https://www.careergirls.org/be-empowered/develop-life-skills/")
+    root = lxml.html.fromstring(response.content)
+    skill_urls = root.xpath("//li[contains(@class,'listing__item')]/a/@href")
+    for url in skill_urls:
+         yield index_skill(url)
+ 
 
 if __name__ == "__main__":
+    s = index_skill("https://www.careergirls.org/video/importance-of-math/")
+    print (s.links)
+    r = get_resource(s.links[0])
+    print(r, type(r))
+    
+if __name__ == "__main__2":
     app = index_job("https://www.careergirls.org/career/architect/").app
     with open("app.zip", "wb") as f:
         f.write(app)

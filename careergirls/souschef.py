@@ -42,55 +42,47 @@ class CareerGirlsChef(SushiChef):
     }
 
     def construct_channel(self, **kwargs):
+  
+        def get_things(all_things, parent_node):
+            for thing in all_things:
+                _id = thing.url.strip('/').split('/')[-1] # TODO hash
+                this_node = TopicNode(source_id = thing.url,
+                                      title=thing.title)
+                content_node = make_youtube_video(thing.youtube, "Video: {}".format(thing.title), "video__{}".format(thing.url)) # TODO hash
+                this_node.add_child(content_node)
+               
+                try:
+                    os.mkdir('html')
+                except Exception:
+                    pass
+                fn = "html/{}.zip".format(_id)
+                with open(fn, "wb") as f:
+                    f.write(thing.app)
+                app_zip = HTMLZipFile(fn)
+                app_node = HTML5AppNode(source_id = "app_{}".format(thing.url),
+                                        title = "Being a {}".format(thing.title),
+                                        license = licenses.PUBLIC_DOMAIN,
+                                        files=[app_zip])
+            
+                this_node.add_child(app_node)
+                parent_node.add_child(this_node)
+ 
         video_list = []
         video_set = set()
         channel = self.get_channel(**kwargs)
         job_node = TopicNode(source_id="jobs", title="Jobs")
         role_node = TopicNode(source_id="roles", title="Role Models")
+        life_skill_node = TopicNode(source_id="lifeskills", title="Life Skills")
         
         channel.add_child(job_node)
         channel.add_child(role_node)
         
         all_jobs = list(cg_index.all_jobs())
-        
-        for job in all_jobs:
-            _id = job.url.strip('/').split('/')[-1]
-            this_job = TopicNode(source_id = job.url,
-                                  title=job.title)
-            content_node = make_youtube_video(job.youtube, "Video: {}".format(job.title), "video__{}".format(job.url))
-            
-            
-            #video_file = YouTubeVideoFile(youtube_id = job.youtube, language=getlang('en').code)
-            #subtitle_file = YouTubeSubtitleFile(youtube_id = job.youtube, language=getlang('en').code)
-            #content_node = VideoNode(
-                  #source_id='video__{}'.format(job.url),
-                  #title="Video: {}".format(job.title),
-                  ##author='First Last (author\'s name)',
-                  ##description='Put file description here',
-                  #language=getlang('en').code,
-                  #license=licenses.PUBLIC_DOMAIN,  # TODO - fix!
-                  #files=[video_file, subtitle_file],
-            #)            
-            
-            this_job.add_child(content_node)
-            
-            try:
-                os.mkdir('html')
-            except Exception:
-                pass
-            fn = "html/{}.zip".format(_id)
-            with open(fn, "wb") as f:
-                f.write(job.app)
-            
-            app_zip = HTMLZipFile(fn)
-            app_node = HTML5AppNode(source_id = "app_{}".format(job.url),
-                               title = "Being a {}".format(job.title),
-                               license = licenses.PUBLIC_DOMAIN,
-                               files=[app_zip])
-            
-            this_job.add_child(app_node)
-            job_node.add_child(this_job)
-            
+        get_things(all_jobs, job_node)
+
+        all_life_skills = list(cg_index.all_life_skills())
+        get_things(all_life_skills, life_skill_node)
+
         # role models
         role_urls = set()
         for job in all_jobs:
