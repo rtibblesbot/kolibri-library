@@ -66,8 +66,8 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 ################################################################################
 
 data_nav = OrderedDict([
-("Lessons and Articles", "دروس ومقالات"), 
-("Questions and Answers", "أسئلة وأجوبة"), 
+#("Lessons and Articles", "دروس ومقالات"), 
+#("Questions and Answers", "أسئلة وأجوبة"), 
 ("Books and Resources",  "كتب وملفات")
 ])
 
@@ -84,11 +84,43 @@ def browser_resources():
             source_id = a.get("href", "")
             title = a.text.strip()
             category.add_topic(title, source_id)
-            category.download()
-            break
         yield category
         break
 
+
+class Paginator(object):
+    def __init__(self, url, initial=1, last=None):
+        self.url = url
+        self.initial_page = initial
+        self.last_page = last
+        self.counter = initial
+    
+    def build_page_url(self):
+        return self.url + "?page={}".format(self.counter)
+    
+    def find_max(self):
+        page = download(self.url)
+        li_page = page.find("li", class_="ipsPagination_pageJump")
+        if li_page is not None:
+            value = li_page.find("input")
+            self.last_page = int(value.attrs.get("max", "0"))
+        else:
+            self.last_page = 1
+
+    def __next__(self):
+        page_url = self.build_page_url()
+        self.counter += 1
+        return page_url
+    
+    def __iter__(self):
+        if self.last_page is not None:
+            while self.initial_page <= self.counter <= self.last_page:
+                yield next(self)
+        else:
+            while True:
+                yield next(self)
+
+    
 
 class Node(object):
     def __init__(self, title, source_id, lang="ar"):
@@ -111,7 +143,11 @@ class Node(object):
 
     @thumbnail.setter
     def thumbnail(self, url):
-        self._thumbnail = save_thumbnail(url, uuid.uuid4().hex, DATA_DIR)
+        key = hashlib.sha1(url.encode("utf-8")).hexdigest()
+        self._thumbnail = save_thumbnail(url, key, DATA_DIR)
+
+    def title_hash(self):
+        return hashlib.sha1(self.title.encode("utf-8")).hexdigest()
 
     def to_node(self):
         return dict(
@@ -134,8 +170,7 @@ class Category(Node):
 
     def add_topic(self, title, url):
         if url != "#":
-            topic = Topic(title, url)
-            self.topics.append(topic)
+            self.topics.append(Topic(title, url))
 
     def download(self):
         for topic in self.topics:
@@ -146,39 +181,68 @@ class Category(Node):
 class Topic(Node):
     def __init__(self, *args, **kwargs):
         super(Topic, self).__init__(*args, **kwargs)
-        LOGGER.info("--- Topic: {} {}".format(self.title, self.source_id))
 
     def download(self):
-        page = download(self.source_id)
-        div = page.find("div", id="elCmsPageWrap")
-        articles = div.find_all("article")
-        for article_soup in articles:
-            img = article_soup.find("img")
-            title_a = article_soup.find(lambda tag: tag.name == "a" and tag.findParent("h2"))
-            title = title_a.text.strip()
-            source_id = title_a.get("href", "")
-            article = Article(title, source_id)
-            article.description = article_soup.find("section").text
-            article.thumbnail = img.get("src", None)
-            base_path = build_path([DATA_DIR, self.title, article.title])
-            article.download(base_path=base_path)
-            self.add_node(article)
-            break
+        LOGGER.info("--- Topic: {}".format(self.source_id))
+        pages = Paginator(self.source_id, initial=1)
+        pages.find_max()
+        #if self.source_id != "https://academy.hsoub.com/design/":
+        #    return 
+        for page in pages:
+            LOGGER.info("------ Page: {} of {}".format(page, pages.last_page))
+            page = download(page)
+            div = page.find("div", id="elCmsPageWrap")
+            articles = div.find_all("article")
+            for article_soup in articles:
+                img = article_soup.find("img")
+                title_a = article_soup.find(lambda tag: tag.name == "a" and tag.findParent("h2") and tag.get("href", "").find("/tags/") == -1)
+                title = title_a.text.strip()
+                source_id = title_a.get("href", "")
+                article = Article(title, source_id)
+                article.description = article_soup.find("section").text
+                article.thumbnail = img.get("src", None)
+                article.author = title_a.findNext("a").text.strip()
+                base_path = build_path([DATA_DIR, self.title_hash(), article.title_hash()])
+                article.download(base_path=base_path)
+                self.add_node(article)
+                break
 
 
 class Article(Node):
     def __init__(self, *args, **kwargs):
         super(Article, self).__init__(*args, **kwargs)
-        LOGGER.info("------ Article: {}".format(self.title))
+        LOGGER.info("--------- Article: {}".format(self.title))
 
     def download(self, download=True, base_path=None):
         html_app = HTMLApp(self.title, self.source_id)
-        html_app.download(base_path)
+        html_app.author = self.author
+        html_app.thumbnail = self.thumbnail
+        self.search_urls(html_app.body)
+        html_app.to_file(base_path)
         self.add_node(html_app)
         #for url in self.urls:
         #    youtube = YouTubeResource(url, lang=self.lang)
         #    youtube.download(download, base_path)
         #    self.add_node(youtube)
+
+    def search_urls(self, body):
+        #soup = download(self.source_id)
+        video_urls = self.video_urls(body)
+        print(video_urls)
+
+    def video_urls(self, content):
+        urls = set([])
+        video_urls = content.find_all(lambda tag: tag.name == "a" and tag.attrs.get("href", "").find("youtube") != -1 or tag.attrs.get("href", "").find("youtu.be") != -1 or tag.text.lower() == "youtube")
+
+        for video_url in video_urls:
+            urls.add(video_url.get("href", ""))
+
+        for iframe in content.find_all("iframe"):
+            url = iframe["src"]
+            if YouTubeResource.is_youtube(url):
+                urls.add(YouTubeResource.transform_embed(url))
+
+        return urls
 
 
 class HTMLApp(object):
@@ -203,6 +267,9 @@ class HTMLApp(object):
         remove_iframes(content)
         remove_scripts(content)
         return content
+
+    def title_hash(self):
+        return hashlib.sha1(self.title.encode("utf-8")).hexdigest()
 
     def to_local_images(self, content):
         images_urls = {}
@@ -229,6 +296,8 @@ class HTMLApp(object):
                     else:
                         requests.get(img_src, timeout=20)
                         zipper.write_url(img_src, img_filename, directory="")
+                except requests.exceptions.ConnectionError:
+                    pass
                 except requests.exceptions.HTTPError:
                     pass
                 except requests.exceptions.ConnectTimeout as e:
@@ -248,7 +317,7 @@ class HTMLApp(object):
             zipper.write_contents("scripts.js", content, directory="js/")
 
     def to_file(self, base_path):
-        self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title)
+        self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title_hash())
         if self.body is None:
             return False
         body = self.clean(self.body)
@@ -257,25 +326,22 @@ class HTMLApp(object):
         self.write_images(self.filepath, images)
         self.write_css_js(self.filepath)
 
-    def download(self, base_path):
-        self.to_file(base_path)
-        print("DOWNLOAD")
-
     def to_node(self):
-        return dict(
-            kind=content_kinds.HTML5,
-            source_id=self.source_id,
-            title=self.title,
-            description=self.description,
-            thumbnail=self.thumbnail,
-            author=AUTHOR if self.author is None else self.author,
-            files=[dict(
-                file_type=content_kinds.HTML5,
-                path=self.filepath
-            )],
-            language=self.lang,
-            license=LICENSE
-        )
+        if self.filepath is not None:
+            return dict(
+                kind=content_kinds.HTML5,
+                source_id=self.source_id,
+                title=self.title,
+                description=self.description,
+                thumbnail=self.thumbnail,
+                author=AUTHOR if self.author is None else self.author,
+                files=[dict(
+                    file_type=content_kinds.HTML5,
+                    path=self.filepath
+                )],
+                language=self.lang,
+                license=LICENSE
+            )
 
 
 class YouTubeResource(object):
@@ -495,16 +561,15 @@ class HsoubAcademyChef(JsonTreeChef):
                 title=CHANNEL_NAME,
                 description="""Hsoub Academy provides online courses in the area of computer science and digital literacy for adult learners and IT emerging professionals. Those courses include video lessons and articles on what is trending in the coding and entrepreneurship world today.."""
 [:400], #400 UPPER LIMIT characters allowed 
-                thumbnail=None,
+                thumbnail="https://academy.hsoub.com/uploads/monthly_2016_01/SiteLogo-346x108.png.dd3bdd5dfa0e4a7099ebc51f8484032e.png",
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],
                 license=LICENSE,
             )
 
-        base_path = [DATA_DIR] + ["Hsoub Academy"]
-        base_path = build_path(base_path)
         for category in browser_resources():
+            category.download()
             channel_tree["children"].append(category.to_node())
         
         return channel_tree
