@@ -83,7 +83,7 @@ def browser_resources():
         for a in ul02.find_all("a"):
             source_id = a.get("href", "")
             title = a.text.strip()
-            category.add_topic(title, source_id)
+            category.add_topic(title, source_id, name)
         yield category
         break
 
@@ -168,9 +168,12 @@ class Category(Node):
         super(Category, self).__init__(*args, **kwargs)
         self.topics = []
 
-    def add_topic(self, title, url):
+    def add_topic(self, title, url, name):
         if url != "#":
-            self.topics.append(Topic(title, url))
+            if name == "Lessons and Articles":
+                self.topics.append(LessonTopic(title, url))
+            elif name == "Books and Resources":
+                self.topics.append(BookTopic(title, url))
 
     def download(self):
         for topic in self.topics:
@@ -178,9 +181,9 @@ class Category(Node):
             self.add_node(topic)
 
 
-class Topic(Node):
+class LessonTopic(Node):
     def __init__(self, *args, **kwargs):
-        super(Topic, self).__init__(*args, **kwargs)
+        super(LessonTopic, self).__init__(*args, **kwargs)
 
     def download(self):
         LOGGER.info("--- Topic: {}".format(self.source_id))
@@ -207,6 +210,23 @@ class Topic(Node):
                 self.add_node(article)
                 break
 
+
+class BookTopic(Node):
+    def __init__(self, *args, **kwargs):
+        super(BookTopic, self).__init__(*args, **kwargs)
+
+    def download(self):
+        LOGGER.info("--- Book Topic: {}".format(self.source_id))
+        pages = Paginator(self.source_id, initial=1)
+        pages.find_max()
+        for page in pages:
+            LOGGER.info("------ Page: {} of {}".format(page, pages.last_page))
+            page = download(page)
+            ol = page.find("ol", class_="ipsDataList")
+            books = ol.find_all("li", class_="ipsDataItem")
+            #articles = div.find_all("article")
+            print(len(books))
+    
 
 class Article(Node):
     def __init__(self, *args, **kwargs):
