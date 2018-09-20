@@ -26,7 +26,9 @@ from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
 from utils import if_file_exists, get_video_resolution_format, remove_links
 from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
 from utils import remove_iframes, get_confirm_token, save_response_content
+from utils import link_to_text, remove_scripts, save_thumbnail
 import youtube_dl
+import uuid
 
 
 BASE_URL = "https://academy.hsoub.com/"
@@ -95,13 +97,21 @@ class Node(object):
         self.tree_nodes = OrderedDict()
         self.lang = lang
         self.description = None
-        self.thumbnail = None
+        self._thumbnail = None
         self.author = None
 
     def add_node(self, obj):
         node = obj.to_node()
         if node is not None:
             self.tree_nodes[node["source_id"]] = node
+
+    @property
+    def thumbnail(self):
+        return self._thumbnail
+
+    @thumbnail.setter
+    def thumbnail(self, url):
+        self._thumbnail = save_thumbnail(url, uuid.uuid4().hex, DATA_DIR)
 
     def to_node(self):
         return dict(
@@ -150,7 +160,8 @@ class Topic(Node):
             article = Article(title, source_id)
             article.description = article_soup.find("section").text
             article.thumbnail = img.get("src", None)
-            article.download()
+            base_path = build_path([DATA_DIR, self.title, article.title])
+            article.download(base_path=base_path)
             self.add_node(article)
             break
 
@@ -162,7 +173,7 @@ class Article(Node):
 
     def download(self, download=True, base_path=None):
         html_app = HTMLApp(self.title, self.source_id)
-        html_app.download()
+        html_app.download(base_path)
         self.add_node(html_app)
         #for url in self.urls:
         #    youtube = YouTubeResource(url, lang=self.lang)
@@ -179,13 +190,75 @@ class HTMLApp(object):
         self.thumbnail = None
         self.author = None
         self.filepath = None
-        self.page = self.soup()
+        self.body = self.soup()
 
     def soup(self):
         soup = download(self.source_id)
-        return soup.find("article")
+        if soup:
+            return soup.find("article")
 
-    def download(self):
+    def clean(self, content):
+        link_to_text(content)
+        remove_links(content)
+        remove_iframes(content)
+        remove_scripts(content)
+        return content
+
+    def to_local_images(self, content):
+        images_urls = {}
+        for img in content.find_all("img"):
+            try:
+                img_src = img["src"]
+            except KeyError:
+                continue
+            else:
+                if img_src.startswith("/"):
+                    img_src = urljoin(BASE_URL, img_src)
+                filename = get_name_from_url(img_src)
+                if img_src not in images_urls and img_src:
+                    img["src"] = filename
+                    images_urls[img_src] = filename
+        return images_urls
+
+    def write_images(self, filepath, images):
+        with html_writer.HTMLWriter(filepath, "a") as zipper:
+            for img_src, img_filename in images.items():
+                try:
+                    if img_src.startswith("data:image/"):
+                        pass
+                    else:
+                        requests.get(img_src, timeout=20)
+                        zipper.write_url(img_src, img_filename, directory="")
+                except requests.exceptions.HTTPError:
+                    pass
+                except requests.exceptions.ConnectTimeout as e:
+                    LOGGER.info(str(e))
+
+    def write_index(self, filepath, content):
+        with html_writer.HTMLWriter(filepath, "w") as zipper:
+            zipper.write_index_contents(content)
+
+    def write_css_js(self, filepath):
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/styles.css") as f:
+            content = f.read()
+            zipper.write_contents("styles.css", content, directory="css/")
+
+        with html_writer.HTMLWriter(filepath, "a") as zipper, open("chefdata/scripts.js") as f:
+            content = f.read()
+            zipper.write_contents("scripts.js", content, directory="js/")
+
+    def to_file(self, base_path):
+        self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title)
+        if self.body is None:
+            return False
+        body = self.clean(self.body)
+        images = self.to_local_images(body)
+        self.write_index(self.filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(body))
+        self.write_images(self.filepath, images)
+        self.write_css_js(self.filepath)
+
+    def download(self, base_path):
+        self.to_file(base_path)
         print("DOWNLOAD")
 
     def to_node(self):
@@ -394,9 +467,19 @@ class HsoubAcademyChef(JsonTreeChef):
         super(HsoubAcademyChef, self).__init__()
 
     def pre_run(self, args, options):
+        self.download_css_js()
         channel_tree = self.scrape(args, options)
         #clean_leafs_nodes_plus(channel_tree)
         self.write_tree_to_json(channel_tree)
+
+    def download_css_js(self):
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/css/styles.css")
+        with open("chefdata/styles.css", "wb") as f:
+            f.write(r.content)
+
+        r = requests.get("https://raw.githubusercontent.com/learningequality/html-app-starter/master/js/scripts.js")
+        with open("chefdata/scripts.js", "wb") as f:
+            f.write(r.content)
 
     def scrape(self, args, options):
         download_video = options.get('--download-video', "1")
@@ -412,7 +495,7 @@ class HsoubAcademyChef(JsonTreeChef):
                 title=CHANNEL_NAME,
                 description="""Hsoub Academy provides online courses in the area of computer science and digital literacy for adult learners and IT emerging professionals. Those courses include video lessons and articles on what is trending in the coding and entrepreneurship world today.."""
 [:400], #400 UPPER LIMIT characters allowed 
-                thumbnail="",
+                thumbnail=None,
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],

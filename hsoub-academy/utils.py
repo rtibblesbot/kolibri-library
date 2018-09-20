@@ -2,6 +2,10 @@ from git import Repo
 import ntpath
 import os
 from pathlib import Path
+from bs4 import Tag
+import imghdr
+from io import BytesIO
+import requests
 
 
 def if_dir_exists(filepath):
@@ -18,6 +22,12 @@ def remove_links(content):
     if content is not None:
         for link in content.find_all("a"):
             link.replaceWithChildren()
+
+
+def remove_scripts(content):
+    if content is not None:
+        for s in content.find_all("script"):
+            s.extract()
 
 
 def get_name_from_url(url):
@@ -124,3 +134,33 @@ def save_response_content(response, destination):
             if chunk:
                 f.write(chunk)
                 f.flush()
+
+
+def link_to_text(content):
+    if content is not None:
+        for tag in content.find_all("a"):
+            span = Tag(name="span")
+            if tag.get("href", ""):
+                url = tag["href"]
+                if url.endswith(".pdf"):
+                    pass
+                elif url.startswith("http") or url.startswith("/"):
+                    tag.wrap(span)
+                    span.insert(1, " ("+url+")")
+
+
+def save_thumbnail(url, title, data_dir):
+    try:
+        r = requests.get(url)
+    except:
+        return None
+    else:
+        img_buffer = BytesIO(r.content)
+        img_ext = imghdr.what(img_buffer)
+        if img_ext != "gif" and img_ext is not None:
+            filename = "{}.{}".format(title, img_ext)
+            base_dir = build_path([data_dir, "thumbnails"])
+            filepath = os.path.join(base_dir, filename)
+            with open(filepath, "wb") as f:
+                f.write(img_buffer.read())
+            return filepath
