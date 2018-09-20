@@ -5,7 +5,7 @@ Sushi Chef for http://3asafeer.com/
 We make an HTML5 app out of each interactive reader.
 """
 
-from collections import defaultdict
+from collections import OrderedDict
 import html
 import os
 import re
@@ -76,16 +76,102 @@ class ThreeAsafeerChef(SushiChef):
         return channel
 
 
+RATING_NUM_MAP = {
+    # Novice
+    'أ': "مبتدئ أ",
+    'ب': "مبتدئ ب",
+    'ج': "مبتدئ ج",
+    'د': "مبتدئ د",
+    'هـ': "مبتدئ هـ",
+    'و': "مبتدئ و",
+
+    # Intermediate
+    'ح': "لمتوسّط ح",
+    'ط': "لمتوسّط ط",
+    'ي': "لمتوسّط ي",
+    'ك': "لمتوسّط ك",
+    'ل': "لمتوسّط ل",
+
+    # Advanced
+    'م': "المتقدّم م",
+    'ن': "المتقدّم ن",
+    'س': "المتقدّم س",
+    'ع': "المتقدّم ع",
+    'ف': "المتقدّم ف",
+}
+
+novice_topic = nodes.TopicNode(
+    source_id="novice",
+    title="مبتدئ",
+    language="ar",
+)
+intermediate_topic = nodes.TopicNode(
+    source_id="intermediate",
+    title="لمتوسّط",
+    language="ar",
+)
+advanced_topic = nodes.TopicNode(
+    source_id="advanced",
+    title="المتقدّم",
+    language="ar",
+)
+
+RATING_TOPIC_MAP = {
+    # Novice
+    'أ': novice_topic,
+    'ب': novice_topic,
+    'ج': novice_topic,
+    'د': novice_topic,
+    'هـ': novice_topic,
+    'و': novice_topic,
+
+    # Intermediate
+    'ح': intermediate_topic,
+    'ط': intermediate_topic,
+    'ي': intermediate_topic,
+    'ك': intermediate_topic,
+    'ل': intermediate_topic,
+
+    # Advanced
+    'م': advanced_topic,
+    'ن': advanced_topic,
+    'س': advanced_topic,
+    'ع': advanced_topic,
+    'ف': advanced_topic,
+}
+
+
 def download_all(channel):
     print("Getting number of books")
     books_count = get_books_count()
     print("There are %s books ... scraping them now!" % books_count)
 
+    topic_nodes = OrderedDict()
+    channel.add_child(novice_topic)
+    channel.add_child(intermediate_topic)
+    channel.add_child(advanced_topic)
+
     for i in range(books_count):
         print()
         print('-' * 80)
         print('Downloading book %s of %s' % (i + 1, books_count))
-        channel.add_child(download_single(i))
+        book, rating = download_single(i)
+
+        if not topic_nodes.get(rating):
+            title = RATING_NUM_MAP.get(rating, rating)
+            subtopic_node = topic_nodes[rating] = nodes.TopicNode(
+                source_id=str(rating),
+                title=title,
+                language="ar",
+            )
+            topic_node = RATING_TOPIC_MAP.get(rating)
+            if topic_node:
+                topic_node.add_child(subtopic_node)
+            else:
+                channel.add_child(subtopic_node)
+
+            print("creating topic node %s with title %s" % (topic_nodes[rating], title))
+        topic_nodes[rating].add_child(book)
 
 
 def get_books_count():
@@ -119,6 +205,7 @@ def download_single(i):
         cover_src = book.find_element_by_css_selector('.cover').get_attribute('src')
         thumbnail = make_fully_qualified_url(cover_src)
         title = book.find_element_by_css_selector('.cover-title').text
+        rating_text = book.find_element_by_css_selector('.rating-icon').text.strip()
 
         print('Clicking book %s' % book_id)
         link = book.find_element_by_css_selector('.story')
@@ -135,7 +222,8 @@ def download_single(i):
         time.sleep(5)
 
         doc = BeautifulSoup(driver.page_source, "html.parser")
-        return process_node_from_doc(doc, book_id, title, thumbnail)
+        return (process_node_from_doc(doc, book_id, title, thumbnail),
+                rating_text)
 
 
 def process_node_from_doc(doc, book_id, title, thumbnail):
