@@ -22,13 +22,14 @@ from ricecooker.utils.jsontrees import write_tree_to_json_tree, SUBTITLES_FILE
 import time
 from urllib.error import URLError
 from urllib.parse import urljoin
-from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
-from utils import if_file_exists, get_video_resolution_format, remove_links
+from utils import dir_exists, get_name_from_url, clone_repo, build_path
+from utils import file_exists, get_video_resolution_format, remove_links
 from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
 from utils import remove_iframes, get_confirm_token, save_response_content
 from utils import link_to_text, remove_scripts, save_thumbnail
 import youtube_dl
 import uuid
+import urllib.parse as urlparse
 
 
 BASE_URL = "https://academy.hsoub.com/"
@@ -84,6 +85,7 @@ def browser_resources():
             source_id = a.get("href", "")
             title = a.text.strip()
             category.add_topic(title, source_id, name)
+            #break
         yield category
         break
 
@@ -219,13 +221,27 @@ class BookTopic(Node):
         LOGGER.info("--- Book Topic: {}".format(self.source_id))
         pages = Paginator(self.source_id, initial=1)
         pages.find_max()
+        pattern = "(?P<url>https?://[^\s]+)"
+        re_pattern = re.compile(pattern)
         for page in pages:
             LOGGER.info("------ Page: {} of {}".format(page, pages.last_page))
             page = download(page)
             ol = page.find("ol", class_="ipsDataList")
             books = ol.find_all("li", class_="ipsDataItem")
-            #articles = div.find_all("article")
-            print(len(books))
+            for book in books:
+                div = book.find_all("div")
+                style = div[0].find("a").get("style", "")
+                img_url = re_pattern.search(style).group("url").replace('"', "")
+                title_a = div[1].find(lambda tag: tag.name == "a" and tag.findParent("h4") and tag.get("href", "").find("/tags/") == -1)
+                title = title_a.text.strip()
+                source_id = title_a.get("href", "")
+                book = Book(title, source_id)
+                book.description = title_a.findNext("div").text.strip()
+                book.thumbnail = img_url
+                book.author = title_a.findNext("a").text.strip()
+                base_path = build_path([DATA_DIR, self.title_hash(), book.title_hash()])
+                book.download(base_path=base_path)
+                self.add_node(book)
     
 
 class Article(Node):
@@ -246,7 +262,6 @@ class Article(Node):
         #    self.add_node(youtube)
 
     def search_urls(self, body):
-        #soup = download(self.source_id)
         video_urls = self.video_urls(body)
         print(video_urls)
 
@@ -263,6 +278,74 @@ class Article(Node):
                 urls.add(YouTubeResource.transform_embed(url))
 
         return urls
+
+
+class Book(Node):
+    def __init__(self, *args, **kwargs):
+        super(Book, self).__init__(*args, **kwargs)
+        LOGGER.info("--------- Book: {}".format(self.title))
+        self.filepath = None
+        self.filename = None
+
+    def soup(self):
+        ##the function "download" was not used here because we need the cookies from this source_id
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        client = requests.Session()
+        r = client.get(self.source_id, timeout=60, headers=headers)
+        soup = BeautifulSoup(r.text, 'html5lib')
+        client.headers.update(headers)
+        return soup.find("aside"), client
+
+    def download(self, download=True, base_path=None):
+        body, client = self.soup()
+        a = body.find("a")
+        url = a.get("href", "")
+        try:
+            if download is False:
+                return
+            #parsed = urlparse.urlparse(url)
+            #csrfKey = str(urlparse.parse_qs(parsed.query)['csrfKey'])
+            response = client.get(url, timeout=60, headers=client.headers)
+            content_type = response.headers.get('content-type')
+            if 'application/pdf' in content_type:
+                self.filename = response.headers.get("Content-Disposition", "").split("=")[1]
+                self.filename = self.filename[1:len(self.filename)-1]
+                self.filepath = os.path.join(base_path, self.filename)
+                if not file_exists(self.filepath):
+                    with open(self.filepath, 'wb') as f:
+                        for chunk in response.iter_content(10000):
+                            f.write(chunk)
+                    LOGGER.info("    - Get file: {}".format(self.filename))
+                else:
+                    LOGGER.info("    - File: {} already saved".format(self.filename))
+        except requests.exceptions.HTTPError as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.ConnectionError:
+            ### this is a weird error, may be it's raised when the webpage
+            ### is slow to respond requested resources
+            LOGGER.info("Connection error, the resource will be scraped in 5s...")
+            time.sleep(3)
+        except requests.exceptions.ReadTimeout as e:
+            LOGGER.info("Error: {}".format(e))
+        except requests.exceptions.TooManyRedirects as e:
+            LOGGER.info("Error: {}".format(e))
+
+    def to_node(self):
+        if self.filepath is not None:
+            node = dict(
+                kind=content_kinds.DOCUMENT,
+                source_id=self.source_id,
+                title=self.title,
+                description=self.description,
+                thumbnail=self.thumbnail,
+                author=AUTHOR if self.author is None else self.author,
+                files=[dict(
+                    file_type=content_kinds.DOCUMENT,
+                    path=self.filepath
+                )],
+                language=self.lang,
+                license=LICENSE)
+            return node
 
 
 class HTMLApp(object):
