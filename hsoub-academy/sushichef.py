@@ -68,8 +68,8 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 
 data_nav = OrderedDict([
 #("Lessons and Articles", "دروس ومقالات"), 
-#("Questions and Answers", "أسئلة وأجوبة"), 
-("Books and Resources",  "كتب وملفات")
+("Questions and Answers", "أسئلة وأجوبة"), 
+#("Books and Resources",  "كتب وملفات")
 ])
 
 
@@ -85,7 +85,7 @@ def browser_resources():
             source_id = a.get("href", "")
             title = a.text.strip()
             category.add_topic(title, source_id, name)
-            #break
+            break
         yield category
         break
 
@@ -176,6 +176,8 @@ class Category(Node):
                 self.topics.append(LessonTopic(title, url))
             elif name == "Books and Resources":
                 self.topics.append(BookTopic(title, url))
+            else:
+                self.topics.append(QuestionTopic(title, url))
 
     def download(self):
         for topic in self.topics:
@@ -184,9 +186,6 @@ class Category(Node):
 
 
 class LessonTopic(Node):
-    def __init__(self, *args, **kwargs):
-        super(LessonTopic, self).__init__(*args, **kwargs)
-
     def download(self):
         LOGGER.info("--- Topic: {}".format(self.source_id))
         pages = Paginator(self.source_id, initial=1)
@@ -214,9 +213,6 @@ class LessonTopic(Node):
 
 
 class BookTopic(Node):
-    def __init__(self, *args, **kwargs):
-        super(BookTopic, self).__init__(*args, **kwargs)
-
     def download(self):
         LOGGER.info("--- Book Topic: {}".format(self.source_id))
         pages = Paginator(self.source_id, initial=1)
@@ -228,8 +224,8 @@ class BookTopic(Node):
             page = download(page)
             ol = page.find("ol", class_="ipsDataList")
             books = ol.find_all("li", class_="ipsDataItem")
-            for book in books:
-                div = book.find_all("div")
+            for book_soup in books:
+                div = book_soup.find_all("div")
                 style = div[0].find("a").get("style", "")
                 img_url = re_pattern.search(style).group("url").replace('"', "")
                 title_a = div[1].find(lambda tag: tag.name == "a" and tag.findParent("h4") and tag.get("href", "").find("/tags/") == -1)
@@ -243,6 +239,30 @@ class BookTopic(Node):
                 book.download(base_path=base_path)
                 self.add_node(book)
     
+
+class QuestionTopic(Node):
+    def download(self):
+        LOGGER.info("--- Question and Answers: {}".format(self.source_id))
+        pages = Paginator(self.source_id, initial=1)
+        pages.find_max()
+        for page in pages:
+            LOGGER.info("------ Page: {} of {}".format(page, pages.last_page))
+            page = download(page)
+            div = page.find("div", class_="ipsBox")
+            questions = page.find_all("li", class_="cForumQuestion")
+            for question_soup in questions:
+                div = question_soup.find_all("div")
+                title_a = div[1].find(lambda tag: tag.name == "a" and tag.findParent("h4") and tag.get("href", "").find("/tags/") == -1)
+                title = title_a.text.strip()
+                source_id = title_a.get("href", "")
+                question = Question(title, source_id)
+                question.author = title_a.findNext("a").text.strip()
+                base_path = build_path([DATA_DIR, self.title_hash(), question.title_hash()])
+                question.download(base_path=base_path)
+                self.add_node(question)
+                #break
+            break
+
 
 class Article(Node):
     def __init__(self, *args, **kwargs):
@@ -348,6 +368,18 @@ class Book(Node):
             return node
 
 
+class Question(Node):
+    def __init__(self, *args, **kwargs):
+        super(Question, self).__init__(*args, **kwargs)
+        LOGGER.info("--------- Question: {}".format(self.title))
+
+    def download(self, download=True, base_path=None):
+        html_app = HTMLAppQA(self.title, self.source_id)
+        html_app.author = self.author
+        html_app.to_file(base_path)
+        self.add_node(html_app)
+
+
 class HTMLApp(object):
     def __init__(self, title, source_id, lang="ar"):
         self.title = title
@@ -445,6 +477,32 @@ class HTMLApp(object):
                 language=self.lang,
                 license=LICENSE
             )
+
+class HTMLAppQA(HTMLApp):
+    def soup(self):
+        soup = download(self.source_id)
+        if soup:
+            return soup.find_all("article")
+
+    def clean(self, content):
+        remove_links(content)
+        remove_iframes(content)
+        remove_scripts(content)
+        return content
+
+    def to_file(self, base_path):
+        self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title_hash())
+        if self.body is None:
+            return False
+        articles = ["<h2>{}</h2>".format(self.title)]
+        images = {}
+        for article in self.body:
+            articles.append(str(self.clean(article)))
+            images.update(self.to_local_images(article))
+        self.write_index(self.filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body style="text-align:right;"><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format("".join(articles)))
+        self.write_images(self.filepath, images)
+        self.write_css_js(self.filepath)
+
 
 
 class YouTubeResource(object):
