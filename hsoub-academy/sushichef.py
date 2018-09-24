@@ -67,9 +67,9 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 ################################################################################
 
 data_nav = OrderedDict([
-#("Lessons and Articles", "دروس ومقالات"), 
+("Lessons and Articles", "دروس ومقالات"), 
 ("Questions and Answers", "أسئلة وأجوبة"), 
-#("Books and Resources",  "كتب وملفات")
+("Books and Resources",  "كتب وملفات")
 ])
 
 
@@ -85,9 +85,7 @@ def browser_resources():
             source_id = a.get("href", "")
             title = a.text.strip()
             category.add_topic(title, source_id, name)
-            break
         yield category
-        break
 
 
 class Paginator(object):
@@ -190,8 +188,6 @@ class LessonTopic(Node):
         LOGGER.info("--- Topic: {}".format(self.source_id))
         pages = Paginator(self.source_id, initial=1)
         pages.find_max()
-        #if self.source_id != "https://academy.hsoub.com/design/":
-        #    return 
         for page in pages:
             LOGGER.info("------ Page: {} of {}".format(page, pages.last_page))
             page = download(page)
@@ -209,7 +205,6 @@ class LessonTopic(Node):
                 base_path = build_path([DATA_DIR, self.title_hash(), article.title_hash()])
                 article.download(base_path=base_path)
                 self.add_node(article)
-                break
 
 
 class BookTopic(Node):
@@ -260,8 +255,6 @@ class QuestionTopic(Node):
                 base_path = build_path([DATA_DIR, self.title_hash(), question.title_hash()])
                 question.download(base_path=base_path)
                 self.add_node(question)
-                #break
-            break
 
 
 class Article(Node):
@@ -273,17 +266,17 @@ class Article(Node):
         html_app = HTMLApp(self.title, self.source_id)
         html_app.author = self.author
         html_app.thumbnail = self.thumbnail
-        self.search_urls(html_app.body)
+        video_urls = self.search_urls(html_app.body)
         html_app.to_file(base_path)
         self.add_node(html_app)
-        #for url in self.urls:
-        #    youtube = YouTubeResource(url, lang=self.lang)
-        #    youtube.download(download, base_path)
-        #    self.add_node(youtube)
+        for url in video_urls:
+            youtube = YouTubeResource(url, lang=self.lang)
+            youtube.download(download, base_path)
+            self.add_node(youtube)
 
     def search_urls(self, body):
         video_urls = self.video_urls(body)
-        print(video_urls)
+        return video_urls
 
     def video_urls(self, content):
         urls = set([])
@@ -379,6 +372,9 @@ class Question(Node):
         html_app.to_file(base_path)
         self.add_node(html_app)
 
+    def to_node(self):
+        return list(self.tree_nodes.values())[0]
+
 
 class HTMLApp(object):
     def __init__(self, title, source_id, lang="ar"):
@@ -435,6 +431,10 @@ class HTMLApp(object):
                     pass
                 except requests.exceptions.HTTPError:
                     pass
+                except requests.exceptions.MissingSchema:
+                    pass
+                except requests.exceptions.InvalidSchema:
+                    pass
                 except requests.exceptions.ConnectTimeout as e:
                     LOGGER.info(str(e))
 
@@ -453,6 +453,9 @@ class HTMLApp(object):
 
     def to_file(self, base_path):
         self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title_hash())
+        if file_exists(self.filepath):
+            LOGGER.info("     * File exists {}".format(self.filepath))
+            return True
         if self.body is None:
             return False
         body = self.clean(self.body)
@@ -497,8 +500,8 @@ class HTMLAppQA(HTMLApp):
         articles = ["<h2>{}</h2>".format(self.title)]
         images = {}
         for article in self.body:
-            articles.append(str(self.clean(article)))
             images.update(self.to_local_images(article))
+            articles.append(str(self.clean(article)))
         self.write_index(self.filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body style="text-align:right;"><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format("".join(articles)))
         self.write_images(self.filepath, images)
         self.write_css_js(self.filepath)
@@ -524,6 +527,9 @@ class YouTubeResource(object):
         self.is_valid = False
 
     def clean_url(self, url):
+        if len(url) == 0:
+            return url
+ 
         if url[-1] == "/":
             url = url[:-1]
         return url.strip()
