@@ -1,79 +1,421 @@
 #!/usr/bin/env python
-import os
-import sys
-from ricecooker.utils import downloader, html_writer
-from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files, questions, licenses
-from ricecooker.config import LOGGER              # Use LOGGER to print messages
-from ricecooker.exceptions import raise_for_invalid_channel
-from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
+from bs4 import BeautifulSoup
+import codecs
+from collections import defaultdict, OrderedDict
+import copy
+import glob
+from le_utils.constants import licenses, content_kinds, file_formats
+import hashlib
+import json
+import logging
+import ntpath
+import os
+from pathlib import Path
+import re
+import requests
+from ricecooker.classes.licenses import get_license
+from ricecooker.chefs import JsonTreeChef
+from ricecooker.utils import downloader, html_writer
+from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
+from ricecooker.utils.jsontrees import write_tree_to_json_tree, SUBTITLES_FILE
+import time
+from urllib.error import URLError
+from urllib.parse import urljoin
+from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
+from utils import if_file_exists, get_video_resolution_format, remove_links
+from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
+from utils import remove_iframes, get_confirm_token, save_response_content
+import youtube_dl
+
+
+BASE_URL = "https://www.youtube.com/channel/UCdvmxJ8AmQBtcveTIBW3Qvw/videos"
+
+DATA_DIR = "chefdata"
+COPYRIGHT_HOLDER = ""
+LICENSE = get_license(licenses.CC_BY, 
+        copyright_holder=COPYRIGHT_HOLDER).as_dict()
+AUTHOR = ""
+
+LOGGER = logging.getLogger()
+__logging_handler = logging.StreamHandler()
+LOGGER.addHandler(__logging_handler)
+LOGGER.setLevel(logging.INFO)
+
+DOWNLOAD_VIDEOS = True
+
+sess = requests.Session()
+cache = FileCache('.webcache')
+basic_adapter = CacheControlAdapter(cache=cache)
+forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
+sess.mount('http://', basic_adapter)
+sess.mount(BASE_URL, forever_adapter)
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Free English with Hello Channel"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-free-english-with-hello-channel-en"    # Channel's unique id
-CHANNEL_DOMAIN = "youtube.com"          # Who is providing the content
+CHANNEL_DOMAIN = ""          # Who is providing the content
 CHANNEL_LANGUAGE = "en"      # Language of channel
 CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_NAME = "Free English with Hello Channel"
+CHANNEL_SOURCE_ID = "sushi-chef-hello-channel"
 
 # Additional constants
 ################################################################################
 
 
 
+class Node(object):
+    def __init__(self, title, source_id, lang="en"):
+        self.title = title
+        self.source_id = source_id
+        self.tree_nodes = OrderedDict()
+        self.lang = lang
+        self.description = None
+
+    def add_node(self, obj):
+        node = obj.to_node()
+        if node is not None:
+            self.tree_nodes[node["source_id"]] = node
+
+    def to_node(self):
+        return dict(
+            kind=content_kinds.TOPIC,
+            source_id=self.source_id,
+            title=self.title,
+            description=self.description,
+            language=self.lang,
+            author=AUTHOR,
+            license=LICENSE,
+            children=list(self.tree_nodes.values())
+        )
+    
+
+class Subject(Node):
+    def __init__(self, *args, **kwargs):
+        super(Subject, self).__init__(*args, **kwargs)
+        self.topics = []
+
+    def load(self, filename, auto_parse=False):
+        with open(filename, "r") as f:
+            topics = json.load(f)
+            for topic in topics:
+                topic_obj = Topic(topic["title"], topic["source_id"])
+                for unit in topic["units"]:
+                    units = Topic.auto_generate_units(unit["source_id"], 
+                        title=unit["title"], auto_parse=auto_parse)
+                    topic_obj.units.extend(units)
+                self.topics.append(topic_obj)
+
+    
+
+class Topic(Node):
+    def __init__(self, *args, **kwargs):
+        super(Topic, self).__init__(*args, **kwargs)
+        self.units = []
+
+    @staticmethod
+    def auto_generate_units(url, title=None, auto_parse=False):
+        youtube = YouTubeResource(url)
+        units = defaultdict(list)
+        if title is not None:
+            for _, url in youtube.playlist_name_links():
+                units[title].append(url)
+        else:
+            for name, url in youtube.playlist_name_links():
+                unit_name_list = name.split("|")
+                if len(unit_name_list) > 1 and auto_parse is False:
+                    unit = unit_name_list[1]
+                    unit_name = unit.strip().split(" ")[0]
+                else:
+                    unit_name = title_patterns(name)
+                units[unit_name].append(url)
+
+        units = sorted(units.items(), key=lambda x: x[0], reverse=False)
+        for title, urls in units:
+            unit = Unit(title, title)
+            unit.urls = urls
+            yield unit
+
+
+class VocabularyConversationalEnglish(Topic):
+    def __init__(self, *args, **kwargs):
+        title = "Vocabulary and Conversational English"
+        super(VocabularyConversationalEnglish, self).__init__(title, title)
+        self.base_title = "Learn English Vocabulary"
+
+    def auto_generate_units(self, url, auto_parse=False):
+        youtube = YouTubeResource(url)
+        units = defaultdict(list)
+        for name, url in youtube.playlist_name_links():
+            if name.startswith(self.base_title):
+                units[name].append(url)
+
+        units = sorted(units.items(), key=lambda x: x[0], reverse=False)
+        for title, urls in units:
+            title = title.replace(self.base_title, "").strip()
+            unit = Unit(title, title)
+            unit.urls = urls
+            yield unit
+
+
+class Unit(Node):
+    def __init__(self, *args, **kwargs):
+        super(Unit, self).__init__(*args, **kwargs)
+        self.urls = []
+
+    def download(self, download=True, base_path=None):
+        for url in self.urls:
+            youtube = YouTubeResource(url, lang=self.lang)
+            youtube.download(download, base_path)
+            self.add_node(youtube)
+
+
+class YouTubeResource(object):
+    def __init__(self, source_id, name=None, type_name="Youtube", lang="ar", 
+            embeded=False, section_title=None):
+        LOGGER.info("    + Resource Type: {}".format(type_name))
+        LOGGER.info("    - URL: {}".format(source_id))
+        self.filename = None
+        self.type_name = type_name
+        self.filepath = None
+        self.name = name
+        self.section_title = section_title
+        if embeded is True:
+            self.source_id = YouTubeResource.transform_embed(source_id)
+        else:
+            self.source_id = self.clean_url(source_id)
+        self.file_format = file_formats.MP4
+        self.lang = lang
+        self.is_valid = False
+
+    def clean_url(self, url):
+        if url[-1] == "/":
+            url = url[:-1]
+        return url.strip()
+
+    @property
+    def title(self):
+        return self.name if self.name is not None else self.filename
+
+    @title.setter
+    def title(self, v):
+        if self.name is not None:
+            self.name = v
+        else:
+            self.filename = v
+
+    @classmethod
+    def is_youtube(self, url, get_channel=False):
+        youtube = url.find("youtube") != -1 or url.find("youtu.be") != -1
+        if get_channel is False:
+            youtube = youtube and url.find("user") == -1 and url.find("/c/") == -1
+        return youtube
+
+    @classmethod
+    def transform_embed(self, url):
+        url = "".join(url.split("?")[:1])
+        return url.replace("embed/", "watch?v=").strip()
+
+    def playlist_links(self):
+        ydl_options = {
+                'no_warnings': True,
+                'restrictfilenames':True,
+                'continuedl': True,
+                'quiet': False,
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
+                'noplaylist': False
+            }
+
+        playlist_videos_url = []
+        with youtube_dl.YoutubeDL(ydl_options) as ydl:
+            try:
+                ydl.add_default_info_extractors()
+                info = ydl.extract_info(self.source_id, download=False)
+                for entry in info["entries"]:
+                    playlist_videos_url.append(entry["webpage_url"])
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError) as e:
+                LOGGER.info('An error occured ' + str(e))
+                LOGGER.info(self.source_id)
+            except KeyError as e:
+                LOGGER.info(str(e))
+        return playlist_videos_url
+
+    def playlist_name_links(self):
+        name_url = []
+        source_id_hash = hashlib.sha1(self.source_id.encode("utf-8")).hexdigest()
+        base_path = build_path([DATA_DIR, CHANNEL_SOURCE_ID])
+        videos_url_path = os.path.join(base_path, "{}.json".format(source_id_hash))
+        if if_file_exists(videos_url_path):
+            with open(videos_url_path, "r") as f:
+                name_url = json.load(f)
+        else:
+            for url in self.playlist_links():
+                youtube = YouTubeResource(url)
+                info = youtube.get_video_info(None, False)
+                name_url.append((info["title"], url))
+            with open(videos_url_path, "w") as f:
+                json.dump(name_url, f)
+        return name_url
+
+    def get_video_info(self, download_to=None, subtitles=True):
+        ydl_options = {
+                'writesubtitles': subtitles,
+                'allsubtitles': subtitles,
+                'no_warnings': True,
+                'restrictfilenames':True,
+                'continuedl': True,
+                'quiet': False,
+                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
+                'outtmpl': '{}/%(id)s'.format(download_to),
+                'noplaylist': True
+            }
+
+        with youtube_dl.YoutubeDL(ydl_options) as ydl:
+            try:
+                ydl.add_default_info_extractors()
+                info = ydl.extract_info(self.source_id, download=(download_to is not None))
+                return info
+            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError) as e:
+                LOGGER.info('An error occured ' + str(e))
+                LOGGER.info(self.source_id)
+            except KeyError as e:
+                LOGGER.info(str(e))
+
+    def subtitles_dict(self):
+        subs = []
+        video_info = self.get_video_info()
+        if video_info is not None:
+            video_id = video_info["id"]
+            if 'subtitles' in video_info:
+                subtitles_info = video_info["subtitles"]
+                for language in subtitles_info.keys():
+                    subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
+        return subs
+
+    #youtubedl has some troubles downloading videos in youtube,
+    #sometimes raises connection error
+    #for that I choose pafy for downloading
+    def download(self, download=True, base_path=None):
+        if not "watch?" in self.source_id or "/user/" in self.source_id or\
+            download is False:
+            return
+
+        download_to = build_path([base_path, 'videos'])
+        for i in range(4):
+            try:
+                info = self.get_video_info(download_to=download_to, subtitles=False)
+                if info is not None:
+                    LOGGER.info("    + Video resolution: {}x{}".format(info.get("width", ""), info.get("height", "")))
+                    self.filepath = os.path.join(download_to, "{}.mp4".format(info["id"]))
+                    self.filename = info["title"]
+                    if self.filepath is not None and os.stat(self.filepath).st_size == 0:
+                        LOGGER.info("    + Empty file")
+                        self.filepath = None
+            except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
+                LOGGER.info(e)
+                LOGGER.info("Download retry")
+                time.sleep(.8)
+            except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
+                    youtube_dl.utils.ExtractorError, OSError) as e:
+                LOGGER.info("     + An error ocurred, may be the video is not available.")
+                return
+            except OSError:
+                return
+            else:
+                return
+
+    def to_node(self):
+        if self.filepath is not None:
+            files = [dict(file_type=content_kinds.VIDEO, path=self.filepath)]
+            files += self.subtitles_dict()
+            node = dict(
+                kind=content_kinds.VIDEO,
+                source_id=self.source_id,
+                title=self.title,
+                description='',
+                author=AUTHOR,
+                files=files,
+                language=self.lang,
+                license=LICENSE
+            )
+            return node
+
+
 # The chef subclass
 ################################################################################
-class MyChef(SushiChef):
-    """
-    This class uploads the Free English with Hello Channel channel to Kolibri Studio.
-    Your command line script should call the `main` method as the entry point,
-    which performs the following steps:
-      - Parse command line arguments and options (run `./sushichef.py -h` for details)
-      - Call the `SushiChef.run` method which in turn calls `pre_run` (optional)
-        and then the ricecooker function `uploadchannel` which in turn calls this
-        class' `get_channel` method to get channel info, then `construct_channel`
-        to build the contentnode tree.
-    For more info, see https://github.com/learningequality/ricecooker/tree/master/docs
-    """
-    channel_info = {                                   # Channel Metadata
-        'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,       # Who is providing the content
-        'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,        # Channel's unique id
-        'CHANNEL_TITLE': CHANNEL_NAME,                 # Name of channel
-        'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,          # Language of channel
-        'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,        # Local path or url to image file (optional)
-        'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,    # Description of the channel (optional)
-    }
-    # Your chef subclass can override/extend the following method:
-    # get_channel: to create ChannelNode manually instead of using channel_info
-    # pre_run: to perform preliminary tasks, e.g., crawling and scraping website
-    # __init__: if need to customize functionality or add command line arguments
+class HelloChannelChef(JsonTreeChef):
+    HOSTNAME = BASE_URL
+    TREES_DATA_DIR = os.path.join(DATA_DIR, 'trees')
+    SCRAPING_STAGE_OUTPUT_TPL = 'ricecooker_json_tree.json'
+    THUMBNAIL = ""
 
-    def construct_channel(self, *args, **kwargs):
-        """
-        Creates ChannelNode and build topic tree
-        Args:
-          - args: arguments passed in during upload_channel (currently None)
-          - kwargs: extra argumens and options not handled by `uploadchannel`.
-            For example, add the command line option   lang="fr"  and the string
-            "fr" will be passed along to `construct_channel` as kwargs['lang'].
-        Returns: ChannelNode
-        """
-        channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
+    def __init__(self):
+        build_path([HelloChannelChef.TREES_DATA_DIR])
+        self.scrape_stage = os.path.join(HelloChannelChef.TREES_DATA_DIR, 
+                                HelloChannelChef.SCRAPING_STAGE_OUTPUT_TPL)
+        super(HelloChannelChef, self).__init__()
 
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
+    def pre_run(self, args, options):
+        channel_tree = self.scrape(args, options)
+        self.write_tree_to_json(channel_tree)
 
-        raise_for_invalid_channel(channel)  # Check for errors in channel construction
+    def lessons(self):
+        channel_tree = dict(
+                source_domain=HelloChannelChef.HOSTNAME,
+                source_id=BASE_URL,
+                title=CHANNEL_NAME,
+                description="""This YouTube channel teaches conversational English, English for social life
+and grammar by using Hello Channel’s TV educational shows with ESL learners.
+"""
+[:400], #400 UPPER LIMIT characters allowed 
+                thumbnail=None,
+                author=AUTHOR,
+                language=CHANNEL_LANGUAGE,
+                children=[],
+                license=LICENSE,
+            )
+        
+        return channel_tree
 
-        return channel
 
+    def scrape(self, args, options):
+        download_video = options.get('--download-video', "1")
+
+        if int(download_video) == 0:
+            global DOWNLOAD_VIDEOS
+            DOWNLOAD_VIDEOS = False
+
+        channel_tree = self.lessons()
+
+        base_path = [DATA_DIR] + ["data"]
+        base_path = build_path(base_path)
+
+        vocabulary = VocabularyConversationalEnglish()
+        units = vocabulary.auto_generate_units(BASE_URL)
+        for unit in units:
+            unit.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
+            vocabulary.add_node(unit)
+        channel_tree["children"].append(vocabulary.to_node())
+
+        #for subject in subjects:
+        #    for topic in subject.topics:
+        #        for unit in topic.units:
+        #            unit.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
+        #            topic.add_node(unit)
+        #        subject.add_node(topic)
+        #    channel_tree["children"].append(subject.to_node())
+        
+        return channel_tree
+
+    def write_tree_to_json(self, channel_tree):
+        write_tree_to_json_tree(self.scrape_stage, channel_tree)
 
 
 # CLI
 ################################################################################
 if __name__ == '__main__':
-    # This code runs when sushichef.py is called from the command line
-    chef = MyChef()
+    chef = HelloChannelChef()
     chef.main()
