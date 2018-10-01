@@ -2,6 +2,7 @@
 
 from bs4 import BeautifulSoup
 import codecs
+import csv
 from collections import defaultdict, OrderedDict
 import copy
 import glob
@@ -32,10 +33,10 @@ import youtube_dl
 BASE_URL = "https://www.youtube.com/channel/UCdvmxJ8AmQBtcveTIBW3Qvw/videos"
 
 DATA_DIR = "chefdata"
-COPYRIGHT_HOLDER = ""
+COPYRIGHT_HOLDER = "Free English with Hello Channel"
 LICENSE = get_license(licenses.CC_BY, 
         copyright_holder=COPYRIGHT_HOLDER).as_dict()
-AUTHOR = ""
+AUTHOR = "Free English with Hello Channel"
 
 LOGGER = logging.getLogger()
 __logging_handler = logging.StreamHandler()
@@ -43,6 +44,7 @@ LOGGER.addHandler(__logging_handler)
 LOGGER.setLevel(logging.INFO)
 
 DOWNLOAD_VIDEOS = True
+LOAD_VIDEO_LIST = False
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -89,25 +91,7 @@ class Node(object):
             license=LICENSE,
             children=list(self.tree_nodes.values())
         )
-    
 
-class Subject(Node):
-    def __init__(self, *args, **kwargs):
-        super(Subject, self).__init__(*args, **kwargs)
-        self.topics = []
-
-    def load(self, filename, auto_parse=False):
-        with open(filename, "r") as f:
-            topics = json.load(f)
-            for topic in topics:
-                topic_obj = Topic(topic["title"], topic["source_id"])
-                for unit in topic["units"]:
-                    units = Topic.auto_generate_units(unit["source_id"], 
-                        title=unit["title"], auto_parse=auto_parse)
-                    topic_obj.units.extend(units)
-                self.topics.append(topic_obj)
-
-    
 
 class Topic(Node):
     def __init__(self, *args, **kwargs):
@@ -247,7 +231,8 @@ class YouTubeResource(object):
         source_id_hash = hashlib.sha1(self.source_id.encode("utf-8")).hexdigest()
         base_path = build_path([DATA_DIR, CHANNEL_SOURCE_ID])
         videos_url_path = os.path.join(base_path, "{}.json".format(source_id_hash))
-        if if_file_exists(videos_url_path):
+
+        if if_file_exists(videos_url_path) and LOAD_VIDEO_LIST is True:
             with open(videos_url_path, "r") as f:
                 name_url = json.load(f)
         else:
@@ -343,6 +328,28 @@ class YouTubeResource(object):
             )
             return node
 
+#time_str with format hh:mm:ss
+def time_to_secs(time_str):
+    values = time_str.split(":")
+    values = map(int, values)
+    secs = sum([(v*m) for v, m in zip(values, [3600, 60, 1])])
+    return secs
+
+
+def video_editing_file_to_dict(filepath):
+    with open(filepath, "r") as f:
+        csv_reader = csv.reader(f, delimiter=',')
+        header = next(csv_reader)
+        values = defaultdict(list)
+        url_idx = header.index("video_url")
+        start_idx = header.index("start")
+        stop_idx = header.index("stop")
+
+        for row in csv_reader:
+            values[row[url_idx]].append((time_to_secs(row[start_idx]), time_to_secs(row[stop_idx])))
+        return values
+    
+
 
 # The chef subclass
 ################################################################################
@@ -359,8 +366,10 @@ class HelloChannelChef(JsonTreeChef):
         super(HelloChannelChef, self).__init__()
 
     def pre_run(self, args, options):
-        channel_tree = self.scrape(args, options)
-        self.write_tree_to_json(channel_tree)
+        values = video_editing_file_to_dict("video_editing_data.csv")
+        print(values)
+        #channel_tree = self.scrape(args, options)
+        #self.write_tree_to_json(channel_tree)
 
     def lessons(self):
         channel_tree = dict(
@@ -383,10 +392,15 @@ and grammar by using Hello Channel’s TV educational shows with ESL learners.
 
     def scrape(self, args, options):
         download_video = options.get('--download-video', "1")
+        load_video_list = options.get('--load-video-list', "0")
 
         if int(download_video) == 0:
             global DOWNLOAD_VIDEOS
             DOWNLOAD_VIDEOS = False
+
+        if int(load_video_list) == 1:
+            global LOAD_VIDEO_LIST
+            LOAD_VIDEO_LIST = True
 
         channel_tree = self.lessons()
 
@@ -399,14 +413,6 @@ and grammar by using Hello Channel’s TV educational shows with ESL learners.
             unit.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
             vocabulary.add_node(unit)
         channel_tree["children"].append(vocabulary.to_node())
-
-        #for subject in subjects:
-        #    for topic in subject.topics:
-        #        for unit in topic.units:
-        #            unit.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
-        #            topic.add_node(unit)
-        #        subject.add_node(topic)
-        #    channel_tree["children"].append(subject.to_node())
         
         return channel_tree
 
