@@ -350,6 +350,16 @@ def video_editing_file_to_dict(filepath):
         return values
     
 
+def cut_video(url, base_path, clips):
+    from moviepy.editor import VideoFileClip
+
+    youtube = YouTubeResource(url)
+    youtube.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
+    for clip in clips:
+        video = VideoFileClip(youtube.filepath).subclip(*clip)
+        filepath = youtube.filepath.replace(".mp4", "{}_{}.mp4".format(*clip))
+        video.write_videofile(filepath, fps=25)
+        break
 
 # The chef subclass
 ################################################################################
@@ -367,7 +377,11 @@ class HelloChannelChef(JsonTreeChef):
 
     def pre_run(self, args, options):
         values = video_editing_file_to_dict("video_editing_data.csv")
-        print(values)
+        base_path = [DATA_DIR] + ["data"]
+        base_path = build_path(base_path)
+        for url, clips in values.items():
+            cut_video(url, base_path, clips)
+            break
         #channel_tree = self.scrape(args, options)
         #self.write_tree_to_json(channel_tree)
 
