@@ -2,6 +2,7 @@
 
 from bs4 import BeautifulSoup
 import codecs
+import copy
 import csv
 from collections import defaultdict, OrderedDict
 import copy
@@ -10,6 +11,7 @@ from le_utils.constants import licenses, content_kinds, file_formats
 import hashlib
 import json
 import logging
+from moviepy.editor import VideoFileClip
 import ntpath
 import os
 from pathlib import Path
@@ -24,7 +26,7 @@ import time
 from urllib.error import URLError
 from urllib.parse import urljoin
 from utils import if_dir_exists, get_name_from_url, clone_repo, build_path
-from utils import if_file_exists, get_video_resolution_format, remove_links
+from utils import file_exists, get_video_resolution_format, remove_links
 from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
 from utils import remove_iframes, get_confirm_token, save_response_content
 import youtube_dl
@@ -128,7 +130,7 @@ class VocabularyConversationalEnglish(Topic):
         super(VocabularyConversationalEnglish, self).__init__(title, title)
         self.base_title = "Learn English Vocabulary"
 
-    def auto_generate_units(self, url, auto_parse=False):
+    def auto_generate_units(self, url, base_path):
         youtube = YouTubeResource(url)
         units = defaultdict(list)
         for name, url in youtube.playlist_name_links():
@@ -137,34 +139,41 @@ class VocabularyConversationalEnglish(Topic):
 
         units = sorted(units.items(), key=lambda x: x[0], reverse=False)
         for title, urls in units:
-            title = title.replace(self.base_title, "").strip()
-            unit = Unit(title, title)
-            unit.urls = urls
-            yield unit
+            for url in urls:
+                youtube = YouTubeResource(url, lang=self.lang)
+                youtube.download(DOWNLOAD_VIDEOS, base_path)
+                youtube.title = youtube.title.replace(self.base_title, "").strip()
+                LOGGER.info("+ {}".format(youtube.title))
+                yield youtube
 
 
-class Unit(Node):
+class EnglishGrammar(Topic):
     def __init__(self, *args, **kwargs):
-        super(Unit, self).__init__(*args, **kwargs)
-        self.urls = []
+        title = "English Grammar"
+        super(EnglishGrammar, self).__init__(title, title)
+        self.base_title = "English Conversation"
 
-    def download(self, download=True, base_path=None):
-        for url in self.urls:
-            youtube = YouTubeResource(url, lang=self.lang)
-            youtube.download(download, base_path)
-            self.add_node(youtube)
+    def auto_generate_units(self, base_path):
+        values = video_editing_file_to_dict("video_editing_data.csv")
+        counter = 1
+        for url, clips in values.items():
+            for youtube, i in cut_video(url, base_path, clips, counter):
+                youtube.title = youtube.title.replace(self.base_title, "").strip()
+                LOGGER.info("+ {}".format(youtube.title))
+                counter += 1
+                yield youtube
 
 
 class YouTubeResource(object):
-    def __init__(self, source_id, name=None, type_name="Youtube", lang="ar", 
-            embeded=False, section_title=None):
+    def __init__(self, source_id, name=None, type_name="Youtube", lang="en", 
+            embeded=False, subtitles=True):
         LOGGER.info("    + Resource Type: {}".format(type_name))
         LOGGER.info("    - URL: {}".format(source_id))
         self.filename = None
         self.type_name = type_name
         self.filepath = None
         self.name = name
-        self.section_title = section_title
+        self.subtitles = subtitles
         if embeded is True:
             self.source_id = YouTubeResource.transform_embed(source_id)
         else:
@@ -232,7 +241,7 @@ class YouTubeResource(object):
         base_path = build_path([DATA_DIR, CHANNEL_SOURCE_ID])
         videos_url_path = os.path.join(base_path, "{}.json".format(source_id_hash))
 
-        if if_file_exists(videos_url_path) and LOAD_VIDEO_LIST is True:
+        if file_exists(videos_url_path) and LOAD_VIDEO_LIST is True:
             with open(videos_url_path, "r") as f:
                 name_url = json.load(f)
         else:
@@ -315,7 +324,8 @@ class YouTubeResource(object):
     def to_node(self):
         if self.filepath is not None:
             files = [dict(file_type=content_kinds.VIDEO, path=self.filepath)]
-            files += self.subtitles_dict()
+            if self.subtitles:
+                files += self.subtitles_dict()
             node = dict(
                 kind=content_kinds.VIDEO,
                 source_id=self.source_id,
@@ -340,26 +350,34 @@ def video_editing_file_to_dict(filepath):
     with open(filepath, "r") as f:
         csv_reader = csv.reader(f, delimiter=',')
         header = next(csv_reader)
-        values = defaultdict(list)
+        data = OrderedDict()
         url_idx = header.index("video_url")
         start_idx = header.index("start")
         stop_idx = header.index("stop")
 
         for row in csv_reader:
-            values[row[url_idx]].append((time_to_secs(row[start_idx]), time_to_secs(row[stop_idx])))
-        return values
+            if row[url_idx] not in data:
+                data[row[url_idx]] = []
+            data[row[url_idx]].append((time_to_secs(row[start_idx]), time_to_secs(row[stop_idx])))
+        return data
     
 
-def cut_video(url, base_path, clips):
-    from moviepy.editor import VideoFileClip
-
+def cut_video(url, base_path, clips, counter=0):
     youtube = YouTubeResource(url)
     youtube.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
     for clip in clips:
-        video = VideoFileClip(youtube.filepath).subclip(*clip)
         filepath = youtube.filepath.replace(".mp4", "{}_{}.mp4".format(*clip))
-        video.write_videofile(filepath, fps=25)
-        break
+        if not file_exists(filepath):
+            video = VideoFileClip(youtube.filepath).subclip(*clip)
+            video.write_videofile(filepath, fps=25)
+        youtube_copy = copy.deepcopy(youtube)
+        youtube_copy.subtitles = False
+        youtube_copy.source_id = filepath.split()[-1]
+        youtube_copy.title = "{} {}".format(youtube.title[:-3], counter)
+        youtube_copy.filepath = filepath
+        counter += 1
+        yield youtube_copy, counter
+
 
 # The chef subclass
 ################################################################################
@@ -376,14 +394,8 @@ class HelloChannelChef(JsonTreeChef):
         super(HelloChannelChef, self).__init__()
 
     def pre_run(self, args, options):
-        values = video_editing_file_to_dict("video_editing_data.csv")
-        base_path = [DATA_DIR] + ["data"]
-        base_path = build_path(base_path)
-        for url, clips in values.items():
-            cut_video(url, base_path, clips)
-            break
-        #channel_tree = self.scrape(args, options)
-        #self.write_tree_to_json(channel_tree)
+        channel_tree = self.scrape(args, options)
+        self.write_tree_to_json(channel_tree)
 
     def lessons(self):
         channel_tree = dict(
@@ -422,10 +434,12 @@ and grammar by using Hello Channel’s TV educational shows with ESL learners.
         base_path = build_path(base_path)
 
         vocabulary = VocabularyConversationalEnglish()
-        units = vocabulary.auto_generate_units(BASE_URL)
-        for unit in units:
-            unit.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
+        for unit in vocabulary.auto_generate_units(BASE_URL, base_path):
             vocabulary.add_node(unit)
+        english_grammar = EnglishGrammar()
+        for unit in english_grammar.auto_generate_units(base_path):
+            english_grammar.add_node(unit)
+        channel_tree["children"].append(english_grammar.to_node())
         channel_tree["children"].append(vocabulary.to_node())
         
         return channel_tree

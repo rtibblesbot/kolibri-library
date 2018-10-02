@@ -9,7 +9,7 @@ def if_dir_exists(filepath):
     return file_.is_dir()
 
 
-def if_file_exists(filepath):
+def file_exists(filepath):
     my_file = Path(filepath)
     return my_file.is_file()
 
