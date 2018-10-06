@@ -67,9 +67,9 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 ################################################################################
 
 data_nav = OrderedDict([
-("Lessons and Articles", "دروس ومقالات"), 
-("Questions and Answers", "أسئلة وأجوبة"), 
-("Books and Resources",  "كتب وملفات")
+("Lessons and Articles", "دروس ومقالات"),
+("Books and Resources",  "كتب وملفات"),
+("Questions and Answers", "أسئلة وأجوبة")
 ])
 
 
@@ -291,6 +291,24 @@ class Article(Node):
                 urls.add(YouTubeResource.transform_embed(url))
 
         return urls
+
+    def to_node(self):
+        children = list(self.tree_nodes.values())
+        if len(children) == 1:
+            return children[0]
+        else:
+            return dict(
+                kind=content_kinds.TOPIC,
+                source_id=self.source_id,
+                title=self.title,
+                description=self.description,
+                language=self.lang,
+                thumbnail=self.thumbnail,
+                author=AUTHOR if self.author is None else self.author,
+                license=LICENSE,
+                children=children
+            )
+
 
 
 class Book(Node):
@@ -728,7 +746,7 @@ class HsoubAcademyChef(JsonTreeChef):
                 title=CHANNEL_NAME,
                 description="""Hsoub Academy provides online courses in the area of computer science and digital literacy for adult learners and IT emerging professionals. Those courses include video lessons and articles on what is trending in the coding and entrepreneurship world today.."""
 [:400], #400 UPPER LIMIT characters allowed 
-                thumbnail="https://academy.hsoub.com/uploads/monthly_2016_01/SiteLogo-346x108.png.dd3bdd5dfa0e4a7099ebc51f8484032e.png",
+                thumbnail="fa36cba155b77177120dc0f1a6fbde8a.png",
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],
@@ -738,7 +756,7 @@ class HsoubAcademyChef(JsonTreeChef):
         for category in browser_resources():
             category.download()
             channel_tree["children"].append(category.to_node())
-        
+
         return channel_tree
 
     def write_tree_to_json(self, channel_tree):
