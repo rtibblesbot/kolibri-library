@@ -74,7 +74,7 @@ class Browser:
     def __init__(self):
         self.url = BASE_URL
 
-    def run(self, from_i=1, to_i=None):
+    def run(self, from_i=1, to_i=1000000):
         for topic in TOPICS:
             topic_page = TopicPage()
             LOGGER.info("* Section: {}".format(topic))
@@ -338,7 +338,7 @@ def download(source_id):
 def get_index_range(only_pages):
     if only_pages is None:
             from_i = 0
-            to_i = None
+            to_i = 1000000
     else:
         index = only_pages.split(":")
         if len(index) == 2:
@@ -347,7 +347,7 @@ def get_index_range(only_pages):
                 to_i = int(index[1])
             elif index[1] == "":
                 from_i = int(index[0])
-                to_i = None
+                to_i = 1000000
             else:
                 index = map(int, index)
                 from_i, to_i = index
