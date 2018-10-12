@@ -4,13 +4,11 @@ from bs4 import BeautifulSoup
 import codecs
 from collections import defaultdict, OrderedDict
 import copy
-from git import Repo
 import glob
 from le_utils.constants import licenses, content_kinds, file_formats
 import hashlib
 import json
 import logging
-import markdown2
 import ntpath
 import os
 from pathlib import Path
@@ -90,8 +88,9 @@ class Browser:
                 elif topic_page.page_i > to_i:
                     break
                 topic_page.page_i += 1
+                #break ###
             yield topic_page
-
+            #break ###
 
 class TopicPage:
     def __init__(self):
@@ -133,6 +132,7 @@ class PageParser:
                 parsed = urlparse(url)
                 yield TedTalk(url, title=tag_a.text.replace("\n", ""), 
                     lang=parse_qs(parsed.query)['language'])
+                #break ###
 
     def write_videos(self, from_i=0, to_i=None):
         LOGGER.info("Parsing: {}".format(self.page_url))
@@ -239,7 +239,7 @@ class YouTubeResource(object):
                 'restrictfilenames':True,
                 'continuedl': True,
                 'quiet': False,
-                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
+                'format': "high",#"bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
                 'outtmpl': '{}/%(id)s'.format(download_to),
                 'noplaylist': False
             }
@@ -267,7 +267,7 @@ class YouTubeResource(object):
                 for info in subtitles_info[language]:
                     if info["ext"] == "srt":
                         subs.append(dict(file_type=SUBTITLES_FILE, path=info["url"],
-                        language=language))
+                            language=language, subtitlesformat=file_formats.SRT))
                         break
         return subs
 
@@ -386,7 +386,7 @@ class TEDTalksChef(JsonTreeChef):
         global channel_tree
         channel_tree = dict(
                 source_domain=TEDTalksChef.HOSTNAME,
-                source_id=BASE_URL,
+                source_id=CHANNEL_SOURCE_ID,
                 title=CHANNEL_NAME,
                 description="""TED Talks provide lessons and inspiring stories for life by bringing public figures, policy makers, entrepreneurs and more figures to share their stories and work on a variety of global issues. The videos can be integrated in some subject activities in national curriculums or as part of extra-curricular activities as well."""
 [:400], #400 UPPER LIMIT characters allowed 
