@@ -12,7 +12,7 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Al-Riyadiyat with Basil Al-Zubaidi العربيّة"              # Name of channel
+CHANNEL_NAME = "Al-Riyadiyat with Basil Al-Zubaidi العربيّة [source-channel]"              # Name of channel
 CHANNEL_SOURCE_ID = "al-riyadiyat_basil_al-zubaidi"    # Channel's unique id
 CHANNEL_DOMAIN = "learningequality.org"          # Who is providing the content
 CHANNEL_LANGUAGE = "ar"      # Language of channel
