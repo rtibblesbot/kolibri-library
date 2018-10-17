@@ -329,7 +329,8 @@ def scrape_content(parent, url, page):
         youtube_id = m.groups(1)[0]
         youtube_ids_from_site.append(youtube_id)
         video_node = fetch_video(youtube_id)
-        parent['children'].append(video_node)
+        if video_node:
+            parent['children'].append(video_node)
 
     else:
         print('ZZZ did not find iframe for', url)
@@ -339,26 +340,30 @@ def scrape_content(parent, url, page):
         # parent['children'].append({'kind':'Uknownn/no iframe', 'url':url})
 
 def fetch_video(youtube_id):
-    video = ydl.extract_info(youtube_id, download=False)
-    title = video['title']
-    description = video['description']
-    # youtube_url = video['webpage_url']
-    # print("    Fetching video data: %s (%s)" % (title, youtube_url))
-    video_file = dict(
-        file_type=content_kinds.VIDEO,
-        youtube_id=youtube_id,
-    )
-    video_node = dict(
-        kind=content_kinds.VIDEO,
-        source_id=youtube_id,
-        title=truncate_metadata(title),
-        license=TAHRIR_ACADEMY_LICENSE.as_dict(),
-        description=truncate_description(description),
-        derive_thumbnail=True,
-        language="ar",
-        files=[video_file],
-    )
-    return video_node
+    try:
+        video = ydl.extract_info(youtube_id, download=False)
+        title = video['title']
+        description = video['description']
+        # youtube_url = video['webpage_url']
+        # print("    Fetching video data: %s (%s)" % (title, youtube_url))
+        video_file = dict(
+            file_type=content_kinds.VIDEO,
+            youtube_id=youtube_id,
+        )
+        video_node = dict(
+            kind=content_kinds.VIDEO,
+            source_id=youtube_id,
+            title=truncate_metadata(title),
+            license=TAHRIR_ACADEMY_LICENSE.as_dict(),
+            description=truncate_description(description),
+            derive_thumbnail=True,
+            language="ar",
+            files=[video_file],
+        )
+        return video_node
+    except (youtube_dl.utils.DownloadError, youtube_dl.utils.ExtractorError) as e:
+        print('ERROR', str(e))
+        return None
 
 
 DESCRIPTION_RE = re.compile('Subscribe - .*$')
