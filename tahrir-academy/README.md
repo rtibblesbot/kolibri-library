@@ -5,11 +5,15 @@ Sushi Chef for tahriracademy.org
 
 ## TODO
 
-  - Cleanup descr from youtube --- rm links, rm redndancies
-    (any tagline that repeats in all videos + share/subscribe calls to action)
   - Create HTML5app node from slideshow
   - Add fourth topic for extra nodes, groupby playlist
+  - Fix these
 
+        ERROR - 2017-10-11 03:08:10 - tree.py - check_for_files_failed - 57 -    2 file(s) have failed to download
+        WARNING - 2017-10-11 03:29:51 - tree.py - check_failed - 197 - WARNING: The following nodes have one or more descendants that could not be created:
+        WARNING - 2017-10-11 03:29:51 - tree.py - check_failed - 200 -  الجاذبية الكونية والحركة الدائرية (TopicNode): 1 descendant (File failed to download)
+        WARNING - 2017-10-11 03:29:51 - tree.py - check_failed - 200 -  الجاذبية الكونية والحركة الدائرية (TopicNode): 1 descendant (File failed to download)
+        INFO - 2017-10-11 03:30:01 - tree.py - upload_tree - 169 - Upload time: 625.588001s
 
 
 ### Step 0: Installation
@@ -32,7 +36,5 @@ You will need an authorization token to create a channel on Kolibri Studio. In o
 
 ### Step 2: Running the chef ###
 Run `./chef.py -v --reset --token=<token> --stage --thumbnails`, replacing `<token>` with the token you copied earlier
-
-
 
 
