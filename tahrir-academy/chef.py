@@ -35,6 +35,15 @@ JSON_YOUTUBE_IDS_FILENAME = 'all_video_ids_in_playlists.json'
 json_filename = os.path.join(DATA_DIR, JSON_YOUTUBE_IDS_FILENAME)
 TAHRIR_ACADEMY_LICENSE = licenses.CC_BY_NC_NDLicense(copyright_holder='Tahrir Academy (tahriracademy.org)')
 
+# Health/Computer/Skills and development
+GENERAL_TOPICS_TRACK_AR = "مواضيع عامة"
+TECHNOLOGY_CATEGORY_AR = "تكنولوجيا"
+DEVELOPMENT_AND_SKILLS_CATEGORY_AR = "تنمية ومهارات"
+HEALTH_CATEGORY_AR = "صحة"
+
+# More videos from Youtube not on tahriracademy.org
+MORE_VIDEOS_TRACK_AR = "المزيد من مقاطع الفيديو"
+
 
 # CACHE LOGIC
 ################################################################################
@@ -330,7 +339,7 @@ def scrape_content(parent, url, page):
         # parent['children'].append({'kind':'Uknownn/no iframe', 'url':url})
 
 def fetch_video(youtube_id):
-    video = ydl.extract_info('2xycMieJSQ4', download=False)
+    video = ydl.extract_info(youtube_id, download=False)
     title = video['title']
     description = video['description']
     # youtube_url = video['webpage_url']
