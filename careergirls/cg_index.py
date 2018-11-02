@@ -21,11 +21,19 @@ html_template = """
   </body>
 </html>"""
 
+def fetch_resource(url):
+    # given a url, get the resource page and then the bytes of the resource proper
+    request = requests.get(url) 
+    root = lxml.html.fromstring(request.content) 
+    target_url, = root.xpath("//div[@class='resource__link']//a/@href") 
+    return requests.get(target_url).content  ## should be a byte stream 
 
-
-def clean_html(source):
+def clean_html(source, remove_a = True):
     "see https://lxml.de/4.1/api/lxml.html.clean.Cleaner-class.html"
     "Note that this mangles the original structure!"
+    remove_tags = ["div", "span", "svg"]
+    if remove_a:
+        remove_tags.append("a")
     cleaner = Cleaner(scripts = True,
                       javascript = True,
                       comments = True,
@@ -39,12 +47,12 @@ def clean_html(source):
                       frames = True,
                       forms = True,
                       annoying_tags = True,
-                      remove_tags = ['a', 'div', 'span', 'svg'],
+                      remove_tags = remove_tags,
                       kill_tags = [], # also destroys content, unlike remove
                       ## allow_tags = [], # default all
                       remove_unknown_tags = True,
                       safe_attrs_only = True,
-                      safe_attrs = [], # default: sane
+                      safe_attrs = ["href"], # default: sane
                       add_nofollow = True,
                       host_whitelist = [],
                       ## whitelist_tags = [], # default: sane
@@ -116,6 +124,29 @@ def index_job(job_url):
     job.app = io.getvalue()
     return job
 
+def index_video(video_url):
+    job = Record(video_url)
+    job.title = job.root.xpath("//h1[@class='video__title']/text()")[0]
+    assert isinstance(job.title, str)
+    try:
+        job.youtube = re.search("videoId: '([^']+)'", job.response.text).groups()[0]
+    except AttributeError:
+        job.youtube = None
+    preamble = job.root.xpath("//div[@class='video__introduction wysiwyg']")[0]
+    html_page = job.root.xpath("//div[@class='video__body wysiwyg']")[0]
+    html_page.insert(0, preamble)
+    job.html = clean_html(html_page, remove_a=False)
+    
+    io = BytesIO()
+    with ZipFile(io, mode="w") as z:
+        z.writestr("index.html", html_template.format(job.html))
+        z.write("styles.css")
+    job.app = io.getvalue()
+    with open("play.zip", "wb") as z:
+        z.write(job.app)
+    return job
+
+
 def index_skill(skill_url):
     from urllib.parse import urljoin
     # TODO: add other bits, should we care about this.
@@ -147,7 +178,6 @@ def index_skill(skill_url):
     return skill
 
 def get_resource(resource_url):
-    print(resource_url)
     if "careergirls.org" not in resource_url:
         target_url = resource_url
     else:
@@ -184,8 +214,18 @@ def index_role(role_url):
            
     role.skill_links = [x.split("?")[0] for x in role.root.xpath("//div[@class='role-model__skills slider']//a/@href")]
     role.skill_names = list(map(str.strip, role.root.xpath("//div[@class='role-model__skills slider']//div[@class='listing__title']/text()")))
+    
     assert len(role.skill_names)== len(role.skill_links)
     return role
+
+def index_video_index(video_index_url):
+    index = Record(video_index_url)
+    index.video_urls = [x.partition("?")[0] for x in index.root.xpath("//div[@class='page__video-listing']//ul[@class='listing']//a/@href")]
+    resources = index.root.xpath("//ul[@class='resource-listing']")
+    index.resource_names = [resource.xpath(".//*[@class='resource-listing__title']/a")[0].text_content() for resource in resources]
+    index.resource_download_urls = [full_url(resource.xpath(".//*[@class='resource-listing__title']/a/@href")[0]) for resource in resources]
+    index.resource_descriptions = [resource.xpath(".//*[@class='resource-listing__summary']")[0].text_content() for resource in resources]
+    return index
 
 def all_jobs():
     cluster = index_cluster("https://www.careergirls.org/explore-careers/careers/")
@@ -201,10 +241,10 @@ def all_life_skills():
  
 
 if __name__ == "__main__":
-    s = index_skill("https://www.careergirls.org/video/importance-of-math/")
-    print (s.links)
-    r = get_resource(s.links[0])
-    print(r, type(r))
+    index= (index_video_index("https://www.careergirls.org/be-empowered/develop-life-skills/"))
+    print (index)
+    for video_url in index.video_urls:
+        print (index_video(video_url))
     
 if __name__ == "__main__2":
     app = index_job("https://www.careergirls.org/career/architect/").app
@@ -224,3 +264,5 @@ if __name__ == "__main__2":
     #for cluster_url in hrefs:
     #    cluster = index_cluster(cluster_url)
     #    print (cluster.jobs)
+
+

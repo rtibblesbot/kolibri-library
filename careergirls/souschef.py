@@ -9,7 +9,7 @@ from ricecooker.classes.nodes import DocumentNode, VideoNode, TopicNode, HTML5Ap
 from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile
 import cg_index
 from le_utils.constants.languages import getlang
-
+import clusters # role_data top second
 LOGGER = logging.getLogger()
 
 def make_youtube_video(tubeid, name, _id):
@@ -84,6 +84,20 @@ class CareerGirlsChef(SushiChef):
         get_things(all_life_skills, life_skill_node)
 
         # role models
+        # setup
+        top_lookup = {}
+        second_lookup = {}
+        for top in clusters.top:
+            node = TopicNode(source_id = "role_top_"+top,
+                             title = top)
+            top_lookup[top] = node
+            role_node.add_child(node)
+        for top, second in clusters.second:
+            node = TopicNode(source_id = "role_top_"+top+"_"+second,
+                             title = second)
+            second_lookup[tuple([top, second])] = node
+            top_lookup[top].add_child(node)
+            
         role_urls = set()
         for job in all_jobs:
             for role in job.roles:
@@ -101,8 +115,15 @@ class CareerGirlsChef(SushiChef):
                     this_role.add_child(video_node)
                     video_list.append(v_id[0])
                     video_set.add(v_id[0])
-                            
-            role_node.add_child(this_role)
+                          
+            role_found= False
+            for role in clusters.role_data:
+                if role[3] in role_url:
+                    second_lookup[tuple(role[:2])].add_child(this_role)
+                    role_found = True
+            assert role_found, role_url
+                
+            # role_node.add_child(this_role)
         
         print ("DONE")
             
