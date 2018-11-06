@@ -130,6 +130,10 @@ class VocabularyConversationalEnglish(Topic):
         super(VocabularyConversationalEnglish, self).__init__(title, title)
         self.base_title = "Learn English Vocabulary"
 
+    def clean_title(self, title):
+        title = title.replace(self.base_title, "").strip()
+        return title.replace("English Conversation", "")
+
     def auto_generate_units(self, url, base_path):
         youtube = YouTubeResource(url)
         units = defaultdict(list)
@@ -142,7 +146,7 @@ class VocabularyConversationalEnglish(Topic):
             for url in urls:
                 youtube = YouTubeResource(url, lang=self.lang)
                 youtube.download(DOWNLOAD_VIDEOS, base_path)
-                youtube.title = youtube.title.replace(self.base_title, "").strip()
+                youtube.title = self.clean_title(youtube.title)
                 LOGGER.info("+ {}".format(youtube.title))
                 yield youtube
 
@@ -153,12 +157,21 @@ class EnglishGrammar(Topic):
         super(EnglishGrammar, self).__init__(title, title)
         self.base_title = "English Conversation"
 
+    def clean_title(self, title):
+        title = title.replace(self.base_title, "").strip()
+        pattern = "(?P<lesson>Lesson \d+)"
+        exp = re.search(pattern, title)
+        if exp:
+            return exp.group("lesson")
+        else:
+            return title
+
     def auto_generate_units(self, base_path):
         values = video_editing_file_to_dict("video_editing_data.csv")
         counter = 1
         for url, clips in values.items():
             for youtube, i in cut_video(url, base_path, clips, counter):
-                youtube.title = youtube.title.replace(self.base_title, "").strip()
+                youtube.title = self.clean_title(youtube.title)
                 LOGGER.info("+ {}".format(youtube.title))
                 counter += 1
                 yield youtube
