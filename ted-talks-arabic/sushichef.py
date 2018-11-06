@@ -179,9 +179,22 @@ class TedTalk:
         self.title = title
         self.video = None
 
+    def meta_title(self):
+        document = download(self.page_url)
+        if document is not None:
+            try:
+                soup = BeautifulSoup(document, 'html.parser') #html5lib
+                meta_title = soup.find(lambda tag: tag.name == "meta" and tag.attrs.get('name', '') == 'title')
+                title = meta_title.attrs.get('content', self.title)
+                LOGGER.info("  Meta Title: {}".format(title))
+                return title
+            except:
+                LOGGER.info("  Title: {}".format(title))
+                return self.title
+
     def download(self, download=True, base_path=None):
-        LOGGER.info("  Title: {}".format(self.title))
-        self.video = YouTubeResource(self.page_url, name=self.title, lang=self.lang)
+        title = self.meta_title()
+        self.video = YouTubeResource(self.page_url, name=title, lang=self.lang)
         self.video.download(download, base_path)
 
     def to_node(self):
