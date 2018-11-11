@@ -48,11 +48,7 @@ LOGGER.setLevel(logging.INFO)
 DOWNLOAD_VIDEOS = True
 
 sess = requests.Session()
-cache = FileCache('.webcache')
-basic_adapter = CacheControlAdapter(cache=cache)
-forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
-sess.mount('http://', basic_adapter)
-sess.mount(BASE_URL, forever_adapter)
+
 
 # Run constants
 ################################################################################
@@ -453,6 +449,8 @@ class HTMLApp(object):
                     pass
                 except requests.exceptions.InvalidSchema:
                     pass
+                except requests.exceptions.ReadTimeout:
+                    pass
                 except requests.exceptions.ConnectTimeout as e:
                     LOGGER.info(str(e))
 
@@ -478,7 +476,7 @@ class HTMLApp(object):
             return False
         body = self.clean(self.body)
         images = self.to_local_images(body)
-        self.write_index(self.filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(body))
+        self.write_index(self.filepath, '<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/styles.css"></head><body style="text-align:right;"><div class="main-content-with-sidebar">{}</div><script src="js/scripts.js"></script></body></html>'.format(body))
         self.write_images(self.filepath, images)
         self.write_css_js(self.filepath)
 
@@ -513,6 +511,9 @@ class HTMLAppQA(HTMLApp):
 
     def to_file(self, base_path):
         self.filepath = "{path}/{name}.zip".format(path=base_path, name=self.title_hash())
+        if file_exists(self.filepath):
+            LOGGER.info("     * File exists {}".format(self.filepath))
+            return True
         if self.body is None:
             return False
         articles = ["<h2>{}</h2>".format(self.title)]
@@ -720,7 +721,6 @@ class HsoubAcademyChef(JsonTreeChef):
     def pre_run(self, args, options):
         self.download_css_js()
         channel_tree = self.scrape(args, options)
-        #clean_leafs_nodes_plus(channel_tree)
         self.write_tree_to_json(channel_tree)
 
     def download_css_js(self):
