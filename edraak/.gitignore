@@ -1,3 +1,10 @@
+# ricecooker specific
+cache.sqlite3
+storage/
+restore/
+.webcache/
+.ricecookerfilecache/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
