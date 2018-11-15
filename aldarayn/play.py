@@ -1,6 +1,6 @@
+import csv
 import requests
 import lxml.html
-#import json
 import credentials
 
 
@@ -23,17 +23,29 @@ def top_index():
     option_names = [x.text for x in options]
     return zip(option_ids, option_names)
 
-print (list(top_index()))
-exit()
-
 def course_index(course_id):
     page = Page("https://www.aldarayn.com/course/index.php?categoryid={}&perpage=99999999".format(course_id))
     course_tags = page.root.xpath("//*[@class='coursename']/a")
     course_names = [x.text for x in course_tags]
     course_urls = [x.get('href') for x in course_tags]
-    for i, j in zip(course_names, course_urls):
-        print(i,j)
+    return zip(course_names, course_urls)
 
-for i in top_index():
-    print (i)
-    course_index(i[0])
+#for top_id, top_name in top_index():
+#    for course_name, course_url in course_index(top_id):
+#        print (course_url)
+#        exit()
+
+def csv_output():
+    with open('sample.csv', 'w', newline='', encoding='utf-8') as csvfile:
+        csvout = csv.writer(csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        # spamwriter.writerow("")
+        i = 0
+        for top_id, top_name in top_index():
+            for course_name, course_url in course_index(top_id):
+                i = i + 1
+                csvout.writerow([top_id,
+                                top_name, '=GOOGLETRANSLATE(B{}, "ar", "en")'.format(i),
+                                course_name, '=GOOGLETRANSLATE(D{}, "ar", "en")'.format(i),
+                                course_url])
+
+csv_output()
