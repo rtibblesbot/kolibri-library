@@ -1,8 +1,9 @@
 import csv
 import requests
 import lxml.html
-import credentials
+import login
 
+session = login.session
 
 class Page():
     def __init__(self, url):
@@ -10,10 +11,6 @@ class Page():
         self.response = session.get(url)
         self.root = lxml.html.fromstring(self.response.content)
 
-session = requests.session()
-
-response = session.post("https://www.aldarayn.com/login/index.php", data = credentials.login)
-assert response.url == "https://www.aldarayn.com/my/", response.url
 
 def top_index():
     """Have manually checked: this is complete for categorynames in course_index"""
