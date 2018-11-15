@@ -22,10 +22,10 @@ course_urls = [x.get('href') for x in courses]
 
 def get_solo_course(categoryid, page=0):
     data = {"categoryid": categoryid,
-            "depth": 9999,  # 1
-            "showcourses": 9999, # 15  # increasing doesn't help :(
+            "depth": 1,  # 1
+            "showcourses": 15, # 15  # increasing doesn't help :(
             "type": 0, # 0
-            "limit": 99999} # guesswork!
+            }
     
     html = session.post("https://www.aldarayn.com/course/category.ajax.php", data=data).json()
     root = lxml.html.fromstring(html)
