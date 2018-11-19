@@ -1,4 +1,6 @@
 import csv
+from functools import cmp_to_key  # we'll use old-school cmp method style of comparison
+# see https://docs.python.org/3/howto/sorting.html#the-old-way-using-the-cmp-parameter
 import hashlib
 from itertools import groupby
 import json
@@ -89,12 +91,87 @@ def load_aldarayn_structure():
     return struct_list
 
 
+
+
 # ALDARAYN_STRUCT_LIST = load_aldarayn_structure()
+
+
+
 
 
 
 # STRUCTURE LIST TO STRUCTURE TREE
 ################################################################################
 
+def aldarayn_sort(itemA, itemB):
+    """
+    Returns sort order according to `keys`
+    """
+    keys = [L1_KEY, L2_KEY, L3_KEY, L4_KEY, TITLE_KEY]
+    for key in keys:
+
+        # if both keys exist
+        if itemA[key] and itemB[key]:
+            if itemA[key] == itemB[key]: # if keys are the same, check next key
+                continue 
+            elif itemA[key] < itemB[key]:
+                return -1
+            elif itemA[key] > itemB[key]:
+                return 1
+
+        # subfolders first
+        if itemA[key] and not itemB[key]:
+            return -1
+        if not itemA[key] and itemB[key]:
+            return 1
+        
+        # return 0 if both same
+        if not itemA[key] and not itemB[key]:
+            return 0
 
 
+def sane_group_by(items, key):
+    """
+    Wrapper for itertools.groupby to make it easier to use.
+    Returns a dict with keys = possible values of key in items
+    and corresponding values being lists of items that have that key.
+    """
+    return dict((k, list(g)) for k, g in groupby(items, key=itemgetter(key)))
+
+
+def print_aldarayn_structure(struct_list):
+    # Important to have list fully sorted before doing groupbys
+    struct_list = sorted(struct_list, key=cmp_to_key(aldarayn_sort))
+
+    edu_level_dict = sane_group_by(struct_list, L1_KEY)                         # L1
+    for edu_level, items_in_edu_level in edu_level_dict.items():
+
+        print('Education level', edu_level)
+        subjects_dict = sane_group_by(items_in_edu_level, L2_KEY)               # L2
+        for subject, items_in_subject in subjects_dict.items():
+            L3_topics_dict = sane_group_by(items_in_subject, L3_KEY)            # L3
+            no_L3_items = L3_topics_dict.get(None, [])
+            if no_L3_items:
+                del L3_topics_dict[None]
+            print('   - subject =', repr(subject), 'a', \
+                        len(no_L3_items), 'courses', \
+                        len(L3_topics_dict.keys()), 'subfolders')
+
+            for L3_topic, items_in_L3_topic in L3_topics_dict.items():
+                
+                L4_topics_dict = sane_group_by(items_in_L3_topic, L4_KEY)       # L4
+                no_L4_items = L4_topics_dict.get(None, [])
+                if no_L4_items:
+                    del L4_topics_dict[None]
+                print('       - L3_topic =', repr(L3_topic),
+                                # '=', items_in_L3_topic[0][CATEGORY_TRANS_KEY],
+                                len(no_L4_items), 'courses',
+                                len(L4_topics_dict.keys()), 'subfolders')
+                
+                for L4_topic, items_in_L4_topic in L4_topics_dict.items():
+                        print('            - L4_topic =', repr(L4_topic), '-', 
+                                              # '=', items_in_L4_topic[0][CATEGORY_TRANS_KEY], 
+                                              len(items_in_L4_topic), 'items')
+
+
+# TODO: group courses that have same TITLE_KEY into one
