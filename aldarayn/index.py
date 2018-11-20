@@ -1,5 +1,4 @@
 import csv
-import requests
 import lxml.html
 import login
 
@@ -27,10 +26,10 @@ def course_index(course_id):
     course_urls = [x.get('href') for x in course_tags]
     return zip(course_names, course_urls)
 
-#for top_id, top_name in top_index():
-#    for course_name, course_url in course_index(top_id):
-#        print (course_url)
-#        exit()
+def all_courses():
+    for top_id, top_name in top_index():
+        for course_name, course_url in course_index(top_id):
+            yield [top_id, top_name, course_name, course_url]
 
 def csv_output():
     with open('sample.csv', 'w', newline='', encoding='utf-8') as csvfile:
@@ -45,4 +44,4 @@ def csv_output():
                                 course_name, '=GOOGLETRANSLATE(D{}, "ar", "en")'.format(i),
                                 course_url])
 
-csv_output()
+# csv_output()
