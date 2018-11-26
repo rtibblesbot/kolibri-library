@@ -24,6 +24,7 @@ ALDARAYN_STRUCTURE_SHEET_GID = '0'
 ALDARAYN_SHEET_CSV_URL = GSHEETS_BASE + ALDARAYN_SHEET_ID + '/export?format=csv&gid=' + ALDARAYN_STRUCTURE_SHEET_GID
 ALDARAYN_SHEET_CSV_PATH = 'chefdata/aldarayn_structure.csv'
 
+SKIP_KEY = "Skip?"
 L1_KEY = 'Level 1 Topic *'
 L2_KEY = 'Level 2 Topic *'
 L3_KEY = 'Level 3 Topic'
@@ -39,6 +40,7 @@ CATEGORY_TRANS_KEY = 'Combined Category Trans'
 COURSE_TRANS_KEY = 'Course Trans'
 
 ALDARAYN_SHEET_CSV_FILEDNAMES = [
+    SKIP_KEY,
     L1_KEY,
     L2_KEY,
     L3_KEY,
@@ -84,16 +86,20 @@ def load_aldarayn_structure():
         next(reader)  # Skip Headers row
         for row in reader:
             clean_row = _clean_dict(row)
+            if clean_row[SKIP_KEY] == "SKIP":
+                continue
+
             if clean_row[L1_KEY] is not None and clean_row[L2_KEY] is not None:                # @Dave: you can add other sanity checks here
                 struct_list.append(clean_row)
             else:
                 LOGGER.warning('Unrecognized structure row {}'.format(str(clean_row)))
+                assert False, [L1_KEY, L2_KEY]
     return struct_list
 
 
 
 
-# ALDARAYN_STRUCT_LIST = load_aldarayn_structure()
+ALDARAYN_STRUCT_LIST = load_aldarayn_structure()
 
 
 
@@ -113,7 +119,7 @@ def aldarayn_sort(itemA, itemB):
         # if both keys exist
         if itemA[key] and itemB[key]:
             if itemA[key] == itemB[key]: # if keys are the same, check next key
-                continue 
+                continue
             elif itemA[key] < itemB[key]:
                 return -1
             elif itemA[key] > itemB[key]:
@@ -124,7 +130,7 @@ def aldarayn_sort(itemA, itemB):
             return -1
         if not itemA[key] and itemB[key]:
             return 1
-        
+
         # return 0 if both same
         if not itemA[key] and not itemB[key]:
             return 0
@@ -158,7 +164,7 @@ def print_aldarayn_structure(struct_list):
                         len(L3_topics_dict.keys()), 'subfolders')
 
             for L3_topic, items_in_L3_topic in L3_topics_dict.items():
-                
+
                 L4_topics_dict = sane_group_by(items_in_L3_topic, L4_KEY)       # L4
                 no_L4_items = L4_topics_dict.get(None, [])
                 if no_L4_items:
@@ -167,10 +173,10 @@ def print_aldarayn_structure(struct_list):
                                 # '=', items_in_L3_topic[0][CATEGORY_TRANS_KEY],
                                 len(no_L4_items), 'courses',
                                 len(L4_topics_dict.keys()), 'subfolders')
-                
+
                 for L4_topic, items_in_L4_topic in L4_topics_dict.items():
-                        print('            - L4_topic =', repr(L4_topic), '-', 
-                                              # '=', items_in_L4_topic[0][CATEGORY_TRANS_KEY], 
+                        print('            - L4_topic =', repr(L4_topic), '-',
+                                              # '=', items_in_L4_topic[0][CATEGORY_TRANS_KEY],
                                               len(items_in_L4_topic), 'items')
 
 
