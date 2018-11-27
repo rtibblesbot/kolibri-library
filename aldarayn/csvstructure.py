@@ -11,6 +11,7 @@ import re
 import requests
 
 from ricecooker.config import LOGGER
+from arabic import K12_TEXT
 
 
 
@@ -97,14 +98,25 @@ def load_aldarayn_structure():
     return struct_list
 
 
+def adult_structure():
+    return [x for x in COURSE_STRUCT if x[L1_KEY] != K12_TEXT]
 
+def k12_structure():
+    # split into K12 and adult sections
+    k12 = [x for x in COURSE_STRUCT if x[L1_KEY] == K12_TEXT]
 
-ALDARAYN_STRUCT_LIST = load_aldarayn_structure()
+    # mangle k12 to not have L1_KEY
+    for x in k12:
+        x[L1_KEY] = x[L2_KEY]
+        x[L2_KEY] = x[L3_KEY]
+        x[L3_KEY] = x[L4_KEY]
+        x[L4_KEY] = None
 
+    return k12
 
-
-
-
+COURSE_STRUCT = load_aldarayn_structure()
+adult_structure()
+k12_structure()
 
 # STRUCTURE LIST TO STRUCTURE TREE
 ################################################################################
