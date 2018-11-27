@@ -40,7 +40,7 @@ WEBSITE_CATID_KEY = 'Category ID *'
 CATEGORY_TRANS_KEY = 'Combined Category Trans'
 COURSE_TRANS_KEY = 'Course Trans'
 
-ALDARAYN_SHEET_CSV_FILEDNAMES = [
+ALDARAYN_SHEET_CSV_FIELDNAMES = [
     SKIP_KEY,
     L1_KEY,
     L2_KEY,
@@ -57,6 +57,22 @@ ALDARAYN_SHEET_CSV_FILEDNAMES = [
     COURSE_TRANS_KEY
 ]
 
+PYTHON_FIELDNAMES = """
+SKIP
+L1
+L2
+L3
+L4
+TITLE
+SEPARATOR
+WEBSITE_CAT1
+WEBSITE_CAT2
+WEBSITE_TITLE
+WEBSITE_URL
+WEBSITE_CATID
+CATEGORY_TRANS
+COURSE_TRANS
+""".strip().split("\n")
 
 def download_structure_csv():
     response = requests.get(ALDARAYN_SHEET_CSV_URL)
@@ -83,7 +99,7 @@ def load_aldarayn_structure():
     csv_path = download_structure_csv()
     struct_list = []
     with open(csv_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile, fieldnames=ALDARAYN_SHEET_CSV_FILEDNAMES)
+        reader = csv.DictReader(csvfile, fieldnames=ALDARAYN_SHEET_CSV_FIELDNAMES)
         next(reader)  # Skip Headers row
         for row in reader:
             clean_row = _clean_dict(row)
