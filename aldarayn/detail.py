@@ -71,13 +71,15 @@ def handle_page(url):
 
 
 
-for _id, name1, name2, url in index.all_courses():
-    #print (name1, name2, url)
-    try:
-        handle_page(url)
-    except Exception as e:
-        print (e, url)
-        raise
+if __name__ == "__main__":
+    for _id, name1, name2, url in index.all_courses():
+        #print (name1, name2, url)
+        try:
+            handle_page(url)
+        except Exception as e:
+            print (e, url)
+            raise
+
 
 
 #handle_page(url_1)
