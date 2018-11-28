@@ -14,7 +14,7 @@ import arabic
 import csvstructure
 import video
 from collections import namedtuple
-
+from csvstructure import L1_KEY, L2_KEY, L3_KEY, L4_KEY, WEBSITE_URL_KEY
 Row = namedtuple("Row", csvstructure.PYTHON_FIELDNAMES)
 
 def sha1(x):
@@ -25,10 +25,13 @@ def dragon_construct_channel(self, **kwargs):
     cats = {None: channel}
 
     for raw_row in self.channel_index:
+        row = raw_row # on vader, row is unordered...
         # create channel structure for this row
-        row = Row(*raw_row.values())
-        if row.L1 == csvstructure.L1_KEY: continue
-        topic_tree = [row.L1, row.L2, row.L3, row.L4]
+        #row = Row(*raw_row.values())
+        #print (row)
+        #exit()
+        if row[L1_KEY] == csvstructure.L1_KEY: continue
+        topic_tree = [row[L1_KEY], row[L2_KEY], row[L3_KEY], row[L4_KEY]]
         topic_tree = tuple(x for x in topic_tree if x)  # remove Nones
         for i in range(1,5):
             partial_tree = topic_tree[:i]
@@ -42,7 +45,7 @@ def dragon_construct_channel(self, **kwargs):
         topic_node = cats[topic_tree]
 
         # download videos
-        video_list = detail.handle_page(row.WEBSITE_URL)
+        video_list = detail.handle_page(row[WEBSITE_URL_KEY])
         for video_url in video_list:
             video_node = video.acquire_video_node(video_url,
                                                   license="CC BY-NC",
@@ -50,7 +53,6 @@ def dragon_construct_channel(self, **kwargs):
                                                   )
             topic_node.add_child(video_node)
         print (video_list)
-        break
 
     assert channel.validate()
     return channel
