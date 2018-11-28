@@ -10,9 +10,8 @@ youtube = youtube_dl.YoutubeDL({"noplaylist": True, "quiet": True})
 def acquire_video_node(url, license, **options):
     info = youtube.extract_info(url, download=False)
     subtitles=info.get("subtitles")
-    print(subtitles)
     assert not info.get("subtitles"), "Implement Subtitles for {}".format(info['id'])
-    videofile = WebVideoFile(web_url = url)
+    videofile = WebVideoFile(web_url = url,  download_settings={"noplaylist": True, "quiet": True})
     video_data = {
                     "source_id": info['id'],
                     "title": info['title'],
