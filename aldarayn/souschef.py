@@ -44,11 +44,13 @@ def dragon_construct_channel(self, **kwargs):
         # download videos
         video_list = detail.handle_page(row.WEBSITE_URL)
         for video_url in video_list:
-            video.acquire_video_node(video_url)
-            exit()
+            video_node = video.acquire_video_node(video_url,
+                                                  license="CC BY-NC",
+                                                  copyright_holder="Aldarayn Foundation",
+                                                  )
+            topic_node.add_child(video_node)
         print (video_list)
-        exit()
-
+        break
 
     assert channel.validate()
     return channel
