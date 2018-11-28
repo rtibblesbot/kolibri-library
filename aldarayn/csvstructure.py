@@ -41,20 +41,20 @@ CATEGORY_TRANS_KEY = 'Combined Category Trans'
 COURSE_TRANS_KEY = 'Course Trans'
 
 ALDARAYN_SHEET_CSV_FIELDNAMES = [
-    SKIP_KEY,
-    L1_KEY,
-    L2_KEY,
-    L3_KEY,
-    L4_KEY,
-    TITLE_KEY,
-    SEPARATOR_KEY,
-    WEBSITE_CAT1_KEY,
-    WEBSITE_CAT2_KEY,
-    WEBSITE_TITLE_KEY,
-    WEBSITE_URL_KEY,
-    WEBSITE_CATID_KEY,
-    CATEGORY_TRANS_KEY,
-    COURSE_TRANS_KEY
+    SKIP_KEY,  # A
+    L1_KEY,    # B
+    L2_KEY,    # C
+    L3_KEY,    # D
+    L4_KEY,    # E
+    TITLE_KEY, # F
+    SEPARATOR_KEY,     # G
+    WEBSITE_CAT1_KEY,  # H
+    WEBSITE_CAT2_KEY,  # I
+    WEBSITE_TITLE_KEY, # J
+    WEBSITE_URL_KEY,   # K
+    WEBSITE_CATID_KEY, # L
+    CATEGORY_TRANS_KEY,# M
+    COURSE_TRANS_KEY   # N
 ]
 
 PYTHON_FIELDNAMES = """
@@ -113,6 +113,9 @@ def load_aldarayn_structure():
                 assert False, [L1_KEY, L2_KEY]
     return struct_list
 
+def verify_http():
+    for x in COURSE_STRUCT:
+        assert "http" in x[WEBSITE_URL_KEY] or x[L1_KEY] == K12_TEXT, x[WEBSITE_URL_KEY]
 
 def adult_structure():
     return [x for x in COURSE_STRUCT if x[L1_KEY] != K12_TEXT]
@@ -131,8 +134,9 @@ def k12_structure():
     return k12
 
 COURSE_STRUCT = load_aldarayn_structure()
-adult_structure()
-k12_structure()
+verify_http()
+#adult_structure()
+#k12_structure()
 
 # STRUCTURE LIST TO STRUCTURE TREE
 ################################################################################
