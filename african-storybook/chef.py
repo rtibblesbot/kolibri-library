@@ -174,7 +174,13 @@ def download_book(book_url, book_id, title, author, description, language):
     # -- 1. Extract --
 
     # Extract copyright holder.
-    copyright_holder = str(doc.select_one(".backcover_copyright").contents[0]).strip(" ©")
+    back_cover = doc.select_one(".backcover_copyright")
+    if back_cover:
+        copyright_holder = str(back_cover.contents[0]).strip(" ©")
+    else:
+        print("WARNING: failed to find backcover_copyright for url:", book_url)
+        copyright_holder = 'African Storybook Initiative'
+
 
     # -- 2. Modify and write files --
 
