@@ -4,6 +4,7 @@ import sys
 sys.path.append(os.getcwd()) # Handle relative imports
 import requests
 import json
+import hashlib
 from le_utils.constants import licenses
 from ricecooker.classes.nodes import TopicNode #DocumentNode, VideoNode, AudioNode
 # from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile
@@ -11,32 +12,45 @@ from ricecooker.chefs import SushiChef
 import detail
 import arabic
 import csvstructure
+import video
 from collections import namedtuple
 
 Row = namedtuple("Row", csvstructure.PYTHON_FIELDNAMES)
 
+def sha1(x):
+    return hashlib.sha1(x.encode('utf-8')).hexdigest()
+
 def dragon_construct_channel(self, **kwargs):
     channel = self.get_channel(**kwargs)
-    cats = {}
+    cats = {None: channel}
 
     for raw_row in self.channel_index:
-        row = Row(*raw_row)
+        # create channel structure for this row
+        row = Row(*raw_row.values())
+        if row.L1 == csvstructure.L1_KEY: continue
         topic_tree = [row.L1, row.L2, row.L3, row.L4]
         topic_tree = tuple(x for x in topic_tree if x)  # remove Nones
         for i in range(1,5):
             partial_tree = topic_tree[:i]
+            parent = partial_tree[:-1] or None
             leaf = partial_tree[-1]
             if partial_tree not in cats:
-                cats[partial_tree] = TopicNode(source_id=repr(partial_tree),
+                cats[partial_tree] = TopicNode(source_id=sha1(repr(partial_tree)),
                                                title=leaf,
                                                description="")
-        print (":)")
+                cats[parent].add_child(cats[partial_tree])
+        topic_node = cats[topic_tree]
+
+        # download videos
+        video_list = detail.handle_page(row.WEBSITE_URL)
+        for video_url in video_list:
+            video.acquire_video_node(video_url)
+            exit()
+        print (video_list)
         exit()
 
-    category_index = TopicNode(source_id="category",
-                               title = "Categorical Index",
-                               description="")
-    channel.add_child(category_index)
+
+    assert channel.validate()
     return channel
 
 class AdultChef(SushiChef):
@@ -46,7 +60,7 @@ class AdultChef(SushiChef):
         'CHANNEL_TITLE': arabic.TITLE_ADULT,
         'CHANNEL_LANGUAGE': 'ar',                          # Use language codes from le_utils
         # 'CHANNEL_THUMBNAIL': 'https://im.openupresources.org/assets/im-logo.svg', # (optional) local path or url to image file
-        'CHANNEL_DESCRIPTION': arabic.CHANNEL_DESC,  # (optional) description of the channel (optional)
+        'CHANNEL_DESCRIPTION': arabic.CHANNEL_DESC[:400],  # (optional) description of the channel (optional)
     }
 
     channel_index = csvstructure.adult_structure()
@@ -60,7 +74,7 @@ class K12Chef(SushiChef):
         'CHANNEL_TITLE': arabic.TITLE_K12,
         'CHANNEL_LANGUAGE': 'ar',                          # Use language codes from le_utils
         # 'CHANNEL_THUMBNAIL': 'https://im.openupresources.org/assets/im-logo.svg', # (optional) local path or url to image file
-        'CHANNEL_DESCRIPTION': arabic.CHANNEL_DESC,  # (optional) description of the channel (optional)
+        'CHANNEL_DESCRIPTION': arabic.CHANNEL_DESC[:400],  # (optional) description of the channel (optional)
     }
 
     channel_index = csvstructure.k12_structure()
@@ -70,7 +84,12 @@ def make_channel():
     args = {'token': os.environ['KOLIBRI_STUDIO_TOKEN'], 'reset': True, 'verbose': True}
     options = {}
     adult_chef = AdultChef()
-    adult_chef.run(args, options)
+    try:
+        adult_chef.run(args, options)
+    except Exception as e:
+        print (e)
+        print ("**")
+        raise
     #k12_chef = K12Chef()
     #k12_chef.run(args, options)
 

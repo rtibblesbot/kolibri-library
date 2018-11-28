@@ -45,7 +45,7 @@ def handle_page(url):
         body, = page.root.xpath("//section[@id='region-main']") ## subpage
     raw_activity_urls = body.xpath("//div[@class='activityinstance']/a/@href")
     page_urls, _ = filter_urls(raw_activity_urls)
-    print (("{} pages").format(len(page_urls)))
+    # print (("{} pages").format(len(page_urls)))
     for page_url in page_urls:
         video_list.extend(handle_page(page_url))
 
@@ -54,7 +54,9 @@ def handle_page(url):
         try:
             data_setup = video.get("data-setup")
             j_data = json.loads(data_setup)
-            video_list.append(j_data['sources'][0]['src'])
+            src = j_data['sources'][0]['src']
+            src = src.replace("&amp;", "&")
+            video_list.append(src)
         except:
             logging.info("unparsed video tag: {}".format(lxml.html.tostring(video)))
 
@@ -66,7 +68,7 @@ def handle_page(url):
 
     if not video_list:
         logging.info("No videos: {}".format(url))
-    print (len(video_list))
+    # print (len(video_list))
     return video_list
 
 
