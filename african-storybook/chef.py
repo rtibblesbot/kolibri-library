@@ -17,6 +17,8 @@ from urllib.parse import urlparse, parse_qs
 from bs4 import BeautifulSoup
 
 import le_utils.constants
+from le_utils.constants.languages import getlang_by_name, getlang_by_native_name
+
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
@@ -40,13 +42,13 @@ headers = {
 }
 
 
-_LANGUAGE_NAME_LOOKUP = {l.name: l for l in le_utils.constants.languages.LANGUAGELIST}
-
-def getlang_by_name(name):
-    # TODO(davidhu): Change to the following once
-    # https://github.com/learningequality/le-utils/pull/28/files gets merged:
-    # return le_utils.constants.languages.getlang_by_name(name)
-    return _LANGUAGE_NAME_LOOKUP.get(name)
+def get_lang_by_name_with_fallback(language_name):
+    lang_obj = getlang_by_name(language_name)
+    if lang_obj is None:
+        lang_obj = getlang_by_native_name(language_name)
+        if lang_obj is None:  # Nov 28: temprarily tag all non-supported language codes with Undereminded
+            lang_obj = getlang_by_name('Undetermined')
+    return lang_obj
 
 
 class AfricanStorybookChef(SushiChef):
@@ -89,10 +91,13 @@ class AfricanStorybookChef(SushiChef):
             # from the ASB website itself. There's two books here, though, but
             # I can't tell in which language those two books are.
             if language == "0":
+                print('skipping language 0')
                 continue
+                
+            lang_obj = get_lang_by_name_with_fallback(language)
+            print('lang_obj', language, lang_obj)
 
-            language_node = nodes.TopicNode(source_id=language, title=language,
-                    language=getlang_by_name(language))
+            language_node = nodes.TopicNode(source_id=language, title=language, language=lang_obj.code)
             channel.add_child(language_node)
 
             for level, books in sorted(levels.items(), key=lambda t: t[0]):
@@ -102,6 +107,7 @@ class AfricanStorybookChef(SushiChef):
                 language_node.add_child(level_node)
 
                 for book in books:
+                    # print('      ', book['book_id'], book['language']) 
                     level_node.add_child(book)
 
         return channel
@@ -138,15 +144,21 @@ def download_all():
             description = html.unescape(book["summary"])
 
             for language in languages:
+                # print('language=', language)
                 book = download_book(book_url, book_id, title, author, description, language)
-
+                # book = {'book_url':book_url,
+                #         'book_id': book_id,
+                #         'title': title,
+                #         'language': language}
                 if book:
-                    print("... downloaded a Level %s %s book titled %s" % (
-                        level, language, title))
+                    print("... downloaded a Level %s %s book titled %s" % (level, language, title))
                     channel_tree[language][level].append(book)
                 else:
                     print("... WARNING: book not found")
 
+    # import json
+    # with open('channel_tree.json', 'w') as jsonf:
+    #     json.dump(channel_tree, jsonf, indent=4)
     return channel_tree
 
 
@@ -201,7 +213,7 @@ def download_book(book_url, book_id, title, author, description, language):
         author=truncate_metadata(author),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
-        language=getlang_by_name(language),
+        language=get_lang_by_name_with_fallback(language),
     )
 
 

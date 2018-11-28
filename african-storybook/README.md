@@ -15,10 +15,24 @@
 ### Step 1: Obtaining an Authorization Token ###
 You will need an authorization token to create a channel on Kolibri Studio. In order to obtain one:
 
-1. Create an account on [Kolibri Studio](https://contentworkshop.learningequality.org/).
+1. Create an account on [Kolibri Studio](https://studio.learningequality.org/).
 2. Navigate to the Tokens tab under your Settings page.
 3. Copy the given authorization token (you will need this for later).
 
+
 ### Step 2: Running the chef ###
 
-Run `./chef.py -v --reset --token=<token> --stage`, replacing `<token>` with the token you copied earlier
+1. Download phantomjs
+
+    wget https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2
+    tar -xjf phantomjs-2.1.1-linux-x86_64.tar.bz2
+    rm phantomjs-2.1.1-linux-x86_64.tar.bz2
+
+2. Set ENV var
+
+    export PHANTOMJS_PATH="???phantomjs-prebuilt/bin/phantomjs"
+
+3. Run chef
+
+    ./chef.py -v --reset --thumbnails --token=<token> --stage
+
