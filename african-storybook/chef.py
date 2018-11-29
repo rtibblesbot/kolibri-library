@@ -308,6 +308,11 @@ def download_static_assets(doc, destination):
             continue
 
         url = make_fully_qualified_url(match.group(1))
+        image_url = pre_flight_image(url)
+        if image_url is None:
+            print('WARNING: Could not thumbnail image from url=', url)
+            continue
+
         filename = "%s_%s" % (i, os.path.basename(url))
         node["style"] = BG_IMG_RE.sub("background-image:url(%s)" % filename, style)
         download_file(url, destination, request_fn=make_request, filename=filename)
@@ -316,6 +321,14 @@ def download_static_assets(doc, destination):
             thumbnail = os.path.join(destination, filename)
 
     return thumbnail
+
+
+def pre_flight_image(url):
+    response = sess.get(url)
+    if response.status_code != 200:
+        return None
+    else:
+        return url
 
 
 def add_page_flipper_buttons(doc, left_png, right_png):
