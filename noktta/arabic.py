@@ -8,7 +8,7 @@ caturl={#"اختر لونك":"https://www.nok6a.net/category/%d9%87%d9%86%d8%af%
         }
 
 CHANNEL_NAME = "Noktta (العربيّة)"
-CHANNEL_DESCRIPTION = "This channel provides secondary school learners and teachers with info graphics, videos and articles for readers in areas such as STEM, public health and nutrition environment, space, IT, energy and media."
+CHANNEL_DESCRIPTION = "يزوّد موقع نقطة القارئ العربي بمجموعة من الإنفوجرافكس والفيديوهات التعليمية والمقالات في مجالات متعددة كالهندسة والتكنولوجيا والعلوم والصحة العامة والتغذية وعلوم البيئة وعلوم الفضاء والإعلام. وهذا المحتوى مناسب جداً لمتعلمي المرحلة الثانوية كما أنه مناسب للدعم المساند للمناهج الدراسية لهذه المواد أيضاً."
 catnum = {"هندسة": 42,
           "صحة": 2,
           "بيئة": 13,

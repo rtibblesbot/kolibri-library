@@ -6,7 +6,7 @@ import logging
 from ricecooker.chefs import SushiChef
 from le_utils.constants import licenses
 from ricecooker.classes.nodes import DocumentNode, VideoNode, TopicNode, HTML5AppNode
-from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile
+from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile, ThumbnailFile
 from le_utils.constants.languages import getlang
 from arabic import catnum, CHANNEL_NAME, CHANNEL_DESCRIPTION
 import crawl
@@ -33,11 +33,17 @@ class Nok6aChef(SushiChef):
             for link in list(links):
                 zipfilename, title = localise.zip_from_url(link)
                 appzip = HTMLZipFile(zipfilename)
+                if os.path.exists(zipfilename+"_2.jpg"):
+                    thumb = ThumbnailFile(zipfilename+"_2.jpg")
+                else:
+                    thumb = None
                 zipnode = HTML5AppNode(source_id=link,
                                        title=title,
                                        license = licenses.CC_BY,
                                        copyright_holder=CHANNEL_NAME,
-                                       files = [appzip])
+                                       files = [appzip],
+                                       author = crawl.author_lookup[link],
+                                       thumbnail = thumb)
                 zipnode.validate()
                 cat_node.add_child(zipnode)
 

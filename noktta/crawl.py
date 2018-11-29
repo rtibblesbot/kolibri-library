@@ -5,6 +5,8 @@ from bs4 import BeautifulSoup
 import requests_cache
 requests_cache.install_cache()
 
+author_lookup = {}
+
 def get_json_page(cat, page):
     """Get one page of URLs for a category"""
     url = "https://www.nok6a.net/wp-admin/admin-ajax.php"
@@ -20,6 +22,12 @@ def get_json_page(cat, page):
         h2 = panel.find("h2")
         a = h2.find("a")
         links.append(a['href'])
+        author_i = soup.find("i", {"class": "fa fa-user"})
+        if author_i:
+            author = author_i.parent.find("a").text
+            author_lookup[a['href']] = author
+        else:
+            author_lookup[a['href']] = ""
     return links, done
 
 def get_all_links(cat):
@@ -35,7 +43,7 @@ def get_all_links(cat):
             for item in items:
                 yield item
 
-#get_json_page(42, 31)
+get_json_page(42, 31)
 
 #for each_url in get_all_links(42):
     #print(each_url)

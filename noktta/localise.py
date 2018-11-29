@@ -10,6 +10,10 @@ from mime import mime
 import magic
 import urllib3
 from demo import download_video, VIDEO_DIR, TEMP_VIDEO_DIR, html_template
+from PIL import Image
+from io import BytesIO
+
+
 urllib3.disable_warnings()
 requests_cache.install_cache()
 
@@ -89,7 +93,28 @@ def clean_soup(soup):
     return soup
 
 
+
+
 def make_local(soup, page_url):
+
+    def handle_youtube_iframe(iframe):
+        src = iframe['src']
+        if not src: return None
+        if "youtube.com" not in src: return None
+        try:
+            filename = download_video(src)
+        except Exception as e:
+            print ("Unable to download {}: {}".format(src, e))
+            iframe.decompose()
+            return None
+        mime_type = magic.from_file(VIDEO_DIR+filename, mime=True)
+            
+        video_tag = page_soup.new_tag('video', controls=True, dragon=True)
+        source_tag = page_soup.new_tag('source', src=filename, type_=mime_type, dragon=True)
+        video_tag.append(source_tag)
+        return [VIDEO_DIR+filename, video_tag]
+
+
     def full_url(url):
         if urlparse(url).scheme == "":
             url = urljoin("https://", url)
@@ -104,33 +129,36 @@ def make_local(soup, page_url):
     attachments = []
     page_soup = soup
     body = soup.find("div", {"class": "post-text"})     
+    
     title = soup.find("h1", {"class": "post-title"}).text
     img_tag = soup.find("div", {"class": "post-img"}).find("img")
+    try:
+        video_tag = soup.find("div", {"class": "video-space"}).find("iframe")
+    except AttributeError:
+        video_tag = None
+    img = None
     if img_tag:
         img = img_tag['src']
         new_img = page_soup.new_tag("img", src=img)
         body.insert(0, new_img)
+    elif video_tag:
+        handled = handle_youtube_iframe(video_tag)
+        if handled:
+            attachment, video_tag = handled
+            attachments.append(attachment)
+            body.insert(0, video_tag) 
     else:
-        img = None
+        print ("No image on ", page_url)
+
     soup = body
     soup = clean_soup(soup)    
+    soup.attrs['class'] = "main-content"
     for iframe in soup.findAll("iframe"):
-        src = iframe['src']
-        if not src: continue
-        if "youtube.com" not in src: continue
-        try:
-            filename = download_video(src)
-        except Exception as e:
-            print ("Unable to download {}: {}".format(src, e))
-            iframe.decompose()
-            continue
-        mime_type = magic.from_file(VIDEO_DIR+filename, mime=True)
-            
-        video_tag = page_soup.new_tag('video', controls=True, dragon=True)
-        source_tag = page_soup.new_tag('source', src=filename, type_=mime_type, dragon=True)
-        attachments.append(VIDEO_DIR+filename) 
-        video_tag.append(source_tag)
-        iframe.replace_with(video_tag) ## hope this doesn't break for loop!
+        handled = handle_youtube_iframe(iframe)
+        if not handled: continue
+        attachment, tag = handled
+        attachments.append(attachment) 
+        iframe.replace_with(tag) ## hope this doesn't break for loop!
 
     try:
         shutil.rmtree(DOWNLOAD_FOLDER)
@@ -167,6 +195,7 @@ def make_local(soup, page_url):
                     #print (urlparse(attribute_value).netloc)
                     # print ("rewriting non-local URL {} in {}".format(attribute_value, resource.name))
                     new_tag = page_soup.new_tag("span")
+                    new_tag.attrs['style'] = "word-break: break-all;"
                     u = page_soup.new_tag("u")
                     u.insert(0, resource.text)
                     new_tag.insert(0, " (url:\xa0{})".format(resource.attrs['href']))
@@ -213,6 +242,16 @@ def make_local(soup, page_url):
     # create zip file
     zipfile_name = shutil.make_archive("__"+DOWNLOAD_FOLDER+"/"+hashed_url(page_url), "zip", # automatically adds .zip extension!
                         DOWNLOAD_FOLDER)
+    if img is not None:
+       imgdata = requests.get(img).content
+       print ("Image: ", img)
+       try:
+           Image.open(BytesIO(imgdata))
+       except:
+           img = None
+       else:
+           with open(zipfile_name+"_2.jpg", "wb") as f:
+               f.write(imgdata)
 
     # delete contents of downloadfolder
     assert "downloads" in DOWNLOAD_FOLDER
@@ -231,7 +270,7 @@ def zip_from_url(url):
 
 if __name__ == "__main__":
     #sample_url = "https://www.nok6a.net/?p=24029"
-    sample_url = "https://www.nok6a.net/?p=23979"
+    sample_url = "https://www.nok6a.net/?p=22790"
     
     response = requests.get(sample_url)
     soup = BeautifulSoup(response.content, "html5lib")
