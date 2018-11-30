@@ -35,52 +35,61 @@ into a format that can be imported into Kolibri Studio.
 
 ## Usage
 
-TODO: Explain how to run the Free English with Hello Channel chef
-
-      export SOMEVAR=someval
-      ./script.py -v --option2 --kwoard="val"
+      ./sushichef.py --reset -v --token=".token"
 
 
 
-## Description
+## How to install ffmpeg on ubuntu with aac audio codec support.
 
-A sushi chef script is responsible for importing content into Kolibri Studio.
-The [Rice Cooker](https://github.com/learningequality/ricecooker) library provides
-all the necessary methods for uploading the channel content to Kolibri Studio,
-as well as helper functions and utilities.
+source: https://linuxconfig.org/install-ffmpeg-on-ubuntu-18-04-bionic-beaver-linux
 
-A sushi chef script has been started for you in `sushichef.py`.
+* Install prerequisites:
 
-Sushi chef docs can be found [here](https://github.com/learningequality/ricecooker/blob/master/README.md).
+```
+ $ sudo apt install -y libopus-dev libmp3lame-dev libfdk-aac-dev libvpx-dev libx264-dev yasm libass-dev libtheora-dev libvorbis-dev mercurial cmake
+```
 
-_For more sushi chef examples, see `examples/openstax_sushichef.py` (json) and
- `examples/wikipedia_sushichef.py` (html) and also the examples/ dir inside the ricecooker repo._
+* Install libx265-dev
+```
+$ mkdir ~/ffmpeg; cd ~/ffmpeg
+$ hg clone https://bitbucket.org/multicoreware/x265
+$ cd x265/build/linux 
+$ PATH="$HOME/bin:$PATH" cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$HOME/ffmpeg_build" -DENABLE_SHARED:bool=off ../../source && PATH="$HOME/bin:$PATH" 
+$ make && make install
+```
 
+* Download ffmepg source code to ~/ffmpeg directory
 
----
+```
+$ if [ -d ~/ffmpeg ]; then cd ~/ffmpeg; else mkdir ~/ffmpeg && cd ~/ffmpeg; fi
+$ wget -O- http://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 | tar xj
 
+cd ~/ffmpeg/ffmpeg
+```
 
-## Rubric
+* Compile ffmpeg with:
+```
+PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" \
+   ./configure \
+  --prefix="$HOME/ffmpeg_build" \
+  --pkg-config-flags="--static" \
+  --extra-cflags="-I$HOME/ffmpeg_build/include" \
+  --extra-ldflags="-L$HOME/ffmpeg_build/lib" \
+  --extra-libs="-lpthread -lm" \
+  --bindir="$HOME/bin" \
+  --enable-gpl \
+  --enable-libass \
+  --enable-libfdk-aac \
+  --enable-libfreetype \
+  --enable-libmp3lame \
+  --enable-libopus \
+  --enable-libtheora \
+  --enable-libvorbis \
+  --enable-libvpx \
+  --enable-libx264 \
+  --enable-libx265 \
+  --enable-nonfree && \
+PATH="$HOME/bin:$PATH" make && make install
+```
 
-_Please make sure your final chef matches the following standards._
-
-
-
-#### General Standards
-1. Does the code work (no infinite loops, exceptions thrown, etc.)?
-1. Are the `source_id`s determined consistently (based on foreign database identifiers or permanent url paths)?
-1. Is there documentation on how to run the script (include command line parameters to use)?
-
-#### Coding Standards
-1. Are there no obvious runtime or memory inefficiencies in the code?
-1. Are the functions succinct?
-1. Are clarifying comments provided where needed?
-1. Are the git commits easy to understand?
-1. Is there no unnecessary nested `if` or `for` loops?
-1. Are variables named descriptively (e.g. `path` vs `p`)?
-
-#### Python Standards
-1. Is the code compatible with Python 3?
-1. Does the code use common standard library functions where needed?
-1. Does the code use common python idioms where needed (with/open, try/except, etc.)?
 

@@ -11,6 +11,7 @@ from le_utils.constants import licenses, content_kinds, file_formats
 import hashlib
 import json
 import logging
+from moviepy.config import change_settings
 from moviepy.editor import VideoFileClip
 import ntpath
 import os
@@ -22,6 +23,7 @@ from ricecooker.chefs import JsonTreeChef
 from ricecooker.utils import downloader, html_writer
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree, SUBTITLES_FILE
+from pressurecooker.youtube import YouTubeResource
 import time
 from urllib.error import URLError
 from urllib.parse import urljoin
@@ -31,6 +33,8 @@ from utils import get_name_from_url_no_ext, get_node_from_channel, get_level_map
 from utils import remove_iframes, get_confirm_token, save_response_content
 import youtube_dl
 
+
+change_settings({"FFMPEG_BINARY": "ffmpeg"})
 
 BASE_URL = "https://www.youtube.com/channel/UCdvmxJ8AmQBtcveTIBW3Qvw/videos"
 
@@ -100,29 +104,6 @@ class Topic(Node):
         super(Topic, self).__init__(*args, **kwargs)
         self.units = []
 
-    @staticmethod
-    def auto_generate_units(url, title=None, auto_parse=False):
-        youtube = YouTubeResource(url)
-        units = defaultdict(list)
-        if title is not None:
-            for _, url in youtube.playlist_name_links():
-                units[title].append(url)
-        else:
-            for name, url in youtube.playlist_name_links():
-                unit_name_list = name.split("|")
-                if len(unit_name_list) > 1 and auto_parse is False:
-                    unit = unit_name_list[1]
-                    unit_name = unit.strip().split(" ")[0]
-                else:
-                    unit_name = title_patterns(name)
-                units[unit_name].append(url)
-
-        units = sorted(units.items(), key=lambda x: x[0], reverse=False)
-        for title, urls in units:
-            unit = Unit(title, title)
-            unit.urls = urls
-            yield unit
-
 
 class VocabularyConversationalEnglish(Topic):
     def __init__(self, *args, **kwargs):
@@ -135,7 +116,7 @@ class VocabularyConversationalEnglish(Topic):
         return title.replace("English Conversation", "")
 
     def auto_generate_units(self, url, base_path):
-        youtube = YouTubeResource(url)
+        youtube = YouTubeResourceNode(url)
         units = defaultdict(list)
         for name, url in youtube.playlist_name_links():
             if name.startswith(self.base_title):
@@ -144,7 +125,7 @@ class VocabularyConversationalEnglish(Topic):
         units = sorted(units.items(), key=lambda x: x[0], reverse=False)
         for title, urls in units:
             for url in urls:
-                youtube = YouTubeResource(url, lang=self.lang)
+                youtube = YouTubeResourceNode(url, lang=self.lang)
                 youtube.download(DOWNLOAD_VIDEOS, base_path)
                 youtube.title = self.clean_title(youtube.title)
                 LOGGER.info("+ {}".format(youtube.title))
@@ -177,9 +158,14 @@ class EnglishGrammar(Topic):
                 yield youtube
 
 
-class YouTubeResource(object):
+class YouTubeResourceNode(YouTubeResource):
     def __init__(self, source_id, name=None, type_name="Youtube", lang="en", 
             embeded=False, subtitles=True):
+        if embeded is True:
+            self.source_id = YouTubeResourceNode.transform_embed(source_id)
+        else:
+            self.source_id = self.clean_url(source_id)
+        super(YouTubeResourceNode, self).__init__(source_id)
         LOGGER.info("    + Resource Type: {}".format(type_name))
         LOGGER.info("    - URL: {}".format(source_id))
         self.filename = None
@@ -187,10 +173,6 @@ class YouTubeResource(object):
         self.filepath = None
         self.name = name
         self.subtitles = subtitles
-        if embeded is True:
-            self.source_id = YouTubeResource.transform_embed(source_id)
-        else:
-            self.source_id = self.clean_url(source_id)
         self.file_format = file_formats.MP4
         self.lang = lang
         self.is_valid = False
@@ -202,14 +184,11 @@ class YouTubeResource(object):
 
     @property
     def title(self):
-        return self.name if self.name is not None else self.filename
+        return self.name
 
     @title.setter
     def title(self, v):
-        if self.name is not None:
-            self.name = v
-        else:
-            self.filename = v
+        self.name = v
 
     @classmethod
     def is_youtube(self, url, get_channel=False):
@@ -259,41 +238,16 @@ class YouTubeResource(object):
                 name_url = json.load(f)
         else:
             for url in self.playlist_links():
-                youtube = YouTubeResource(url)
-                info = youtube.get_video_info(None, False)
+                youtube = YouTubeResourceNode(url)
+                info = youtube.get_resource_info()
                 name_url.append((info["title"], url))
             with open(videos_url_path, "w") as f:
                 json.dump(name_url, f)
         return name_url
 
-    def get_video_info(self, download_to=None, subtitles=True):
-        ydl_options = {
-                'writesubtitles': subtitles,
-                'allsubtitles': subtitles,
-                'no_warnings': True,
-                'restrictfilenames':True,
-                'continuedl': True,
-                'quiet': False,
-                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
-                'outtmpl': '{}/%(id)s'.format(download_to),
-                'noplaylist': True
-            }
-
-        with youtube_dl.YoutubeDL(ydl_options) as ydl:
-            try:
-                ydl.add_default_info_extractors()
-                info = ydl.extract_info(self.source_id, download=(download_to is not None))
-                return info
-            except(youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
-                    youtube_dl.utils.ExtractorError) as e:
-                LOGGER.info('An error occured ' + str(e))
-                LOGGER.info(self.source_id)
-            except KeyError as e:
-                LOGGER.info(str(e))
-
     def subtitles_dict(self):
         subs = []
-        video_info = self.get_video_info()
+        video_info = self.get_resource_subtitles()
         if video_info is not None:
             video_id = video_info["id"]
             if 'subtitles' in video_info:
@@ -302,37 +256,10 @@ class YouTubeResource(object):
                     subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
         return subs
 
-    #youtubedl has some troubles downloading videos in youtube,
-    #sometimes raises connection error
-    #for that I choose pafy for downloading
     def download(self, download=True, base_path=None):
-        if not "watch?" in self.source_id or "/user/" in self.source_id or\
-            download is False:
-            return
-
-        download_to = build_path([base_path, 'videos'])
-        for i in range(4):
-            try:
-                info = self.get_video_info(download_to=download_to, subtitles=False)
-                if info is not None:
-                    LOGGER.info("    + Video resolution: {}x{}".format(info.get("width", ""), info.get("height", "")))
-                    self.filepath = os.path.join(download_to, "{}.mp4".format(info["id"]))
-                    self.filename = info["title"]
-                    if self.filepath is not None and os.stat(self.filepath).st_size == 0:
-                        LOGGER.info("    + Empty file")
-                        self.filepath = None
-            except (ValueError, IOError, OSError, URLError, ConnectionResetError) as e:
-                LOGGER.info(e)
-                LOGGER.info("Download retry")
-                time.sleep(.8)
-            except (youtube_dl.utils.DownloadError, youtube_dl.utils.ContentTooShortError,
-                    youtube_dl.utils.ExtractorError, OSError) as e:
-                LOGGER.info("     + An error ocurred, may be the video is not available.")
-                return
-            except OSError:
-                return
-            else:
-                return
+        info = super(YouTubeResourceNode, self).download(base_path=base_path)
+        self.filepath = info["filename"]
+        self.title = info["title"]
 
     def to_node(self):
         if self.filepath is not None:
@@ -350,6 +277,7 @@ class YouTubeResource(object):
                 license=LICENSE
             )
             return node
+
 
 #time_str with format hh:mm:ss
 def time_to_secs(time_str):
@@ -376,15 +304,14 @@ def video_editing_file_to_dict(filepath):
     
 
 def cut_video(url, base_path, clips, counter=0):
-    youtube = YouTubeResource(url)
+    youtube = YouTubeResourceNode(url)
     youtube.download(download=DOWNLOAD_VIDEOS, base_path=base_path)
     for clip in clips:
         filepath = youtube.filepath.replace(".mp4", "{}_{}.mp4".format(*clip))
         if not file_exists(filepath):
             video = VideoFileClip(youtube.filepath).subclip(*clip)
-            video.write_videofile(filepath, fps=25)
+            video.write_videofile(filepath, fps=25, audio_codec='libfdk_aac')
         youtube_copy = copy.deepcopy(youtube)
-        youtube_copy.subtitles = False
         youtube_copy.source_id = filepath.split()[-1]
         youtube_copy.title = "{} {}".format(youtube.title[:-3], counter)
         youtube_copy.filepath = filepath
