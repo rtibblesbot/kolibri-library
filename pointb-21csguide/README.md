@@ -7,12 +7,12 @@ Sushi Chef script for importing pointb-21csguide content from https://www.pointb
 
 * System prerequisites Mac
 
-    brew install python             # you probably have already...
-    brew install freetype           # apparently needed to build image libs later...
-    brew install imagemagick@6
-    ln -s /usr/local/opt/imagemagick\@6/lib/libMagickWand-6.Q16.dylib /usr/local/lib/libMagickWand.dylib
-    # (last part per https://github.com/ImageMagick/ImageMagick/issues/953)
-    # or   brew link --force imagemagick@6   ???
+      brew install python             # you probably have already...
+      brew install freetype           # apparently needed to build image libs later...
+      brew install imagemagick@6
+      ln -s /usr/local/opt/imagemagick\@6/lib/libMagickWand-6.Q16.dylib /usr/local/lib/libMagickWand.dylib
+      # (last part per https://github.com/ImageMagick/ImageMagick/issues/953)
+      # or   brew link --force imagemagick@6   ???
 
 
 * Install [Python 3](https://www.python.org/downloads/) if you don't have it already.
