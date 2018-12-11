@@ -51,7 +51,11 @@ def dragon_construct_channel(self, **kwargs):
                                                   license="CC BY-NC",
                                                   copyright_holder="Aldarayn Foundation",
                                                   )
+            source_ids = [x.source_id for x in topic_node.children]
+            if video_node.source_id in source_ids:
+                continue # skip
             topic_node.add_child(video_node)
+            topic_node.validate()
         print (video_list)
 
     assert channel.validate()
