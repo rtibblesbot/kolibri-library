@@ -24,7 +24,8 @@ def dragon_construct_channel(self, **kwargs):
     channel = self.get_channel(**kwargs)
     cats = {None: channel}
 
-    for raw_row in self.channel_index:
+    for i, raw_row in enumerate(list(self.channel_index)):
+        print ("**** ROW {} OF {}".format(i, len(list(self.channel_index))))
         row = raw_row # on vader, row is unordered...
         # create channel structure for this row
         #row = Row(*raw_row.values())
@@ -50,6 +51,7 @@ def dragon_construct_channel(self, **kwargs):
             video_node = video.acquire_video_node(video_url,
                                                   license="CC BY-NC",
                                                   copyright_holder="Aldarayn Foundation",
+                                                  description = None
                                                   )
             source_ids = [x.source_id for x in topic_node.children]
             if video_node.source_id in source_ids:
