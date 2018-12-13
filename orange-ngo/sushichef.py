@@ -362,7 +362,7 @@ class OrangeNGOChef(JsonTreeChef):
                 source_domain=CHANNEL_DOMAIN,
                 source_id=CHANNEL_SOURCE_ID,
                 title=CHANNEL_NAME,
-                description="""Orange NGO provides higher education and adult learners with video lessons and lectures on a variety of topics that help them develop their professional development skills such as in business, teaching and psychological support."""
+                description="""أورانج إن جي أو تقدم للمتعلمين في المرحلة الجامعية وما بعد ذلك مجموعة من المحاضرات والدروس المصورة القصيرة في عدة مواضيع تساعدهم في حياتهم ومهاراتهم المهنية كإدارة الأعمال والدعم النفسي والتدريس وغيرها."""
 [:400], #400 UPPER LIMIT characters allowed 
                 thumbnail=CHANNEL_THUMBNAIL,
                 author=AUTHOR,
