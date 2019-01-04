@@ -102,17 +102,17 @@ RATING_NUM_MAP = {
 
 novice_topic = nodes.TopicNode(
     source_id="novice",
-    title="مبتدئ",
+    title="المستوى المبتدئ",
     language="ar",
 )
 intermediate_topic = nodes.TopicNode(
     source_id="intermediate",
-    title="لمتوسّط",
+    title="المستوى المتوسط",
     language="ar",
 )
 advanced_topic = nodes.TopicNode(
     source_id="advanced",
-    title="المتقدّم",
+    title="المستوى المتقدّم",
     language="ar",
 )
 
@@ -138,6 +138,7 @@ RATING_TOPIC_MAP = {
     'س': advanced_topic,
     'ع': advanced_topic,
     'ف': advanced_topic,
+    'ص': advanced_topic,
 }
 
 
