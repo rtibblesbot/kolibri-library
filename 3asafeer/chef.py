@@ -54,7 +54,7 @@ class ThreeAsafeerChef(SushiChef):
         'CHANNEL_SOURCE_ID': "3asafeer",
         'CHANNEL_TITLE': "3asafeer",
         'CHANNEL_THUMBNAIL': "thumbnail.png",
-        'CHANNEL_DESCRIPTION': "An online digital library for reading in Arabic with pictures and audio.",
+        'CHANNEL_DESCRIPTION': "اقرأ لأطفالك قصصاً أطفال عربية؛ قصصاً مصوّرة و مقروءة تعلّمهم قيماً أخلاقيّة عالمية وتُطوّر من ذكاءهم العاطفي. يمكنك قراءة هذه القصص لأبنائك قبل النوم أو في أي وقت من اليوم",
     }
 
     def construct_channel(self, **kwargs):
@@ -257,6 +257,7 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     remove_node(doc, '#progressBar')
     remove_node(doc, '#androidNotification')
     remove_node(doc, '#exit')
+    remove_node(doc, '#ttmenu')
 
     # Write out the HTML source.
     with open(os.path.join(destination, "index.html"), "w") as f:
