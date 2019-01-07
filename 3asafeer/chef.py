@@ -52,7 +52,7 @@ class ThreeAsafeerChef(SushiChef):
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "3asafeer.com",
         'CHANNEL_SOURCE_ID': "3asafeer",
-        'CHANNEL_TITLE': "3asafeer",
+        'CHANNEL_TITLE': "3asafeer (العربيّة)",
         'CHANNEL_THUMBNAIL': "thumbnail.png",
         'CHANNEL_DESCRIPTION': "اقرأ لأطفالك قصصاً أطفال عربية؛ قصصاً مصوّرة و مقروءة تعلّمهم قيماً أخلاقيّة عالمية وتُطوّر من ذكاءهم العاطفي. يمكنك قراءة هذه القصص لأبنائك قبل النوم أو في أي وقت من اليوم",
     }
