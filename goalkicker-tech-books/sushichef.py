@@ -47,7 +47,7 @@ class GoalkickerChef(SushiChef):
                 title=book_info['title'],
                 description=book_info['description'],
                 source_id=book_info['source_id'],
-                license=get_license('CC BY-SA', copyright_holder='Creative Commons'),
+                license=get_license('CC BY-SA', copyright_holder='Stack Overflow'),
                 language='en',
                 files=[DocumentFile(path=book_info['absolute_url'], language='en')],
             )
