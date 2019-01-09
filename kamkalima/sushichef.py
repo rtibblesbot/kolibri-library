@@ -2,15 +2,11 @@
 import os
 import requests
 
-from le_utils.constants import licenses, exercises
+from le_utils.constants import content_kinds, exercises, licenses
 from le_utils.constants.languages import getlang  # see also getlang_by_name, getlang_by_alpha2
-from ricecooker.chefs import SushiChef
-from ricecooker.classes.nodes import TopicNode
-from ricecooker.classes.nodes import DocumentNode, AudioNode, VideoNode, HTML5AppNode
-from ricecooker.classes.files import DocumentFile, AudioFile, VideoFile, HTMLZipFile
-from ricecooker.classes.nodes import ExerciseNode
-from ricecooker.classes.questions import SingleSelectQuestion, MultipleSelectQuestion, InputQuestion, PerseusQuestion
+from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes.licenses import get_license
+from ricecooker.utils.jsontrees import write_tree_to_json_tree
 
 from ricecooker.config import LOGGER
 import logging
@@ -21,6 +17,7 @@ LOGGER.setLevel(logging.INFO)
 ################################################################################
 KAMKALIMA_DOMAIN = 'https://kamkalima.com'
 KAMKALIMA_CHANNEL_DESCRIPTION = """منصّة تعليم معزّزة بالتكنولوجيا تمنح المعلّمين قدرات خارقة والتّلاميذ تميّزًا في اللّغة العربيّة."""
+KAMKALIMA_LICENSE = get_license(licenses.CC_BY_NC_ND, copyright_holder='Kamkalima').as_dict()
 
 # KAMKALIMA API
 ################################################################################
@@ -39,37 +36,133 @@ def append_token(api_endpoint):
 
 
 
-# HELPER FUNCTIONS
+# API EXTRACT FUNCTIONS
 ################################################################################
+
+def get_all_texts():
+    """
+    Get the texts items from all pages through the API.
+    """
+    all_texts_items = []
+    texts_url = append_token(API_TEXTS_ENDPOINT)
+    while True:
+        resp = requests.get(texts_url)
+        texts_data = resp.json()
+        items = texts_data['items']
+        all_texts_items.extend(items)
+        if 'next_page_url' in texts_data and KAMKALIMA_DOMAIN in texts_data['next_page_url']:
+            texts_url = texts_data['next_page_url']
+        else:
+            print('Reached end of texts results')
+            break
+    return all_texts_items
+
+
+def get_all_audios():
+    """
+    Get the audios items from all pages through the API.
+    """
+    all_audios_items = []
+    audios_url = append_token(API_AUDIOS_ENDPOINT)
+    while True:
+        resp = requests.get(audios_url)
+        audios_data = resp.json()
+        items = audios_data['items']
+        all_audios_items.extend(items)
+        if 'next_page_url' in audios_data and KAMKALIMA_DOMAIN in audios_data['next_page_url']:
+            audios_url = audios_data['next_page_url']
+        else:
+            print('Reached end of audios results')
+            break
+    return all_audios_items
+
+
+# TRANSFORM FUNCTIONS
+################################################################################
+
+EXERCISE_CATEGORY_LOOKUP = {
+    'grammar': 'قواعد',
+    'vocabulary': 'مفردات اللغه',
+    'comprehension': 'استيعاب',
+    'listening': 'استماع',
+}
+EXERCISE_AR = 'ممارسه الرياضه'  # Maybe add this to each catrogy??
+
+
+def exercise_from_kamkalima_questions_list(item_id, category, exercise_questions):
+    exercise_title = EXERCISE_CATEGORY_LOOKUP[category]
+    # Exercise node
+    exercise_dict = dict(
+        kind = content_kinds.EXERCISE,
+        title = exercise_title,
+        author = 'Kamkalima',
+        source_id=str(item_id)+':'+category,
+        description='',
+        language=getlang('ar').code,
+        license=KAMKALIMA_LICENSE,
+        exercise_data={
+            'mastery_model': exercises.M_OF_N,         # or exercises.DO_ALL
+            'randomize': False,
+            'm': 3,                  # By default require 3 to count as mastery
+        },
+        # thumbnail=
+        questions=[],
+    )
+    # Add questions
+    questions = []
+    for exercise_question in exercise_questions:
+        question_dict = dict(
+            question_type=exercises.SINGLE_SELECTION,
+            id=str(exercise_question['id']),
+            question=exercise_question['title'],
+            correct_answer = None,
+            all_answers = [],
+            hints =[],
+        )
+        # Add answers to question
+        for answer in exercise_question['answers']:
+            answer_text = answer['title']
+            question_dict['all_answers'].append(answer_text)
+            if answer['is_correct']:
+                question_dict['correct_answer'] = answer_text
+        questions.append(question_dict)
+    exercise_dict['questions'] = questions
+
+    # Update m in case less than 3 quesitons in the exercise
+    if len(questions) < 3:
+        exercise_dict['exercise_data']['m'] = len(questions)
+    return exercise_dict
 
 
 
 # CHEF
 ################################################################################
 
-class KamkalimaChef(SushiChef):
+class KamkalimaChef(JsonTreeChef):
     """
     The chef class that takes care of uploading channel to Kolibri Studio.
     We'll call its `main()` method from the command line script.
     """
+    RICECOOKER_JSON_TREE = 'kamkalima_ricecooker_json_tree.json'
 
-    channel_info = {
-        'CHANNEL_SOURCE_DOMAIN': 'kamkalima.com',       # content provider's domain
-        'CHANNEL_SOURCE_ID': 'audios-and-texts',        # an alphanumeric channel ID
-        'CHANNEL_TITLE': 'Kamkalima (العربيّة)',         # a humand-readbale title
-        'CHANNEL_LANGUAGE': getlang('ar').code,          # language code of channel
-        'CHANNEL_THUMBNAIL': './chefdata/kk-logo.png',
-        'CHANNEL_DESCRIPTION': KAMKALIMA_CHANNEL_DESCRIPTION,
-    }
-
-
-    def construct_channel(self, *args, **kwargs):
+    def pre_run(self, args, options):
         """
-        Create ChannelNode and build topic tree.
+        Build the ricecooker json tree for the entire channel
         """
-        channel = self.get_channel(*args, **kwargs)   # create ChannelNode from data in self.channel_info
-        self.create_content_nodes(channel)
-        return channel
+        LOGGER.info('in pre_run...')
+        ricecooker_json_tree = dict(
+            title='Kamkalima (العربيّة)',         # a humand-readbale title
+            source_domain=KAMKALIMA_DOMAIN,       # content provider's domain
+            source_id='audios-and-texts',        # an alphanumeric channel ID
+            description=KAMKALIMA_CHANNEL_DESCRIPTION,
+            thumbnail='./chefdata/kk-logo.png',
+            language=getlang('ar').code,          # language code of channel
+            children=[],
+        )
+        self.create_content_nodes(ricecooker_json_tree)
+
+        json_tree_path = self.get_json_tree_path()
+        write_tree_to_json_tree(json_tree_path, ricecooker_json_tree)
 
 
     def create_content_nodes(self, channel):
@@ -78,101 +171,13 @@ class KamkalimaChef(SushiChef):
         hierarchy of topic nodes and content nodes. Every content node is associated
         with the underlying file node.
         """
-        content_nodes_folder = TopicNode(
-            source_id='121232ms',
-            title='Content Nodes',
-            description='Put folder description here',
-            author=None,
-            language=getlang('en').id,
-            thumbnail=None,
-        )
-        channel.add_child(content_nodes_folder)
-
-
-
-        # HTML5 APPS
-        html5apps_folder = TopicNode(
-            source_id='asasa331',
-            title='HTML5App Nodes',
-            description='Put folder description here',
-            author=None,
-            language=getlang('en').id,
-            thumbnail=None,
-        )
-        content_nodes_folder.add_child(html5apps_folder)
-
-        html5_node_a = HTML5AppNode(
-            source_id='302723b4',
-            title='الصَّديقانِ في الصَّحْراءِ',
-            author='كم كلمة',
-            description='الكاتب: كم كلمة   النّاشر: دار العلوم',
-            language=getlang('ar').id,
-            license=get_license(licenses.CC_BY, copyright_holder='Copyright holder name'),
-            thumbnail='./content/two_friends_in_desert/desert.jpg',
-            files=[HTMLZipFile(
-                      path='./content/two_friends_in_desert.zip',
-                      language=getlang('ar').id
-                 )]
-        )
-        html5apps_folder.add_child(html5_node_a)
-
-
-
-        # AUDIO
-        audio_nodes_folder = TopicNode(
-            source_id='138iuh23iu',
-            title='Audio Files Folder',
-            description='Put folder description here',
-            author=None,
-            language=getlang('en').id,
-            thumbnail=None,
-        )
-        content_nodes_folder.add_child(audio_nodes_folder)
-
-        audio_node = AudioNode(
-            source_id='940ac8ff',
-            title='النّحلةُ',
-            author='Kamkalima',
-            description='الملخّص: يربط "أنشتاين" انقراض النّحل باقتراب نهاية العالم، لذا يشرح الكاتب خصائص هذه الحشرة وكيفيّة عملها وظاهرة "السّكر" الّتي تتميّز بها.',
-            language=getlang('ar').id,
-            license=get_license(licenses.CC_BY, copyright_holder='Kamkalima +  مجلّة دو- ري-مي (بتصرّف)'),
-            thumbnail='./content/bees/bees.jpg',
-            files=[],
-        )
-        audio_nodes_folder.add_child(audio_node)
-        audio_file = AudioFile(
-            path='./content/listening-file-1535521351.mp3',
-            language=getlang('ar').id
-        )
-        audio_node.add_file(audio_file)
-
-
-
-        exercise2a = ExerciseNode(
-            source_id='asisis9',
-            title='Bees exercise',
-            author='Kamkalima',
-            description='A simple multiple-choice exercise supported by Ricecooker and Studio',
-            language=getlang('ar').id,
-            license=get_license(licenses.CC_BY, copyright_holder='Copyright holder name'),
-            thumbnail=None,
-            exercise_data={
-                'mastery_model': exercises.M_OF_N,         # or exercises.DO_ALL
-                'randomize': False,
-                'm': 1,
-                'n': 1,
-            },
-            questions=[
-                SingleSelectQuestion(
-                        id='ex2aQ2',
-                        question = 'إنَّ كلمةَ "انقراض" في الجملةِ: "عندَ اِنْقِراضِ النّحلِ تقتربُ نهايةُ العالمِ" تعني:',
-                        correct_answer = "فناء",
-                        all_answers = ["زراعة", "انتشار", "فناء", "الإصابة بالمرض"]
-                        # hints?
-                )
-            ]
-        )
-        audio_nodes_folder.add_child(exercise2a)
+        all_audios_items = get_all_audios()
+        audio_item = all_audios_items[3]
+        item_id = audio_item['id']
+        for category, exercise_questions in audio_item['questions'].items():
+            exercise_node = exercise_from_kamkalima_questions_list(item_id, category, exercise_questions)
+        
+        channel['children'].append(exercise_node)
 
 
 
