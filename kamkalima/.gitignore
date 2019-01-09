@@ -1,3 +1,13 @@
+# standard chef repos
+credentials
+chefdata
+.webcache
+restore
+.ricecookerfilecache
+storage
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
