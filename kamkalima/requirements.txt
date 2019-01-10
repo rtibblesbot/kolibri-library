@@ -1,1 +1,2 @@
 ricecooker>=0.6.26
+Jinja2>=2.10

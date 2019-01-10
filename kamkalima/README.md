@@ -2,6 +2,17 @@
 Sushi Chef script for importing Kamkalima content from https://kamkalima.com/
 
 
+## TODO
+  - Update description
+  - Decide what to do with these metadata
+    - `publisher`
+    -  `min_level`/`max_level`
+  - Check channel structure with Hiba
+  - Confirm translations for exercise type
+
+
+
+
 ## Install
 
 ### Step 1: Base packages
@@ -32,3 +43,5 @@ Place the Kamkalima API token in `credentials/api_token.txt`
 ```
     ./sushichef.py -v --reset --thumbnails --token=<your_token_here>
 ```
+
+
