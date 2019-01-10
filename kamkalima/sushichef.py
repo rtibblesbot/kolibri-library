@@ -3,7 +3,7 @@ from collections import defaultdict
 import os
 import requests
 
-from le_utils.constants import content_kinds, exercises, licenses
+from le_utils.constants import content_kinds, exercises, file_types, licenses
 from le_utils.constants.languages import getlang  # see also getlang_by_name, getlang_by_alpha2
 from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes.licenses import get_license
@@ -131,6 +131,54 @@ def group_by_theme(items):
     return items_by_theme
 
 
+def audio_node_from_kamkalima_audio_item(audio_item):
+    audio_node = dict(
+        kind = content_kinds.AUDIO,
+        source_id=str(audio_item['id']),
+        title = audio_item['title'],
+        description=audio_item['excerpt'],
+        language=getlang('ar').code,
+        license=KAMKALIMA_LICENSE,
+        author = audio_item['author'],
+        # aggregator
+        # provider
+        thumbnail=audio_item['image'],
+        files=[
+            {'file_type':file_types.AUDIO,
+             'path':audio_item['audio'],
+             'language':getlang('ar').code}
+        ],
+    )
+    return audio_node
+
+def topic_node_from_item(item_type, item):
+    """
+    In order to keep the audios and texts close to their associated exercises,
+    we'll store each item as a topic node.
+    """
+    topic_node = dict(
+        kind = content_kinds.TOPIC,
+        source_id=str(item['id'])+':'+'container',
+        title = item['title'],
+        # description=item['excerpt'],
+        language=getlang('ar').code,
+        children=[],
+    )
+
+    # Add content node
+    if item_type == 'audio':
+        audio_node = audio_node_from_kamkalima_audio_item(item)
+        topic_node['children'].append(audio_node)
+    else:
+        pass
+
+    # Add associated exercises
+    item_id = item['id']
+    for category, exercise_questions in item['questions'].items():
+        exercise_node = exercise_from_kamkalima_questions_list(item_id, category, exercise_questions)
+        topic_node['children'].append(exercise_node)
+    return topic_node
+
 # CHEF
 ################################################################################
 
@@ -163,21 +211,23 @@ class KamkalimaChef(JsonTreeChef):
         """
         Build the hierarchy of topic nodes and content nodes.
         """
-        texts_url = append_token(API_TEXTS_ENDPOINT)
-        all_texts_items = get_all_items(audios_url)
-        texts_by_theme = group_by_theme(all_texts_items)
+        LOGGER.info('Creating channel content nodes...')
         
+        
+        
+        texts_url = append_token(API_TEXTS_ENDPOINT)
+        LOGGER.info('  Calling Kamkalima API to get texts items:')
+        all_texts_items = get_all_items(texts_url)
+        texts_by_theme = group_by_theme(all_texts_items)
+
         audios_url = append_token(API_AUDIOS_ENDPOINT)
+        LOGGER.info('  Calling Kamkalima API to get aidios items:')
         all_audios_items = get_all_items(audios_url)
         audios_by_theme = group_by_theme(all_audios_items)
 
         audio_item = all_audios_items[3]
-        item_id = audio_item['id']
-        for category, exercise_questions in audio_item['questions'].items():
-            exercise_node = exercise_from_kamkalima_questions_list(item_id, category, exercise_questions)
-        
-        channel['children'].append(exercise_node)
-
+        topic_node = topic_node_from_item('audio', audio_item)
+        channel['children'].append(topic_node)
 
 
 # CLI
