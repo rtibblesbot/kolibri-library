@@ -263,8 +263,7 @@ class YouTubeResourceNode(YouTubeResource):
                 'restrictfilenames':True,
                 'continuedl': True,
                 'quiet': False,
-                'format': "bestvideo[height<={maxheight}][ext=mp4]+bestaudio[ext=m4a]/best[height<={maxheight}][ext=mp4]".format(maxheight='480'),
-                'noplaylist': False
+                'noplaylist': True
             }
 
         playlist_videos_url = []
@@ -310,6 +309,42 @@ class YouTubeResourceNode(YouTubeResource):
                 for language in subtitles_info.keys():
                     subs.append(dict(file_type=SUBTITLES_FILE, youtube_id=video_id, language=language))
         return subs
+
+    def get_resource_info(self, filter=True, download_dir=None):
+        """
+        This method checks the YouTube URL, then returns a dictionary object with info about the video(s) in it.
+
+        :param download_dir: If set, downloads videos to the specified directory. Defaults to None.
+
+        :return: A dictionary object containing information about the channel, playlist or video.
+        """
+
+        options = dict(
+            verbose = True,
+            no_warnings = True,
+            outtmpl = '{}/%(id)s.%(ext)s'.format(download_dir),
+            # by default, YouTubeDL will pick what it determines to be the best formats, but for consistency's sake
+            # we want to always get preferred formats (default of mp4 and m4a) when possible.
+            # TODO: Add customization for video dimensions
+            format = "bestvideo[height<=360][ext={}]+bestaudio[ext={}]/best[height<=360][ext={}]".format(
+                self.preferred_formats['video'], self.preferred_formats['audio'], self.preferred_formats['video']
+            ),
+            writethumbnail = download_dir is not None
+        )
+        LOGGER.info("Download options = {}".format(options))
+        client = youtube_dl.YoutubeDL(options)
+        results = client.extract_info(self.url, download=(download_dir is not None), process=True)
+
+        keys = list(results.keys())
+        keys.sort()
+        if not filter:
+            return results
+
+        edited_results = self._format_for_ricecooker(results)
+
+        edited_keys = list(edited_results.keys())
+        edited_keys.sort()
+        return edited_results
 
     def download(self, download=True, base_path=None):
         info = super(YouTubeResourceNode, self).download(base_path=base_path)
@@ -372,7 +407,7 @@ class SehhaWaSaadahChef(JsonTreeChef):
             )
 
         grades = Grades()
-        grades.load("resources_ar.json", auto_parse=True)
+        grades.load("resources_ar_2.json", auto_parse=True)
         return channel_tree, grades
 
     def scrape(self, args, options):
