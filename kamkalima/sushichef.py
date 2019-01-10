@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from collections import defaultdict
 import os
 import requests
 
@@ -39,42 +40,25 @@ def append_token(api_endpoint):
 # API EXTRACT FUNCTIONS
 ################################################################################
 
-def get_all_texts():
+def get_all_items(start_url):
     """
-    Get the texts items from all pages through the API.
+    Get items from all pages through the API (texts or audios).
     """
-    all_texts_items = []
-    texts_url = append_token(API_TEXTS_ENDPOINT)
+    all_items = []
+    current_url = start_url
     while True:
-        resp = requests.get(texts_url)
-        texts_data = resp.json()
-        items = texts_data['items']
-        all_texts_items.extend(items)
-        if 'next_page_url' in texts_data and KAMKALIMA_DOMAIN in texts_data['next_page_url']:
-            texts_url = texts_data['next_page_url']
+        resp = requests.get(current_url)
+        data = resp.json()
+        items = data['items']
+        all_items.extend(items)
+        # key exists             |     | not null          |     | looks like a valid URL                |
+        if 'next_page_url' in data and data['next_page_url'] and KAMKALIMA_DOMAIN in data['next_page_url']:
+            current_url = data['next_page_url']
         else:
-            print('Reached end of texts results')
+            # print('Reached end of results')
             break
-    return all_texts_items
+    return all_items
 
-
-def get_all_audios():
-    """
-    Get the audios items from all pages through the API.
-    """
-    all_audios_items = []
-    audios_url = append_token(API_AUDIOS_ENDPOINT)
-    while True:
-        resp = requests.get(audios_url)
-        audios_data = resp.json()
-        items = audios_data['items']
-        all_audios_items.extend(items)
-        if 'next_page_url' in audios_data and KAMKALIMA_DOMAIN in audios_data['next_page_url']:
-            audios_url = audios_data['next_page_url']
-        else:
-            print('Reached end of audios results')
-            break
-    return all_audios_items
 
 
 # TRANSFORM FUNCTIONS
@@ -108,7 +92,7 @@ def exercise_from_kamkalima_questions_list(item_id, category, exercise_questions
         # thumbnail=
         questions=[],
     )
-    # Add questions
+    # Add questions to exercise node
     questions = []
     for exercise_question in exercise_questions:
         question_dict = dict(
@@ -135,6 +119,18 @@ def exercise_from_kamkalima_questions_list(item_id, category, exercise_questions
 
 
 
+def group_by_theme(items):
+    items_by_theme = defaultdict(list)
+    for item in items:
+        themes = item['themes']
+        # if len(themes) > 1:
+        #     print('found multiple themes for', item['title'], len(themes))
+        for theme in themes:
+            theme_name = theme['name']
+            items_by_theme[theme_name].append(item)
+    return items_by_theme
+
+
 # CHEF
 ################################################################################
 
@@ -147,31 +143,34 @@ class KamkalimaChef(JsonTreeChef):
 
     def pre_run(self, args, options):
         """
-        Build the ricecooker json tree for the entire channel
+        Build the ricecooker json tree for the entire channel.
         """
         LOGGER.info('in pre_run...')
         ricecooker_json_tree = dict(
-            title='Kamkalima (العربيّة)',         # a humand-readbale title
+            title='Kamkalima (العربيّة)',          # a humand-readbale title
             source_domain=KAMKALIMA_DOMAIN,       # content provider's domain
-            source_id='audios-and-texts',        # an alphanumeric channel ID
+            source_id='audios-and-texts',         # an alphanumeric channel ID
             description=KAMKALIMA_CHANNEL_DESCRIPTION,
-            thumbnail='./chefdata/kk-logo.png',
+            thumbnail='./chefdata/kk-logo.png',   # logo created from SVG
             language=getlang('ar').code,          # language code of channel
             children=[],
         )
         self.create_content_nodes(ricecooker_json_tree)
-
         json_tree_path = self.get_json_tree_path()
         write_tree_to_json_tree(json_tree_path, ricecooker_json_tree)
 
-
     def create_content_nodes(self, channel):
         """
-        This function uses the methods `add_child` and `add_file` to build the
-        hierarchy of topic nodes and content nodes. Every content node is associated
-        with the underlying file node.
+        Build the hierarchy of topic nodes and content nodes.
         """
-        all_audios_items = get_all_audios()
+        texts_url = append_token(API_TEXTS_ENDPOINT)
+        all_texts_items = get_all_items(audios_url)
+        texts_by_theme = group_by_theme(all_texts_items)
+        
+        audios_url = append_token(API_AUDIOS_ENDPOINT)
+        all_audios_items = get_all_items(audios_url)
+        audios_by_theme = group_by_theme(all_audios_items)
+
         audio_item = all_audios_items[3]
         item_id = audio_item['id']
         for category, exercise_questions in audio_item['questions'].items():
