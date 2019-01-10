@@ -407,7 +407,7 @@ class SehhaWaSaadahChef(JsonTreeChef):
             )
 
         grades = Grades()
-        grades.load("resources_ar_2.json", auto_parse=True)
+        grades.load("resources_ar.json", auto_parse=True)
         return channel_tree, grades
 
     def scrape(self, args, options):
