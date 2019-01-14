@@ -191,7 +191,7 @@ def click_read_and_wait(driver):
 
 def download_single(i):
     """Download the book at index i."""
-    with WebDriver("http://3asafeer.com/", delay=3000) as driver:
+    with WebDriver("http://3asafeer.com/", delay=5000) as driver:
 
         print('Closing popup')
         close_popup = driver.find_element_by_css_selector('.fancybox-item.fancybox-close')
