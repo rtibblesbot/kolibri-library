@@ -42,6 +42,9 @@ headers = {
     "Connection": "keep-alive"
 }
 
+LOADING_WAIT_TIME = 5
+LOADING_WAIT_TIME_MS = LOADING_WAIT_TIME*1000
+
 
 class ThreeAsafeerChef(SushiChef):
     """
@@ -176,7 +179,7 @@ def download_all(channel):
 
 
 def get_books_count():
-    with WebDriver("http://3asafeer.com/", delay=3000) as driver:
+    with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
         click_read_and_wait(driver)
         return len(driver.find_elements_by_css_selector('.story-cover'))
 
@@ -186,12 +189,12 @@ def click_read_and_wait(driver):
     read_link.click()
     selenium_ui.WebDriverWait(driver, 60).until(
             lambda driver: driver.find_element_by_id('list-container'))
-    time.sleep(3)
+    time.sleep(LOADING_WAIT_TIME)
 
 
 def download_single(i):
     """Download the book at index i."""
-    with WebDriver("http://3asafeer.com/", delay=5000) as driver:
+    with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
 
         print('Closing popup')
         close_popup = driver.find_element_by_css_selector('.fancybox-item.fancybox-close')
@@ -220,7 +223,7 @@ def download_single(i):
             driver.save_screenshot('screenshot.png')
             raise
 
-        time.sleep(5)
+        time.sleep(LOADING_WAIT_TIME)
 
         doc = BeautifulSoup(driver.page_source, "html.parser")
         return (process_node_from_doc(doc, book_id, title, thumbnail),
