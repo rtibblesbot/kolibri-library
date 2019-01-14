@@ -1,2 +1,1 @@
-le-utils>=0.0.9rc23
-ricecooker>=0.6.3
+ricecooker>=0.6.26
