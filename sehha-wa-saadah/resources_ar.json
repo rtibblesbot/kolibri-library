@@ -29,7 +29,8 @@
         "https://www.youtube.com/watch?v=IyZiEMOzL30",
         "https://www.youtube.com/watch?v=t3woYJRCRX0"
         ], 
-    "lang": "ar"
+    "lang": "ar",
+    "remove english titles": [2,19,20,21,22,23]
     },
     {"title": "للآباء والأمهات", "source_id": "للآباء والأمهات", 
     "lessons": [

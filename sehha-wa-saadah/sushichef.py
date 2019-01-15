@@ -94,7 +94,7 @@ class Grades(object):
                 grade_obj = Grade() 
                 subject_obj = Subject(title=grade["title"], source_id=grade["source_id"], 
                                       lang=grade["lang"])
-                subject_obj.auto_generate_lessons(grade["lessons"], playlist=False)
+                subject_obj.auto_generate_lessons(grade["lessons"], grade.get("remove english titles", []), playlist=False)
                 self.grades.append(subject_obj)
 
     def __iter__(self):
@@ -115,8 +115,8 @@ class Subject(Node):
         super(Subject, self).__init__(*args, **kwargs)
         self.lessons = []
 
-    def auto_generate_lessons(self, urls, playlist=True):
-        for url in urls:
+    def auto_generate_lessons(self, urls, index, playlist=True):
+        for i, url in enumerate(urls):
             youtube = YouTubeResourceNode(url)
             if playlist is True:
                 for title, url in youtube.playlist_name_links():
@@ -124,13 +124,14 @@ class Subject(Node):
                     self.lessons.append(lesson)
             else:
                 lesson = Lesson(title=None, source_id=url, lang=self.lang)
+                lesson.clean_title = i in index
                 self.lessons.append(lesson)
 
 
 class Lesson(Node):
 
     def download(self, download=True, base_path=None):
-        youtube = YouTubeResourceNode(self.source_id, lang=self.lang)
+        youtube = YouTubeResourceNode(self.source_id, lang=self.lang, clean_title=self.clean_title)
         pdf_urls = youtube.download(download, base_path)
         if self.title is None:
             self.title = youtube.title
@@ -215,7 +216,7 @@ class File(Node):
 
 class YouTubeResourceNode(YouTubeResource):
     def __init__(self, source_id, name=None, type_name="Youtube", lang="ar", 
-            embeded=False, section_title=None):
+            embeded=False, section_title=None, clean_title=False):
         if embeded is True:
             self.source_id = YouTubeResourceNode.transform_embed(source_id)
         else:
@@ -231,6 +232,7 @@ class YouTubeResourceNode(YouTubeResource):
         self.file_format = file_formats.MP4
         self.lang = lang
         self.is_valid = False
+        self.clean_title = clean_title
 
     def clean_url(self, url):
         if url[-1] == "/":
@@ -349,7 +351,11 @@ class YouTubeResourceNode(YouTubeResource):
     def download(self, download=True, base_path=None):
         info = super(YouTubeResourceNode, self).download(base_path=base_path)
         self.filepath = info["filename"]
-        self.title = info["title"]
+        if self.clean_title is True:
+            self.title = info["title"].split("|")[0].strip()
+        else:
+            self.title = info["title"]
+        LOGGER.info("Cleaned title: {} - {}".format(self.clean_title, self.title))
         return self.get_file_url(info)
 
     def get_file_url(self, info):
@@ -391,13 +397,13 @@ class SehhaWaSaadahChef(JsonTreeChef):
     def lessons(self):
         global CHANNEL_SOURCE_ID
         self.RICECOOKER_JSON_TREE = 'ricecooker_json_tree.json'
-        CHANNEL_NAME = "Sehha wa Sa’adah: Dubai Health Authority (العربيّة)"
+        CHANNEL_NAME = "Sehha wa Sa’adah: (العربيّة)"
         CHANNEL_SOURCE_ID = "sehha-wa-saadah-ar"
         channel_tree = dict(
                 source_domain=CHANNEL_DOMAIN,
                 source_id=CHANNEL_SOURCE_ID,
                 title=CHANNEL_NAME,
-                description="""Sehha wa Sa'adah is a 3 season program that includes short video tutorials that tackle health awareness among people of different ages. Those topics include nutrition tips, chronic diseases, staying healthy during Ramadan and more. The videos are most suitable for parents and many can be still viewed by secondary learners."""
+                description="""صحة و سعادة هو برنامج صحي توعوي من إنتاج هيئة الصحة بدبي ويحتوي على 3 مواسم تناسب المتعلمين في جميع الأعمار. ومن هذه المواضيع الصحية نصائح للتغذية الصحية والتغذية في موسم رمضان والحج، ونصائح للآباء والأمهات وتوعية بأهم الأمراض والمشاكل الصحية وكيفية الوقاية منها. """
 [:400], #400 UPPER LIMIT characters allowed 
                 thumbnail=CHANNEL_THUMBNAIL,
                 author=AUTHOR,
