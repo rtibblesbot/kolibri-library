@@ -47,11 +47,14 @@ class CareerGirlsChef(SushiChef):
 
     def construct_channel(self, **kwargs):
   
-        def get_things(all_things, parent_node):
+        def get_things(all_things, parent_node, new_node=True):
             for thing in all_things:
                 _id = thing.url.strip('/').split('/')[-1] # TODO hash
-                this_node = TopicNode(source_id = thing.url,
-                                      title=thing.title)
+                if new_node:
+                    this_node = TopicNode(source_id = thing.url,
+                                           title=thing.title)
+                else:
+                    this_node = parent_node
                 content_node = make_youtube_video(thing.youtube, "Video: {}".format(thing.title), "video__{}".format(thing.url)) # TODO hash
                 if content_node is not None:
                     this_node.add_child(content_node)
@@ -70,23 +73,26 @@ class CareerGirlsChef(SushiChef):
                                         files=[app_zip])
             
                 this_node.add_child(app_node)
-                parent_node.add_child(this_node)
+                if new_node:
+                    parent_node.add_child(this_node)
  
         video_list = []
         video_set = set()
         channel = self.get_channel(**kwargs)
-        job_node = TopicNode(source_id="jobs", title="Jobs")
-        role_node = TopicNode(source_id="roles", title="Role Models")
+        #job_node = TopicNode(source_id="jobs", title="Jobs")
+        role_node = TopicNode(source_id="roles", title="Career Clusters")
         life_skill_node = TopicNode(source_id="lifeskills", title="Life Skills")
         
-        channel.add_child(job_node)
+        # channel.add_child(job_node)
         channel.add_child(role_node)
         
-        all_jobs = list(cg_index.all_jobs())
-        get_things(all_jobs, job_node)
-
         all_life_skills = list(cg_index.all_life_skills())
         get_things(all_life_skills, life_skill_node)
+        
+        all_jobs = list(cg_index.all_jobs())#
+        # each job has a job.title.
+        # TODO WRONG get_things(all_jobs, job_node) -- reimplement 
+
 
         # role models
         # setup
@@ -102,13 +108,19 @@ class CareerGirlsChef(SushiChef):
                              title = second)
             second_lookup[tuple([top, second])] = node
             top_lookup[top].add_child(node)
+            # add "Jobs" tree segment which is relevant
+            relevant_jobs = [x for x in all_jobs if x.title == second]
+            assert relevant_jobs, "No job for " + repr(second)
+            get_things(relevant_jobs, node, new_node=False)
+            # dragon ^^^ untested
             
         role_urls = set()
+        # populate role_urls with list of all job titles
         for job in all_jobs:
             for role in job.roles:
                 role_urls.add(role)
-        
-        for role_url in role_urls:
+
+        for role_url in sorted(list(role_urls)):
             _id = role_url.strip('/').split('/')[-1]
             role = cg_index.index_role(role_url)
             this_role = TopicNode(source_id = "role__{}".format(_id),
