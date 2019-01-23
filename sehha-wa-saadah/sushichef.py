@@ -20,6 +20,7 @@ from ricecooker.utils import downloader, html_writer
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree, SUBTITLES_FILE
 from pressurecooker.youtube import YouTubeResource
+import string
 import time
 from urllib.error import URLError
 from urllib.parse import urljoin
@@ -351,10 +352,15 @@ class YouTubeResourceNode(YouTubeResource):
     def download(self, download=True, base_path=None):
         info = super(YouTubeResourceNode, self).download(base_path=base_path)
         self.filepath = info["filename"]
-        if self.clean_title is True:
-            self.title = info["title"].split("|")[0].strip()
-        else:
-            self.title = info["title"]
+        #if self.clean_title is True:
+        #    self.title = info["title"].split("|")[0].strip()
+        #else:
+        #    self.title = info["title"]
+        arabic_chars = filter(lambda x: True if x in [" ", "|", "-"] else x not in string.printable, info["title"])
+        arabic_text = "".join(arabic_chars).strip()
+        if arabic_text.endswith("|"):
+            arabic_text = arabic_text[:-1].strip()
+        self.title = arabic_text
         LOGGER.info("Cleaned title: {} - {}".format(self.clean_title, self.title))
         return self.get_file_url(info)
 
@@ -397,7 +403,7 @@ class SehhaWaSaadahChef(JsonTreeChef):
     def lessons(self):
         global CHANNEL_SOURCE_ID
         self.RICECOOKER_JSON_TREE = 'ricecooker_json_tree.json'
-        CHANNEL_NAME = "Sehha wa Sa’adah: (العربيّة)"
+        CHANNEL_NAME = "Sehha wa Sa’adah (العربيّة)"
         CHANNEL_SOURCE_ID = "sehha-wa-saadah-ar"
         channel_tree = dict(
                 source_domain=CHANNEL_DOMAIN,
