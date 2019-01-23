@@ -9,11 +9,15 @@ from ricecooker.classes.nodes import DocumentNode, VideoNode, TopicNode, HTML5Ap
 from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile
 import cg_index
 from le_utils.constants.languages import getlang
-import clusters # role_data top second
+import clusters # role_data top secon
+import hook
 LOGGER = logging.getLogger()
 
 def make_youtube_video(tubeid, name, _id):
-    video_file = YouTubeVideoFile(youtube_id = tubeid, language=getlang('en').code)
+    video_file = YouTubeVideoFile(youtube_id = tubeid, language=getlang('en').code, high_resolution=False)
+    if video_file is None:
+        print ("No video.")
+        return None 
     subtitle_file = YouTubeSubtitleFile(youtube_id = tubeid, language=getlang('en').code)
     if not isinstance(_id, str):
         print (_id, type(_id))
@@ -49,7 +53,8 @@ class CareerGirlsChef(SushiChef):
                 this_node = TopicNode(source_id = thing.url,
                                       title=thing.title)
                 content_node = make_youtube_video(thing.youtube, "Video: {}".format(thing.title), "video__{}".format(thing.url)) # TODO hash
-                this_node.add_child(content_node)
+                if content_node is not None:
+                    this_node.add_child(content_node)
                
                 try:
                     os.mkdir('html')
