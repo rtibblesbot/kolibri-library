@@ -8,6 +8,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import ChannelNode, TopicNode, DocumentNode
 from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.licenses import get_license
+from ricecooker.utils.pdf import PDFParser
 
 
 class GoalkickerChef(SushiChef):
@@ -40,18 +41,27 @@ class GoalkickerChef(SushiChef):
             book_info['absolute_url'] = page_url + book_info['relative_url']
 
             # Add book to channel tree
-            topic_node_source_id = 'topic/' + book_info['subject']
-            page_topic_node = TopicNode(title=book_info['subject'], source_id=topic_node_source_id)
-            channel.add_child(page_topic_node)
-            doc_node = DocumentNode(
-                title=book_info['title'],
-                description=book_info['description'],
-                source_id=book_info['source_id'],
-                license=get_license('CC BY-SA', copyright_holder='Stack Overflow'),
-                language='en',
-                files=[DocumentFile(path=book_info['absolute_url'], language='en')],
-            )
-            page_topic_node.add_child(doc_node)
+            book_node_source_id = 'topic/' + book_info['subject']
+            book_node = TopicNode(title=book_info['subject'], source_id=book_node_source_id)
+            channel.add_child(book_node)
+
+            # Get chapters info
+            pdf_path = book_info['absolute_url']
+            with PDFParser(pdf_path) as pdfparser:
+                chapters = pdfparser.split_chapters()
+
+            # Add chapter nodes
+            for chapter in chapters:
+                chapter_node_source_id = book_info['source_id'] + '/' + chapter['title']
+                chapter_node = DocumentNode(
+                    title=chapter['title'],
+                    description=chapter['title'],
+                    source_id=chapter_node_source_id,
+                    license=get_license('CC BY-SA', copyright_holder='Stack Overflow'),
+                    language='en',
+                    files=[DocumentFile(path=chapter['path'], language='en')],
+                )
+                book_node.add_child(chapter_node)
 
         return channel
 
