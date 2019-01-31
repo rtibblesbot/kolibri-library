@@ -19,7 +19,7 @@ LOGGER.setLevel(logging.INFO)
 # KAMKALIMA CONSTANTS
 ################################################################################
 KAMKALIMA_DOMAIN = 'https://kamkalima.com'
-KAMKALIMA_CHANNEL_DESCRIPTION = """منصّة تعليم معزّزة بالتكنولوجيا تمنح المعلّمين قدرات خارقة والتّلاميذ تميّزًا في اللّغة العربيّة."""
+KAMKALIMA_CHANNEL_DESCRIPTION = """تقدم المصادر التعليمية الخاصة باللغة العربية من منصة كم كلمة محتوى عربي متفاعل لمتعلمي ومعلمي المرحلة الثانوية. وتمكن النصوص والأنشطة التفاعلية المتعلمين من تطوير مهارات الاستماع والقراءة بالإضافة إلى مهارات وقواعد الكتابة العربية. وتقدم القناة للمعلمين مجموعة من الأدوات التربوية لتمكنهم من متابعة تقدم وتعلم المتعلمين على اختلاف مستوياتهم."""
 KAMKALIMA_LICENSE = get_license(licenses.CC_BY_NC_ND, copyright_holder='Kamkalima').as_dict()
 
 # KAMKALIMA API
@@ -65,17 +65,17 @@ def get_all_items(start_url):
     return all_items
 
 
-
 # TRANSFORM FUNCTIONS
 ################################################################################
 
 EXERCISE_CATEGORY_LOOKUP = {
-    'grammar': 'قواعد',
-    'vocabulary': 'مفردات اللغه',
-    'comprehension': 'استيعاب',
-    'listening': 'استماع',
+    'comprehension': 'الاستيعاب',
+    'grammar': 'القواعد',
+    'listening': 'الاستماع',
+    'vocabulary': 'القراءة',        # using string for 'reading'
+    # 'vocabulary': 'امفردات اللغه',     # google translate string for 'vocabulty'
 }
-EXERCISE_AR = 'ممارسه الرياضه'  # Maybe add this to each catrogy??
+# EXERCISE_AR = 'ممارسه الرياضه'  # Maybe add this to each catrogy??
 
 
 def exercise_from_kamkalima_questions_list(item_id, category, exercise_questions):
