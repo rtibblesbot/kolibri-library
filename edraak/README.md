@@ -4,11 +4,14 @@ Sushi Chef script for importing edraak content from https://www.edraak.org/
 
 TODOs
 -----
-
-  - add hints
-  - add explanation
   - sample video
   - full channel
+
+
+TODOs P2
+--------
+  - remove hint text from explanation so it doesnt repeat
+
 
 
 

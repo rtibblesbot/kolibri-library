@@ -294,6 +294,15 @@ def question_from_edraak_MultipleChoiceQuestion(question):
         if choice['is_correct']:
             question_dict['correct_answer'] = answer_text
 
+    # Add hints
+    for hint in question['hints']:
+        hint_text = html2text(hint['description'], bodywidth=0)
+        question_dict['hints'].append(hint_text)
+
+    # Add explanation as last hint
+    explanation_text = html2text(question['explanation'], bodywidth=0)
+    question_dict['hints'].append(explanation_text)
+
     return question_dict
 
 
@@ -349,7 +358,7 @@ class EdraakChef(JsonTreeChef):
 
 if __name__ == '__main__':
     """
-    This code will run when the sushi chef scripy is called on the command line.
+    This code will run when the sushi chef script is called on the command line.
     """
     chef = EdraakChef()
     chef.main()
