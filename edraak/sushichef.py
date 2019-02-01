@@ -236,7 +236,7 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
          'component_type': 'Exercise',
          'is_eligible': True}
     """
-    exercise_title = exercise['title']
+    exercise_title = parent_title + exercise['title']
     # Exercise node
     exercise_dict = dict(
         kind = content_kinds.EXERCISE,
@@ -261,8 +261,13 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
     questions = []
     for question in question_set_children:
         component_type = question['component_type']
+
         if component_type == 'MultipleChoiceQuestion':
             question_dict = question_from_edraak_MultipleChoiceQuestion(question)
+            questions.append(question_dict)
+
+        elif component_type == 'NumericResponseQuestion':
+            question_dict = question_from_edraak_NumericResponseQuestion(question)
             questions.append(question_dict)
 
         else:
@@ -270,10 +275,12 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
 
     exercise_dict['questions'] = questions
 
+
     # Update m in case less than 3 quesitons in the exercise
     if len(questions) < 3:
         exercise_dict['exercise_data']['m'] = len(questions)
     return exercise_dict
+
 
 
 def question_from_edraak_MultipleChoiceQuestion(question):
@@ -304,6 +311,38 @@ def question_from_edraak_MultipleChoiceQuestion(question):
     question_dict['hints'].append(explanation_text)
 
     return question_dict
+
+
+def question_from_edraak_NumericResponseQuestion(question):
+    full_description = question['full_description']
+    question_md = html2text(full_description, bodywidth=0)
+    question_dict = dict(
+        question_type=exercises.INPUT_QUESTION,
+        id=question['id'],
+        question=question_md,
+        answers = [],
+        hints =[],
+    )
+    # Add answers numeric asnwer to question
+    correct_ans = str(question['correct_answer_precise'])
+    correct_ans_str = str(correct_ans)  # pepresent as string even though it's number...
+    question_dict['answers'].append(correct_ans_str)
+
+    # Add hints
+    for hint in question['hints']:
+        hint_text = html2text(hint['description'], bodywidth=0)
+        question_dict['hints'].append(hint_text)
+
+    # Add explanation as last hint
+    explanation_text = html2text(question['explanation'], bodywidth=0)
+    question_dict['hints'].append(explanation_text)
+
+    return question_dict
+
+
+
+
+
 
 
 # CHEF
@@ -342,14 +381,16 @@ class EdraakChef(JsonTreeChef):
         Build the hierarchy of topic nodes and content nodes.
         """
         LOGGER.info('Creating channel content nodes...')
+
         sample_exercise_id = '5a4c843b7dd197090857f05c'
         exercise = get_component_from_id(sample_exercise_id)
-        
-
-        exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Parent title would go here')
-        
-        # Add theme topic to channel
+        exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Example MultipleChoiceQuestion')
         channel['children'].append(exercise_dict)
+
+        sample_exercise_id2 = '5a4c84377dd197090857ecf2'
+        exercise2 = get_component_from_id(sample_exercise_id2)
+        exercise_dict2 = exercise_from_edraak_Exercise(exercise2, parent_title='Example NumericResponseQuestion')
+        channel['children'].append(exercise_dict2)
 
 
 
