@@ -72,8 +72,7 @@ EXERCISE_CATEGORY_LOOKUP = {
     'comprehension': 'الاستيعاب',
     'grammar': 'القواعد',
     'listening': 'الاستماع',
-    'vocabulary': 'القراءة',        # using string for 'reading'
-    # 'vocabulary': 'امفردات اللغه',     # google translate string for 'vocabulty'
+    'vocabulary': 'المفردات والتراكيب',
 }
 # EXERCISE_AR = 'ممارسه الرياضه'  # Maybe add this to each catrogy??
 
