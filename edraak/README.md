@@ -5,12 +5,15 @@ Sushi Chef script for importing edraak content from https://www.edraak.org/
 TODOs
 -----
   - sample video
-  - full channel
+  - full channel structure
+  - POC tables
+  - POC equations
 
 
 TODOs P2
 --------
   - remove hint text from explanation so it doesnt repeat
+  - import tags
 
 
 

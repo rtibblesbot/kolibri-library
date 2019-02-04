@@ -165,39 +165,6 @@ def get_component_from_id(component_id):
 
 
 
-# UNUSED
-################################################################################
-
-
-def scrape_grades(page):
-    """
-    Get grades from the /k12/ page.
-    """
-    grades_div = page.find('div', class_="grades")
-    grades = grades_div.find_all('a', class_='grade')
-
-    grade_dicts = []
-    url = '?????????????????????'
-    for grade in grades:
-        grade_url = urljoin(url, grade['href'])
-        # print(grade)
-        # number
-        number_div = grade.find('div', class_="grade-no")
-        name_div = number_div.find('sup', class_="sup-grade")
-        name_div.extract()
-        grade_no = get_text(number_div)
-
-        # name
-        grade_text = get_text(grade.find('div', class_="grade-text"))
-
-        grade_dict = dict(
-            grade_url=grade_url,
-            grade_no=grade_no,
-            grade_text=grade_text
-        )
-        grade_dicts.append(grade_dict)
-
-    return grade_dicts
 
 
 
@@ -214,11 +181,8 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
          'full_description': None,
          'listing_description': None,
          'visibility': 'staff_and_teachers',
-         'children': [],
-         'created': '2018-01-03T07:20:27.292000',
-         'updated': '2018-01-08T10:38:41.246000',
-         'keywords': [],
-         'prerequisites': [],
+    ?? 'keywords': [],
+    ?? 'prerequisites': [],
          'scaffolds': [],
     ?? 'license': 'all_rights_reserved',
          'audience': [],
@@ -236,7 +200,7 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
          'component_type': 'Exercise',
          'is_eligible': True}
     """
-    exercise_title = parent_title + exercise['title']
+    exercise_title = parent_title + ' ' + exercise['title']
     # Exercise node
     exercise_dict = dict(
         kind = content_kinds.EXERCISE,
@@ -405,7 +369,44 @@ if __name__ == '__main__':
     chef.main()
 
 
+
+
 # if __name__ == '__main__':
 #     url = 'https://programs.edraak.org/learn/repository/math-algebra-topics-v2/section/5a6088188c9a02049a3e69e5/'
 #     component_url = get_course_component(url)
 #     print(component_url)
+
+
+
+# UNUSED
+################################################################################
+# 
+# def scrape_grades(page):
+#     """
+#     Get grades from the /k12/ page.
+#     """
+#     grades_div = page.find('div', class_="grades")
+#     grades = grades_div.find_all('a', class_='grade')
+# 
+#     grade_dicts = []
+#     url = '?????????????????????'
+#     for grade in grades:
+#         grade_url = urljoin(url, grade['href'])
+#         # print(grade)
+#         # number
+#         number_div = grade.find('div', class_="grade-no")
+#         name_div = number_div.find('sup', class_="sup-grade")
+#         name_div.extract()
+#         grade_no = get_text(number_div)
+# 
+#         # name
+#         grade_text = get_text(grade.find('div', class_="grade-text"))
+# 
+#         grade_dict = dict(
+#             grade_url=grade_url,
+#             grade_no=grade_no,
+#             grade_text=grade_text
+#         )
+#         grade_dicts.append(grade_dict)
+# 
+#     return grade_dicts
