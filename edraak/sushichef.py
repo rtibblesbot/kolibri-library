@@ -25,13 +25,12 @@ from libpyppeteer import visit_page, get_resource_requests_from_networktab
 
 
 
-# KAMKALIMA CONSTANTS
+# EDRAAK CONSTANTS
 ################################################################################
 EDRAAK_DOMAIN = 'edraak.org'
 EDRAAK_CHANNEL_DESCRIPTION = """إدراك هي إحدى مبادرات مؤسسة الملكة رانيا في الأردن وهي منصة تزود المتعلمين في المراحل الأساسية والإعدادية والثانوية بدروس مصورة ملحوقة بتمارين تساعدهم في تقدمهم الأكاديمي داخل المدرسة. ومع أنّ المحتوى يتناسب مع المنهاج الوطني الأردني إلا أنه يتناسب أيضا مع كثير من المناهج الدراسية في دول المنطقة الأخرى."""
 EDRAAK_LICENSE = get_license(licenses.ALL_RIGHTS_RESERVED, copyright_holder='Edraak').as_dict()
-
-
+EDRAAK_MAIN_CONTENT_COMPONENT_ID = '5a6087f46380a6049b33fc19'
 
 
 # CRAWLING
@@ -115,7 +114,7 @@ def build_web_resource_tree(start_url):
             thumbnail_url=topic['thumbnail_url'],
             children=[],
         )
-        topic_dict['component_url'] = get_course_component(topic['url'])
+        topic_dict['root_component_id'] = get_course_root_component_id(topic['url'])
         math_dict['children'].append(topic_dict)
 
     write_web_resource_tree_json(channel_dict)
@@ -123,13 +122,35 @@ def build_web_resource_tree(start_url):
 
 
 
-# SCRAPING
+# WEBSITE SCRAPING
 ################################################################################
 
-def get_course_component(url):
+def get_course_root_component_id(url):
+    """
+    Find the child `component_url` that gets loaded when visiting `url` and walk
+    up the component hierarchy until we find the root `component_id` of the course.
+    """
+    child_component_url = get_child_component_url_from_url(url)
+
+    component_ids = []
+    def follow_up(c):
+        component_ids.append(c['id'])
+        parent_id = c['parent_id']
+        if parent_id:
+            parent = get_component_from_id(parent_id)
+            follow_up(parent)
+
+    topic_item = get_component_from_url(child_component_url)
+    follow_up(topic_item)
+    assert component_ids[-1] == EDRAAK_MAIN_CONTENT_COMPONENT_ID, 'did not find child of Main Content!'
+    return component_ids[-2]  # return the component_id of the course root node
+
+
+def get_child_component_url_from_url(url):
     """
     Downloads the website page at `url` and watches the network tab to
     extract the `component_url` of the form `/api/component/{component_id}/`.
+    This `component_url` corresponds to a the (first) child node within a course.
     """
     result = visit_page(url, loadjs=True, networktab=True)
     networktab = result['networktab']
@@ -155,10 +176,16 @@ def get_course_component(url):
         print('url=', url)
         raise ValueError('More than two component found!')
 
+
+
+
+# API SCRAPING
+################################################################################
+
 def get_component_url(component_id):
     return 'https://programs.edraak.org/api/component/' + component_id + '/'
 
-def get_component(component_url):
+def get_component_from_url(component_url):
     # print('GET', component_url)
     response = requests.get(component_url)
     component = response.json()
@@ -166,7 +193,9 @@ def get_component(component_url):
 
 def get_component_from_id(component_id):
     component_url = get_component_url(component_id)
-    return get_component(component_url)
+    return get_component_from_url(component_url)
+
+
 
 
 
