@@ -35,7 +35,8 @@ def visit_page(url, loadjs=False, networktab=False):
         if networktab:
             await page.tracing.start(screenshots=True, path=networktab_file.name)
 
-        await page.goto(url)  # timeout=3000??  networkIdleTimeout: 5000,  waitUntil: 'networkidle', ?
+        await page.goto(url, waitUntil='networkidle0')  # timeout=3000??  networkIdleTimeout: 5000, ?
+        # docs https://miyakogi.github.io/pyppeteer/reference.html#pyppeteer.page.Page.goto
         content = await page.content() # evaluate('''() => document.innerHTML''')
 
         if networktab:

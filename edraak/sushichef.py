@@ -61,7 +61,8 @@ def get_text(element):
 
 def scrape_topics(url):
     """
-    Get topic links from page 'https://www.edraak.org/k12/'
+    Get course links from page 'https://www.edraak.org/k12/'
+    The Edraak website calls the different courses topic, e.g. STATS, ALGEBRA, CALC, etc.
     """
     page = get_page(url)
     subject_name = get_text(page.find('div', class_="subject"))
@@ -140,15 +141,19 @@ def get_course_component(url):
     if len(components) == 0:
         print('url=', url)
         raise ValueError('No components found!')
-
-    elif len(components) > 1:
+    elif len(components) == 1:
         print('url=', url)
-        for c in components:
-            print('component=', c)
-        raise ValueError('More than one component found!')
-
+        raise ValueError('Only a single components found!')
+    # THIS IS THE EXPECTED CASE ################################################
+    # First request api/compnents request is always the same (algebra), but then
+    # the specific request gets loaded a few seconds later (one of the six topics)
+    elif len(components) == 2:
+        print('found component=', components[-1])
+        return components[-1]  # return the last component since it's the one we want
+    ############################################################################
     else:
-        return components[0]
+        print('url=', url)
+        raise ValueError('More than two component found!')
 
 def get_component_url(component_id):
     return 'https://programs.edraak.org/api/component/' + component_id + '/'
