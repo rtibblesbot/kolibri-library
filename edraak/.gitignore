@@ -1,4 +1,5 @@
 # ricecooker specific
+cache.sqlite
 cache.sqlite3
 storage/
 restore/
