@@ -24,6 +24,9 @@ from libpyppeteer import visit_page, get_resource_requests_from_networktab
 
 
 
+DEBUG_MODE = True
+
+
 
 # EDRAAK CONSTANTS
 ################################################################################
@@ -31,6 +34,15 @@ EDRAAK_DOMAIN = 'edraak.org'
 EDRAAK_CHANNEL_DESCRIPTION = """إدراك هي إحدى مبادرات مؤسسة الملكة رانيا في الأردن وهي منصة تزود المتعلمين في المراحل الأساسية والإعدادية والثانوية بدروس مصورة ملحوقة بتمارين تساعدهم في تقدمهم الأكاديمي داخل المدرسة. ومع أنّ المحتوى يتناسب مع المنهاج الوطني الأردني إلا أنه يتناسب أيضا مع كثير من المناهج الدراسية في دول المنطقة الأخرى."""
 EDRAAK_LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder='Edraak').as_dict()
 EDRAAK_MAIN_CONTENT_COMPONENT_ID = '5a6087f46380a6049b33fc19'
+
+EDRAAK_SKIP_COMPONENT_IDS = [
+    '5b4c383045dea204a20559b5',
+    '5b32a63e4c7ceb04aeb7dbea',
+    '5a5c67417dd197717bd70825',
+    '5a5c78787dd197717c9c1635',
+    '5af3b65f5ad94204a0c934ac',
+    '5b704fa7a24abf04a516cbcb'
+]
 
 
 # CRAWLING
@@ -208,31 +220,8 @@ def get_component_from_id(component_id):
 def exercise_from_edraak_Exercise(exercise, parent_title=''):
     """ Parse one of these:
         {'id': '5a4c843b7dd197090857f05c',
-         'program': 15,
-         'parent_id': '5a4c843b7dd197090857f057',
-         'title': 'التمرين',
-    ?? 'deleted': False,
-         'full_description': None,
-         'listing_description': None,
+            ?? 'deleted': False,
          'visibility': 'staff_and_teachers',
-    ?? 'keywords': [],
-    ?? 'prerequisites': [],
-         'scaffolds': [],
-    ?? 'license': 'all_rights_reserved',
-         'audience': [],
-         'eligibility_criteria': [],
-         'non_eligible_view': 'hidden',
-         'gamification_points_on_completion': 0,
-         'quick_access_components': [],
-         'mastery_consecutive_questions_lookback': None,
-         'mastery_consecutive_questions_threshold': None,
-         'struggle_consecutive_questions_lookback': None,
-         'struggle_consecutive_questions_threshold': None,
-         '_cls': 'Component.FormActivityBase.Exercise',
-         'question_set': None,
-         'classification': ['Component', 'FormActivityBase', 'Exercise'],
-         'component_type': 'Exercise',
-         'is_eligible': True}
     """
     exercise_title = parent_title + ' ' + exercise['title']
     # Exercise node
@@ -241,7 +230,7 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
         title = exercise_title,
         author = 'Edraak',
         source_id=exercise['id'],
-        description='',
+        description=exercise['id'] if DEBUG_MODE else '',
         language=getlang('ar').code,
         license=EDRAAK_LICENSE,
         exercise_data={
@@ -259,31 +248,53 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
     questions = []
     for question in question_set_children:
         component_type = question['component_type']
+        if question['id'] in EDRAAK_SKIP_COMPONENT_IDS:
+            continue
 
         if component_type == 'MultipleChoiceQuestion':
             question_dict = question_from_edraak_MultipleChoiceQuestion(question)
-            questions.append(question_dict)
+            if question_dict:
+                questions.append(question_dict)
 
         elif component_type == 'NumericResponseQuestion':
             question_dict = question_from_edraak_NumericResponseQuestion(question)
-            questions.append(question_dict)
+            if question_dict:
+                questions.append(question_dict)
 
         else:
             print('skipping component_type', component_type)
 
-    exercise_dict['questions'] = questions
+    if questions:
+        exercise_dict['questions'] = questions
+        # Update m in case less than 3 quesitons in the exercise
+        if len(questions) < 3:
+            exercise_dict['exercise_data']['m'] = len(questions)
+        return exercise_dict
+    else:
+        return None
 
 
-    # Update m in case less than 3 quesitons in the exercise
-    if len(questions) < 3:
-        exercise_dict['exercise_data']['m'] = len(questions)
-    return exercise_dict
+def text_from_html(html):
+    try:
+        text = html2text(html, bodywidth=0)
+    except IndexError as e:
+        page = BeautifulSoup(html, 'html5lib')
+        clean_html = str(page)
+        text = html2text(clean_html, bodywidth=0)
+    return text.strip()
 
+
+def full_description_str_from_component(component):
+    full_description = component['full_description']
+    if full_description:
+        full_description_str = text_from_html(full_description)
+    else:
+        full_description_str = ''
+    return full_description_str
 
 
 def question_from_edraak_MultipleChoiceQuestion(question):
-    full_description = question['full_description']
-    question_md = html2text(full_description, bodywidth=0)
+    question_md = full_description_str_from_component(question)
     question_dict = dict(
         question_type=exercises.SINGLE_SELECTION,
         id=question['id'],
@@ -294,26 +305,27 @@ def question_from_edraak_MultipleChoiceQuestion(question):
     )
     # Add answers to question
     for choice in question['choices']:
-        answer_text = html2text(choice['description'], bodywidth=0)
+        answer_text = text_from_html(choice['description'])
         question_dict['all_answers'].append(answer_text)
         if choice['is_correct']:
             question_dict['correct_answer'] = answer_text
 
     # Add hints
     for hint in question['hints']:
-        hint_text = html2text(hint['description'], bodywidth=0)
-        question_dict['hints'].append(hint_text)
+        if hint['description']:
+            hint_text = text_from_html(hint['description'])
+            question_dict['hints'].append(hint_text)
 
-    # Add explanation as last hint
-    explanation_text = html2text(question['explanation'], bodywidth=0)
-    question_dict['hints'].append(explanation_text)
+    # # Add explanation as last hint
+    # if question['explanation']:
+    #     explanation_text = text_from_html(question['explanation'])
+    #     question_dict['hints'].append(explanation_text)
 
     return question_dict
 
 
 def question_from_edraak_NumericResponseQuestion(question):
-    full_description = question['full_description']
-    question_md = html2text(full_description, bodywidth=0)
+    question_md = full_description_str_from_component(question)
     question_dict = dict(
         question_type=exercises.INPUT_QUESTION,
         id=question['id'],
@@ -322,21 +334,29 @@ def question_from_edraak_NumericResponseQuestion(question):
         hints =[],
     )
     # Add answers numeric asnwer to question
-    correct_ans = str(question['correct_answer_precise'])
+    correct_ans = question['correct_answer_precise']
+    if correct_ans is None:
+        print('no correct_answer_precise for', question['id'])
+        return None
     correct_ans_str = str(correct_ans)  # pepresent as string even though it's number...
     question_dict['answers'].append(correct_ans_str)
 
     # Add hints
     for hint in question['hints']:
-        hint_text = html2text(hint['description'], bodywidth=0)
-        question_dict['hints'].append(hint_text)
+        if hint['description']:
+            hint_text = text_from_html(hint['description'])
+            question_dict['hints'].append(hint_text)
 
-    # Add explanation as last hint
-    explanation_text = html2text(question['explanation'], bodywidth=0)
-    question_dict['hints'].append(explanation_text)
+    # # Add explanation as last hint
+    # if question['explanation']:
+    #     explanation_text = text_from_html(question['explanation'])
+    #     question_dict['hints'].append(explanation_text)
 
     return question_dict
 
+
+# VIDEOS
+################################################################################
 
 def extract_youtube_id_from_encoded_videos(encoded_videos):
     for vid in encoded_videos:
@@ -344,10 +364,11 @@ def extract_youtube_id_from_encoded_videos(encoded_videos):
             return vid['url']
 
 def video_from_edraak_Video(video):
-    full_description = video['full_description']
-    video_title = html2text(full_description, bodywidth=0)
     if 'video_info' not in video:
-        return None
+        return None   #  see README for missing videos list of IDs
+    video_title = full_description_str_from_component(video)
+    if not video_title:
+        video_title = 'Video'
     encoded_videos = video['video_info']['encoded_videos']
     youtube_id = extract_youtube_id_from_encoded_videos(encoded_videos)
     video_dict = dict(
@@ -355,7 +376,7 @@ def video_from_edraak_Video(video):
         source_id=video['id'],
         title = video_title,
         author = 'Edraak',
-        description='',
+        description=video['id'] if DEBUG_MODE else '',
         language=getlang('ar').code,
         license=EDRAAK_LICENSE,
         files=[]
@@ -369,6 +390,72 @@ def video_from_edraak_Video(video):
     return video_dict
 
 
+
+
+
+# TREE TRANSFORM
+################################################################################
+
+FOLDER_LIKE_CONTENTY_TYPES = [
+    'Section',
+    'SubSection',
+    'OnlineLesson',
+    'Test',
+]
+
+def topic_node_from_component(component):
+    component_type = component['component_type']
+
+    # Imported components
+    if component_type == 'ImportedComponent':
+        target_component = component['target_component']
+        return topic_node_from_component(target_component)
+
+    # Topic nodes
+    if component_type in FOLDER_LIKE_CONTENTY_TYPES:
+        print('  - processing folder id=', component['id'])
+        topic_dict = dict(
+            kind=content_kinds.TOPIC,
+            title=component['title'].strip(),
+            source_id=component['id'],
+            description=component['id'] if DEBUG_MODE else '',
+            language=getlang('ar').code,
+            license=EDRAAK_LICENSE,
+            children=[],
+        )
+        child_source_ids = []
+        for child in component['children']:
+            child_node = topic_node_from_component(child)
+            if child_node:
+                if child_node['source_id'] not in child_source_ids:
+                    topic_dict['children'].append(child_node)
+                    child_source_ids.append(child_node['source_id'])
+                else:
+                    print('Skipping duplicate child with id=', child['id'])
+
+        if topic_dict['children']:
+            return topic_dict
+        else:
+            return None
+
+    elif component_type == 'Video':
+        # print('processing video id=', component['id'])
+        component_id = component['id']
+        video = get_component_from_id(component_id)
+        video_dict = video_from_edraak_Video(video)
+        return video_dict
+
+    elif component_type == 'Exercise':
+        # print('processing exercise id=', component['id'])
+        component_id = component['id']
+        exercise = get_component_from_id(component_id)
+        exercise_dict = exercise_from_edraak_Exercise(exercise)
+        return exercise_dict
+    
+    else:
+        print(component)
+        raise ValueError('unknown component')
+    
 
 # CHEF
 ################################################################################
@@ -406,21 +493,34 @@ class EdraakChef(JsonTreeChef):
         Build the hierarchy of topic nodes and content nodes.
         """
         LOGGER.info('Creating channel content nodes...')
+        channel_web_rsrc = json.load(open(CRAWLING_STAGE_OUTPUT,'r'))
+        root_component_ids = []
+        for child in channel_web_rsrc['children'][0]['children']:
+            root_component_ids.append( child['root_component_id'] )
 
-        sample_exercise_id = '5a4c843b7dd197090857f05c'
-        exercise = get_component_from_id(sample_exercise_id)
-        exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Example MultipleChoiceQuestion')
-        channel['children'].append(exercise_dict)
+        for root_component_id in root_component_ids:
+            course = get_component_from_id(root_component_id)
+            print('Processing course', course['title'], 'id=', course['id'] )
+            topic_dict = topic_node_from_component(course)
+            channel['children'].append(topic_dict)
+            print('\n')
 
-        sample_exercise_id2 = '5a4c84377dd197090857ecf2'
-        exercise2 = get_component_from_id(sample_exercise_id2)
-        exercise_dict2 = exercise_from_edraak_Exercise(exercise2, parent_title='Example NumericResponseQuestion')
-        channel['children'].append(exercise_dict2)
-        
-        sample_video_id = '5a4c84397dd197090857ee5c'
-        vid = get_component_from_id(sample_video_id)
-        video_dict = video_from_edraak_Video(vid)
-        channel['children'].append(video_dict)
+
+    # def add_sample_content_nodes(self, channel):
+    #     sample_exercise_id = '5a4c843b7dd197090857f05c'
+    #     exercise = get_component_from_id(sample_exercise_id)
+    #     exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Example MultipleChoiceQuestion')
+    #     channel['children'].append(exercise_dict)
+    # 
+    #     sample_exercise_id2 = '5a4c84377dd197090857ecf2'
+    #     exercise2 = get_component_from_id(sample_exercise_id2)
+    #     exercise_dict2 = exercise_from_edraak_Exercise(exercise2, parent_title='Example NumericResponseQuestion')
+    #     channel['children'].append(exercise_dict2)
+    # 
+    #     sample_video_id = '5a4c84397dd197090857ee5c'
+    #     vid = get_component_from_id(sample_video_id)
+    #     video_dict = video_from_edraak_Video(vid)
+    #     channel['children'].append(video_dict)
 
 
 # CLI
