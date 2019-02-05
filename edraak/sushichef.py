@@ -35,6 +35,7 @@ EDRAAK_CHANNEL_DESCRIPTION = """إدراك هي إحدى مبادرات مؤسس
 EDRAAK_LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder='Edraak').as_dict()
 EDRAAK_MAIN_CONTENT_COMPONENT_ID = '5a6087f46380a6049b33fc19'
 
+# something breaks when trying to import these exercises --- TODO followup invesigations
 EDRAAK_SKIP_COMPONENT_IDS = [
     '5b4c383045dea204a20559b5',
     '5b32a63e4c7ceb04aeb7dbea',
@@ -43,6 +44,17 @@ EDRAAK_SKIP_COMPONENT_IDS = [
     '5af3b65f5ad94204a0c934ac',
     '5b704fa7a24abf04a516cbcb'
 ]
+
+# Used to temporarily focus work on subset relevant to upcoming Jordan training  TODO uncomment
+EDRAAK_SELECTED_COURSES = [
+    # '5b9e193f78e7f904a04379e0',     # التفاضل والتكامل  = Calculus
+    # '5b9e191a78e7f904a04379dd',     # الرياضيات التطبيقية (الميكانيكا) = Applied Mathematics (Mechanics)
+    # '5a60881e6b9064043689772d',     # الإحصاء و الاحتمالات  =  Statistics and Probability
+    # '5a608819f3a50d049abf68ea',     # الهندسة وعلم المثلثات = Engineering and Trigonometry
+    '5a6088188c9a02049a3e69e5',     # الجبر و الأنماط = Algebra and patterns
+    '5a608815f3a50d049abf68e9',     # الأعداد والعمليات الحسابية عليها = Numbers and computations
+ ]
+
 
 
 # CRAWLING
@@ -91,7 +103,6 @@ def scrape_topics(url):
         )
         topics.append(topic)
     return topics
-
 
 
 
@@ -500,10 +511,13 @@ class EdraakChef(JsonTreeChef):
 
         for root_component_id in root_component_ids:
             course = get_component_from_id(root_component_id)
-            print('Processing course', course['title'], 'id=', course['id'] )
-            topic_dict = topic_node_from_component(course)
-            channel['children'].append(topic_dict)
-            print('\n')
+            if root_component_id in EDRAAK_SELECTED_COURSES:
+                print('Processing course', course['title'], 'id=', course['id'] )
+                topic_dict = topic_node_from_component(course)
+                channel['children'].append(topic_dict)
+                print('\n')
+            else:
+                print('Skipping course', course['title'], 'id=', course['id'] )
 
 
     # def add_sample_content_nodes(self, channel):
