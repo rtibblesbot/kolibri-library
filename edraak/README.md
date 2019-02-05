@@ -13,8 +13,18 @@ TODOs
 TODOs P2
 --------
   - remove hint text from explanation so it doesnt repeat
-  - import tags
+  - import tags from `video['keywords']`
 
+
+
+Install
+-------
+
+
+Run
+---
+
+    ./sushichef.py -v --reset --thumbnails --compress --token=<TOKEN>
 
 
 
@@ -22,6 +32,10 @@ Samples
 -------
 
 Exercise with image (first qustion): '5a4c843b7dd197090857f05c'
+
+
+
+
 
 
 
@@ -40,6 +54,13 @@ Backup options:
   - https://pub.dartlang.org/packages/html2md
   - 
 
+
+Videos
+------
+
+after compression (specify `--compress` on command line)
+
+    -rw-r--r--  1 ivan  staff   6.2M  5 Feb 03:28 a/0/a041d36b231e2c2d4f66b346b0992d9f.mp4
 
 
 

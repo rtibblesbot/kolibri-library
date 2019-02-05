@@ -29,7 +29,7 @@ from libpyppeteer import visit_page, get_resource_requests_from_networktab
 ################################################################################
 EDRAAK_DOMAIN = 'edraak.org'
 EDRAAK_CHANNEL_DESCRIPTION = """إدراك هي إحدى مبادرات مؤسسة الملكة رانيا في الأردن وهي منصة تزود المتعلمين في المراحل الأساسية والإعدادية والثانوية بدروس مصورة ملحوقة بتمارين تساعدهم في تقدمهم الأكاديمي داخل المدرسة. ومع أنّ المحتوى يتناسب مع المنهاج الوطني الأردني إلا أنه يتناسب أيضا مع كثير من المناهج الدراسية في دول المنطقة الأخرى."""
-EDRAAK_LICENSE = get_license(licenses.ALL_RIGHTS_RESERVED, copyright_holder='Edraak').as_dict()
+EDRAAK_LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder='Edraak').as_dict()
 EDRAAK_MAIN_CONTENT_COMPONENT_ID = '5a6087f46380a6049b33fc19'
 
 
@@ -239,7 +239,7 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
     exercise_dict = dict(
         kind = content_kinds.EXERCISE,
         title = exercise_title,
-        author = 'Kamkalima',
+        author = 'Edraak',
         source_id=exercise['id'],
         description='',
         language=getlang('ar').code,
@@ -338,8 +338,35 @@ def question_from_edraak_NumericResponseQuestion(question):
     return question_dict
 
 
+def extract_youtube_id_from_encoded_videos(encoded_videos):
+    for vid in encoded_videos:
+        if vid['profile'] == 'youtube':
+            return vid['url']
 
-
+def video_from_edraak_Video(video):
+    full_description = video['full_description']
+    video_title = html2text(full_description, bodywidth=0)
+    if 'video_info' not in video:
+        return None
+    encoded_videos = video['video_info']['encoded_videos']
+    youtube_id = extract_youtube_id_from_encoded_videos(encoded_videos)
+    video_dict = dict(
+        kind=content_kinds.VIDEO,
+        source_id=video['id'],
+        title = video_title,
+        author = 'Edraak',
+        description='',
+        language=getlang('ar').code,
+        license=EDRAAK_LICENSE,
+        files=[]
+    )
+    file_dict = dict(
+        file_type=content_kinds.VIDEO,
+         youtube_id=youtube_id,
+         high_resolution=False
+    )
+    video_dict['files'].append(file_dict)
+    return video_dict
 
 
 
@@ -389,7 +416,11 @@ class EdraakChef(JsonTreeChef):
         exercise2 = get_component_from_id(sample_exercise_id2)
         exercise_dict2 = exercise_from_edraak_Exercise(exercise2, parent_title='Example NumericResponseQuestion')
         channel['children'].append(exercise_dict2)
-
+        
+        sample_video_id = '5a4c84397dd197090857ee5c'
+        vid = get_component_from_id(sample_video_id)
+        video_dict = video_from_edraak_Video(vid)
+        channel['children'].append(video_dict)
 
 
 # CLI
@@ -401,46 +432,3 @@ if __name__ == '__main__':
     """
     chef = EdraakChef()
     chef.main()
-
-
-
-
-# if __name__ == '__main__':
-#     url = 'https://programs.edraak.org/learn/repository/math-algebra-topics-v2/section/5a6088188c9a02049a3e69e5/'
-#     component_url = get_course_component(url)
-#     print(component_url)
-
-
-
-# UNUSED
-################################################################################
-# 
-# def scrape_grades(page):
-#     """
-#     Get grades from the /k12/ page.
-#     """
-#     grades_div = page.find('div', class_="grades")
-#     grades = grades_div.find_all('a', class_='grade')
-# 
-#     grade_dicts = []
-#     url = '?????????????????????'
-#     for grade in grades:
-#         grade_url = urljoin(url, grade['href'])
-#         # print(grade)
-#         # number
-#         number_div = grade.find('div', class_="grade-no")
-#         name_div = number_div.find('sup', class_="sup-grade")
-#         name_div.extract()
-#         grade_no = get_text(number_div)
-# 
-#         # name
-#         grade_text = get_text(grade.find('div', class_="grade-text"))
-# 
-#         grade_dict = dict(
-#             grade_url=grade_url,
-#             grade_no=grade_no,
-#             grade_text=grade_text
-#         )
-#         grade_dicts.append(grade_dict)
-# 
-#     return grade_dicts
