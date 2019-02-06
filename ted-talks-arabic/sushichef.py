@@ -403,7 +403,7 @@ class TEDTalksChef(JsonTreeChef):
                 title=CHANNEL_NAME,
                 description="""TED Talks provide lessons and inspiring stories for life by bringing public figures, policy makers, entrepreneurs and more figures to share their stories and work on a variety of global issues. The videos can be integrated in some subject activities in national curriculums or as part of extra-curricular activities as well."""
 [:400], #400 UPPER LIMIT characters allowed 
-                thumbnail=None,
+                thumbnail="https://yt3.ggpht.com/a-/AAuE7mDfV4L4BRoerItJ0mUjxM8jhUW7ZjheYoS5Qw=s900-mo-c-c0xffffffff-rj-k-no",
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],
