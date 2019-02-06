@@ -4,10 +4,10 @@ Sushi Chef script for importing edraak content from https://www.edraak.org/
 
 TODOs
 -----
-  - sample video
-  - full channel structure
   - POC tables
   - POC equations
+  - Fix Image-too-large problem here: http://35.246.148.139/learn/#/topics/c/ad034382e24b5edf9fa4c14386bbec89
+
 
 
 TODOs P2

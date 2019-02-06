@@ -505,15 +505,13 @@ class EdraakChef(JsonTreeChef):
         """
         LOGGER.info('Creating channel content nodes...')
         channel_web_rsrc = json.load(open(CRAWLING_STAGE_OUTPUT,'r'))
-        root_component_ids = []
-        for child in channel_web_rsrc['children'][0]['children']:
-            root_component_ids.append( child['root_component_id'] )
-
-        for root_component_id in root_component_ids:
+        for course_web_resouece in channel_web_rsrc['children'][0]['children']:
+            root_component_id = course_web_resouece['root_component_id']
             course = get_component_from_id(root_component_id)
             if root_component_id in EDRAAK_SELECTED_COURSES:
                 print('Processing course', course['title'], 'id=', course['id'] )
                 topic_dict = topic_node_from_component(course)
+                topic_dict['thumbnail'] = course_web_resouece['thumbnail_url']
                 channel['children'].append(topic_dict)
                 print('\n')
             else:
