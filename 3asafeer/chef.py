@@ -274,7 +274,7 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     return nodes.HTML5AppNode(
         source_id=book_id,
         title=truncate_metadata(title),
-        license=licenses.AllRightsLicense(copyright_holder='3asafeer.com'),
+        license=licenses.CC_BY_NC_SALicense(copyright_holder='3asafeer.com'),
         thumbnail=thumbnail,
         files=[files.HTMLZipFile(zip_path)],
         language="ar",
