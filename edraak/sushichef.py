@@ -1,9 +1,17 @@
 #!/usr/bin/env python
+import base64
 from bs4 import BeautifulSoup
+import hashlib
 import json
 import os
+from PIL import Image
+import re
 import requests
 from urllib.parse import urljoin
+
+
+
+
 
 
 from le_utils.constants import content_kinds, exercises, file_types, licenses
@@ -34,6 +42,11 @@ EDRAAK_DOMAIN = 'edraak.org'
 EDRAAK_CHANNEL_DESCRIPTION = """إدراك هي إحدى مبادرات مؤسسة الملكة رانيا في الأردن وهي منصة تزود المتعلمين في المراحل الأساسية والإعدادية والثانوية بدروس مصورة ملحوقة بتمارين تساعدهم في تقدمهم الأكاديمي داخل المدرسة. ومع أنّ المحتوى يتناسب مع المنهاج الوطني الأردني إلا أنه يتناسب أيضا مع كثير من المناهج الدراسية في دول المنطقة الأخرى."""
 EDRAAK_LICENSE = get_license(licenses.CC_BY_NC_SA, copyright_holder='Edraak').as_dict()
 EDRAAK_MAIN_CONTENT_COMPONENT_ID = '5a6087f46380a6049b33fc19'
+
+EXERCISE_IMAGES_DIR = 'chefdata/exerciseimages/'
+EXERCISE_DOWNLOADED_IMAGES_DIR = 'chefdata/downloadedimages/'
+EXERCISE_IMAGE_MAX_WIDTH = 500
+
 
 # something breaks when trying to import these exercises --- TODO followup invesigations
 EDRAAK_SKIP_COMPONENT_IDS = [
@@ -285,25 +298,6 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
         return None
 
 
-def text_from_html(html):
-    try:
-        text = html2text(html, bodywidth=0)
-    except IndexError as e:
-        page = BeautifulSoup(html, 'html5lib')
-        clean_html = str(page)
-        text = html2text(clean_html, bodywidth=0)
-    return text.strip()
-
-
-def full_description_str_from_component(component):
-    full_description = component['full_description']
-    if full_description:
-        full_description_str = text_from_html(full_description)
-    else:
-        full_description_str = ''
-    return full_description_str
-
-
 def question_from_edraak_MultipleChoiceQuestion(question):
     question_md = full_description_str_from_component(question)
     question_dict = dict(
@@ -457,7 +451,7 @@ def topic_node_from_component(component):
         return video_dict
 
     elif component_type == 'Exercise':
-        # print('processing exercise id=', component['id'])
+        print('processing exercise id=', component['id'])
         component_id = component['id']
         exercise = get_component_from_id(component_id)
         exercise_dict = exercise_from_edraak_Exercise(exercise)
@@ -467,6 +461,114 @@ def topic_node_from_component(component):
         print(component)
         raise ValueError('unknown component')
     
+
+# IMG TRANSFORMS
+################################################################################
+
+BASE64_REGEX_STR = r'data:image\/([A-Za-z\+]*);base64,((?:[A-Za-z0-9+\/]{4})*(?:[A-Za-z0-9+\/]{2}==|[A-Za-z0-9+\/]{3}=)*)'
+BASE64_REGEX = re.compile(BASE64_REGEX_STR, flags=re.IGNORECASE)
+
+def get_base64_encoding(text):
+    return BASE64_REGEX.search(text)
+
+def get_hash_value(text_or_bytes):
+    if not type(text_or_bytes) == bytes:
+        text_or_bytes = bytes(text_or_bytes, encoding='utf-8')
+    hashobj = hashlib.md5()
+    hashobj.update(text_or_bytes)
+    return hashobj.hexdigest()
+
+def replace_base64_images(page):
+    imgs = page.find('body').find_all('img')
+    replacement_src = None
+    for img in imgs:
+
+        # Step 1. First pre-process any base64 images and download them
+        m = get_base64_encoding(img['src'])
+        if m:
+            if m[1] == 'svg+xml':
+                ext = '.svg'
+            elif m[1] == 'png':
+                ext = '.png'
+            else:
+                print(m[1])
+                raise ValueError('Uknown base64 image format')
+            b64data = m[2]
+            imgdata = base64.b64decode(b64data)
+            hashvalue = get_hash_value(b64data)
+            filename = hashvalue + ext
+            savepath = os.path.join(EXERCISE_IMAGES_DIR, filename)
+            if not os.path.exists(savepath):
+                with open(savepath, 'wb') as f:
+                    f.write(imgdata)
+            replacement_src = savepath
+        else:
+            replacement_src = img['src']
+        
+        # Step 2. Download image at `replacement_src` if is a HTTP resource
+        httpm = re.search('http[s]?://', replacement_src)
+        if httpm:
+            response = requests.get(replacement_src)
+            if response.status_code == 200:
+                _, imgfilename = os.path.split(replacement_src)
+                _, ext = os.path.splitext(imgfilename)
+                if ext == '':
+                    ext = '.png'
+                dfilename = get_hash_value(replacement_src) + ext
+                downloadpath = os.path.join(EXERCISE_DOWNLOADED_IMAGES_DIR, dfilename)
+                with open(downloadpath, 'wb') as f:
+                    f.write(response.content)
+                replacement_src = downloadpath
+            else:
+                print('Problem downloading image ', replacement_src)
+
+        # Step 3. Resize image at `replacement_src` if necessary
+        if replacement_src.endswith('.png'):
+            print('replacement_src=', replacement_src)
+            try:
+                image = Image.open(replacement_src)                
+                image_width = image.size[0]
+                if image_width > EXERCISE_IMAGE_MAX_WIDTH:
+                    wpercent = (float(EXERCISE_IMAGE_MAX_WIDTH)/float(image.size[0]))
+                    image_height = int((float(image.size[1])*float(wpercent)))
+                    image = image.resize((EXERCISE_IMAGE_MAX_WIDTH, image_height), Image.LANCZOS)
+                    destpath = replacement_src.replace(EXERCISE_DOWNLOADED_IMAGES_DIR, EXERCISE_IMAGES_DIR)
+                    image.save(destpath, compress_level=2)
+                    print('resized image', replacement_src, 'to', destpath)
+                    replacement_src = destpath
+                else:
+                    print('image is not too large so leaving alone...')
+
+            except OSError as e:
+                print('WARNING problem downloading image', replacement_src, 'so skipping...')
+
+        else:
+            pass
+            # print('not resizing image because it is not a png', replacement_src)
+        img['src'] = replacement_src
+    return page
+
+
+def text_from_html(html):
+    page = BeautifulSoup(html, 'html5lib')
+    # note  BeautifulSoup turned the HTML fragment into a valid HTML document
+    # by wrapping in  html > body > {}  and elements
+    page = replace_base64_images(page)
+    clean_html = ''.join(str(el) for el in page.find('body').children)
+    text = html2text(clean_html, bodywidth=0)
+    return text.strip()
+
+
+def full_description_str_from_component(component):
+    full_description = component['full_description']
+    if full_description:
+        full_description_str = text_from_html(full_description)
+    else:
+        full_description_str = ''
+    return full_description_str
+
+
+
 
 # CHEF
 ################################################################################
@@ -533,6 +635,13 @@ class EdraakChef(JsonTreeChef):
     #     vid = get_component_from_id(sample_video_id)
     #     video_dict = video_from_edraak_Video(vid)
     #     channel['children'].append(video_dict)
+    #
+    # exercise with math images
+    # sample_exercise_id = '5a4c9ff07dd197047e9ad8ee'
+    # exercise = get_component_from_id(sample_exercise_id)
+    # exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Example MultipleChoiceQuestion')
+    # channel['children'].append(exercise_dict)
+
 
 
 # CLI
