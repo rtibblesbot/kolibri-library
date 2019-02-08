@@ -486,14 +486,14 @@ def replace_base64_images(page):
         # Step 1. First pre-process any base64 images and download them
         m = get_base64_encoding(img['src'])
         if m:
-            if m[1] == 'svg+xml':
+            if m.group(1) == 'svg+xml':
                 ext = '.svg'
-            elif m[1] == 'png':
+            elif m.group(1) == 'png':
                 ext = '.png'
             else:
-                print(m[1])
+                print(m.group(1))
                 raise ValueError('Uknown base64 image format')
-            b64data = m[2]
+            b64data = m.group(2)
             imgdata = base64.b64decode(b64data)
             hashvalue = get_hash_value(b64data)
             filename = hashvalue + ext
