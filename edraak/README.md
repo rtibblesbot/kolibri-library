@@ -4,21 +4,23 @@ Sushi Chef script for importing edraak content from https://www.edraak.org/
 
 TODOs
 -----
-  - POC tables
-  - POC equations
-  - Fix Image-too-large problem here: http://35.246.148.139/learn/#/topics/c/ad034382e24b5edf9fa4c14386bbec89
-
+  - check and fix Markdown table rendering
 
 
 TODOs P2
 --------
   - remove hint text from explanation so it doesnt repeat
   - import tags from `video['keywords']`
+  - can we edit SVGs to fix the high basline display?
 
 
 
 Install
 -------
+
+    virtualenv -p python3 venv
+    source venv/bin/activate
+    pip install -r requirements.txt
 
 
 Run

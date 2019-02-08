@@ -31,8 +31,7 @@ from libpyppeteer import visit_page, get_resource_requests_from_networktab
 
 
 
-
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 
 
@@ -55,7 +54,8 @@ EDRAAK_SKIP_COMPONENT_IDS = [
     '5a5c67417dd197717bd70825',
     '5a5c78787dd197717c9c1635',
     '5af3b65f5ad94204a0c934ac',
-    '5b704fa7a24abf04a516cbcb'
+    '5b704fa7a24abf04a516cbcb',
+    '5a55ccd67dd197717c9a1017', # Broken image links from google cloud
 ]
 
 # Used to temporarily focus work on subset relevant to upcoming Jordan training  TODO uncomment
