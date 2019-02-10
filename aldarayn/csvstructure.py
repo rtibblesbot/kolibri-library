@@ -174,7 +174,8 @@ def sane_group_by(items, key):
     Returns a dict with keys = possible values of key in items
     and corresponding values being lists of items that have that key.
     """
-    return dict((k, list(g)) for k, g in groupby(items, key=itemgetter(key)))
+    sorted_items = sorted(items, key=itemgetter(key))
+    return dict((k, list(g)) for k, g in groupby(sorted_items, key=itemgetter(key)))
 
 
 def print_aldarayn_structure(struct_list):
