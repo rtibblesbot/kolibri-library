@@ -54,7 +54,7 @@ sess.mount(BASE_URL, forever_adapter)
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "TED Talks Arabic Subtitles"              # Name of channel
+CHANNEL_NAME = "TED Talks Arabic Subtitles (العربية)"              # Name of channel
 CHANNEL_SOURCE_ID = "sushi-chef-ted-talks-ar"    # Channel's unique id
 CHANNEL_DOMAIN = "https://www.ted.com/"          # Who is providing the content
 CHANNEL_LANGUAGE = "ar"      # Language of channel
