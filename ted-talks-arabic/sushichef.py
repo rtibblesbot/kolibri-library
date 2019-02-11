@@ -188,8 +188,8 @@ class TedTalk:
                 title = meta_title.attrs.get('content', self.title)
                 LOGGER.info("  Meta Title: {}".format(title))
                 return title
-            except:
-                LOGGER.info("  Title: {}".format(title))
+            except Exception as e:
+                LOGGER.info("  Error: {}".format(e))
                 return self.title
 
     def download(self, download=True, base_path=None):
