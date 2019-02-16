@@ -32,7 +32,7 @@ class GoalkickerChef(SushiChef):
         els_with_page_urls = gk_soup.find_all(class_='bookContainer')
         page_urls = [gk_url + el.find('a')['href'] for el in els_with_page_urls]
 
-        for page_url in page_urls:
+        for book_counter, page_url in enumerate(page_urls):
             # Soupify book page
             page_soup = get_soup(page_url)
 
@@ -45,9 +45,11 @@ class GoalkickerChef(SushiChef):
             book_node = TopicNode(title=book_info['subject'], source_id=book_node_source_id)
             channel.add_child(book_node)
 
+            # Use separate download directory for each book's pdf chunks. Avoids name conflicts between books
+            download_dir = 'downloads/book_' + str(book_counter).rjust(2, '0') + '--' + book_info['subject']
             # Get chapters info
             pdf_path = book_info['absolute_url']
-            with PDFParser(pdf_path) as pdfparser:
+            with PDFParser(pdf_path, directory=download_dir) as pdfparser:
                 chapters = pdfparser.split_chapters()
 
             # Add chapter nodes
