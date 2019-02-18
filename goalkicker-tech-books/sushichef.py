@@ -10,6 +10,20 @@ from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.pdf import PDFParser
 
+LIGATURES = {   u"\u00DF": "fs",
+                u"\u00C6": "AE",
+                u"\u00E6": "ae",
+                u"\u0152": "OE",
+                u"\u0153": "oe",
+                u"\uFB00": "ff",
+                u"\uFB01": "fi",
+                u"\uFB02": "fl",
+                u"\uFB03": "ffi",
+                u"\uFB04": "ffl",
+                u"\uFB05": "ft",
+                '®': '',
+                '©': '',
+                '™': '', }
 
 class GoalkickerChef(SushiChef):
     channel_info = {
@@ -74,6 +88,11 @@ class GoalkickerChef(SushiChef):
 
         return channel
 
+def replace_ligatures(string):
+    for ligature, equiv in LIGATURES.items():
+        string = string.replace(ligature, equiv)
+    return string
+
 
 def get_soup(url):
     response = requests.get(url)
@@ -86,6 +105,7 @@ def parse_book_info(soup):
     str_with_book_title = soup.find(id='header').find('h1').get_text()
     suffix = ' book'
     book_title = str_with_book_title[:-len(suffix)] if str_with_book_title.endswith(suffix) else str_with_book_title
+    book_title = replace_ligatures(book_title)
 
     suffix = ' Notes for Professionals'
     book_subject = book_title[:-len(suffix)] if book_title.endswith(suffix) else book_title
