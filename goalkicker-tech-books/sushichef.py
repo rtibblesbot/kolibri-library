@@ -53,11 +53,18 @@ class GoalkickerChef(SushiChef):
                 chapters = pdfparser.split_chapters()
 
             # Add chapter nodes
-            for chapter in chapters:
+            for i, chapter in enumerate(chapters):
                 chapter_node_source_id = book_info['source_id'] + '/' + chapter['title']
+
+                if chapter['title'].startswith('Chapter'):
+                    chapter_num = re.search('Chapter (\d+)', chapter['title']).group(1)
+                    chapter_description = 'Chapter ' + chapter_num + ' of the Goalkicker book on ' + book_info['subject']
+                else:
+                    chapter_description = '"' + chapter['title'] + '" section of the Goalkicker book on ' + book_info['subject']
+
                 chapter_node = DocumentNode(
                     title=chapter['title'],
-                    description=chapter['title'],
+                    description=chapter_description,
                     source_id=chapter_node_source_id,
                     license=get_license('CC BY-SA', copyright_holder='Stack Overflow'),
                     language='en',
