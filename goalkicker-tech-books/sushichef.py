@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import re
 import requests
 
@@ -60,7 +61,7 @@ class GoalkickerChef(SushiChef):
             channel.add_child(book_node)
 
             # Use separate download directory for each book's pdf chunks. Avoids name conflicts between books
-            download_dir = 'downloads/book_' + str(book_counter).rjust(2, '0') + '--' + book_info['subject']
+            download_dir = os.path.join('downloads', 'book_' + str(book_counter).rjust(2, '0') + '--' + book_info['subject'])
             # Get chapters info
             pdf_path = book_info['absolute_url']
             with PDFParser(pdf_path, directory=download_dir) as pdfparser:
