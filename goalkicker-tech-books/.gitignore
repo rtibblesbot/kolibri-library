@@ -1,3 +1,8 @@
+# for examples
+notebooks/sample_book.pdf
+notebooks/sample_chapter.pdf
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
