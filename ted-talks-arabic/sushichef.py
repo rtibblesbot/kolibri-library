@@ -401,7 +401,7 @@ class TEDTalksChef(JsonTreeChef):
                 source_domain=TEDTalksChef.HOSTNAME,
                 source_id=CHANNEL_SOURCE_ID,
                 title=CHANNEL_NAME,
-                description="""TED Talks provide lessons and inspiring stories for life by bringing public figures, policy makers, entrepreneurs and more figures to share their stories and work on a variety of global issues. The videos can be integrated in some subject activities in national curriculums or as part of extra-curricular activities as well."""
+                description="""تزوّد منظمة تيد جميع المشاهدين حول العالم بمجموعة من الخطابات والدروس المستفادة للحياة والتي يلقيها مجموعة كبيرة من العلماء والخبراء والباحثين والشخصيات المعروفة من صناع قرار وممثلين و رواد الأعمال وفنانين وغيرهم. وهذه المجموعة المترجمة للغة العربية تحتوي على فيديوهات يمكن الاستفادة منها في أنشطة المناهج الدراسية وغيرها من أنشطة لا منهجية كذلك."""
 [:400], #400 UPPER LIMIT characters allowed 
                 thumbnail="https://yt3.ggpht.com/a-/AAuE7mDfV4L4BRoerItJ0mUjxM8jhUW7ZjheYoS5Qw=s900-mo-c-c0xffffffff-rj-k-no",
                 author=AUTHOR,
