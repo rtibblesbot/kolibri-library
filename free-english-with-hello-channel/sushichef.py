@@ -346,7 +346,7 @@ class HelloChannelChef(JsonTreeChef):
 and grammar by using Hello Channel’s TV educational shows with ESL learners.
 """
 [:400], #400 UPPER LIMIT characters allowed 
-                thumbnail=None,
+                thumbnail="http://3.bp.blogspot.com/_XoyoDdCstIU/TRu159QK2wI/AAAAAAAAANs/G6QSVqXmZqY/s400/Dibujo.jpg",
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],
