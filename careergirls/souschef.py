@@ -2,16 +2,27 @@
 import os
 import sys
 sys.path.append(os.getcwd()) # Handle relative imports
+from urllib.parse import urljoin
 import logging
 from ricecooker.chefs import SushiChef
-from le_utils.constants import licenses
+from ricecooker.classes.licenses import SpecialPermissionsLicense
 from ricecooker.classes.nodes import DocumentNode, VideoNode, TopicNode, HTML5AppNode
-from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile
+from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile, DocumentFile, ThumbnailFile
 import cg_index
 from le_utils.constants.languages import getlang
 import clusters # role_data top secon
 import hook
+import lessons # import student_resources, lesson_index
+ 
 LOGGER = logging.getLogger()
+LICENCE = SpecialPermissionsLicense("Career Girls", "For use on Kolibri")
+
+disambig_number=0
+def disambig():
+    global disambig_number
+    disambig_number = disambig_number + 1
+    return disambig_number
+
 
 def make_youtube_video(tubeid, name, _id):
     video_file = YouTubeVideoFile(youtube_id = tubeid, language=getlang('en').code, high_resolution=False)
@@ -27,21 +38,18 @@ def make_youtube_video(tubeid, name, _id):
           #author='First Last (author\'s name)',
           #description='Put file description here',
           language=getlang('en').code,
-          license=licenses.PUBLIC_DOMAIN,  # TODO - fix!
+          license=LICENCE,
           files=[video_file, subtitle_file],
     )
     return content_node
     
-    
-
-
 class CareerGirlsChef(SushiChef):
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': 'careergirls.org', # who is providing the content (e.g. learningequality.org)
         'CHANNEL_SOURCE_ID': 'careergirls',         # channel's unique id
         'CHANNEL_TITLE': 'Career Girls',
         'CHANNEL_LANGUAGE': 'en',                          # Use language codes from le_utils
-        # 'CHANNEL_THUMBNAIL': 'https://im.openupresources.org/assets/im-logo.svg', # (optional) local path or url to image file
+        'CHANNEL_THUMBNAIL': 'https://files.constantcontact.com/02b8739a001/91725ebd-c07b-4629-8b55-f91fd79919db.jpg',
         'CHANNEL_DESCRIPTION': "CareerGirls.org is a comprehensive video-based career exploration tool for girls. It contains the largest online collection of career guidance videos focusing exclusively on diverse and accomplished women. The Career Girls collection includes video clips featuring women role models who work in hundreds of wide-ranging careers with an emphasis on Science, Technology, Engineering, and Math (STEM).",  # (optional) description of the channel (optional)
     }
 
@@ -67,9 +75,13 @@ class CareerGirlsChef(SushiChef):
                 with open(fn, "wb") as f:
                     f.write(thing.app)
                 app_zip = HTMLZipFile(fn)
+                if thing.title[0] in "AEIOUaeiou":
+                    an = "an"
+                else:
+                    an = "a" 
                 app_node = HTML5AppNode(source_id = "app_{}".format(thing.url),
-                                        title = "Being a {}".format(thing.title),
-                                        license = licenses.PUBLIC_DOMAIN,
+                                        title = "Being {} {}".format(an, thing.title),
+                                        license = LICENCE,
                                         files=[app_zip])
             
                 this_node.add_child(app_node)
@@ -79,12 +91,38 @@ class CareerGirlsChef(SushiChef):
         video_list = []
         video_set = set()
         channel = self.get_channel(**kwargs)
-        #job_node = TopicNode(source_id="jobs", title="Jobs")
+        
         role_node = TopicNode(source_id="roles", title="Career Clusters")
         life_skill_node = TopicNode(source_id="lifeskills", title="Life Skills")
+        lessons_node = TopicNode(source_id = "lessons", title = "Career-Based Empowerment Lessons",
+                                 description = "What is your passion? What are you good at? Whether you think you want to be a fashion designer, a filmmaker, an engineer, or something else, these are two questions you might ask yourself when you think about a career. Watch our role models to learn more.")
+
+        resources_node = TopicNode(source_id="resources", title="Student Resources")
         
-        # channel.add_child(job_node)
         channel.add_child(role_node)
+        channel.add_child(lessons_node)
+        channel.add_child(resources_node)
+
+        def add_resources(resources, node):
+            for title, url in resources:
+                pdf_node = DocumentNode(source_id = "pdf_"+url,
+                                        title = title,
+                                        license = LICENCE,
+                                        files = [DocumentFile(path=url)])
+                node.add_child(pdf_node)
+ 
+        _lessons, resources = lessons.lesson_index()
+        for lesson in _lessons:
+            lesson_node = TopicNode(source_id=lesson.title, title=lesson.title, description=lesson.description)
+            for video in lesson.video_ids:
+                 lesson_video = make_youtube_video(video, lesson.title, video)
+                 lesson_node.add_child(lesson_video)
+            add_resources(lesson.resources, lesson_node)
+            lessons_node.add_child(lesson_node)
+
+        add_resources(lessons.student_resources(), resources_node)
+        
+        #return channel # TODO
         
         all_life_skills = list(cg_index.all_life_skills())
         get_things(all_life_skills, life_skill_node)
@@ -100,7 +138,9 @@ class CareerGirlsChef(SushiChef):
         second_lookup = {}
         for top in clusters.top:
             node = TopicNode(source_id = "role_top_"+top,
-                             title = top)
+                             title = top,
+                             description = clusters.cluster_meta[top]['desc'],
+                             thumbnail = ThumbnailFile(urljoin("https://careergirls.org/", clusters.cluster_meta[top]['img'])))
             top_lookup[top] = node
             role_node.add_child(node)
         for top, second in clusters.second:
@@ -123,20 +163,23 @@ class CareerGirlsChef(SushiChef):
         for role_url in sorted(list(role_urls)):
             _id = role_url.strip('/').split('/')[-1]
             role = cg_index.index_role(role_url)
-            this_role = TopicNode(source_id = "role__{}".format(_id),
-                                  title="{}, {}".format(role.title, role.name),
-                                  description = role.bio)
-            for v_id, v_name in zip(role.video_ids, role.video_names):
-                if v_id is not None:
-                    video_node = make_youtube_video(v_id[0], v_name[0], v_id[0])
-                    this_role.add_child(video_node)
-                    video_list.append(v_id[0])
-                    video_set.add(v_id[0])
                           
             role_found= False
-            for role in clusters.role_data:
-                if role[3] in role_url:
-                    second_lookup[tuple(role[:2])].add_child(this_role)
+            for cluster_role in clusters.role_data:
+                if cluster_role[3] in role_url:
+                    ## this section was outside the loop before
+                    this_role = TopicNode(source_id = "role__{}_{}".format(_id, disambig()),
+                                          title="{}, {}".format(role.title, role.name),
+                                          description = role.bio)
+                    for v_id, v_name in zip(role.video_ids, role.video_names):
+                        if v_id is not None:
+                            video_node = make_youtube_video(v_id[0], v_name[0], v_id[0])
+                            this_role.add_child(video_node)
+                            video_list.append(v_id[0])
+                            video_set.add(v_id[0])
+                    ## end section that was outside the loop before
+                    second_lookup[tuple(cluster_role[:2])].add_child(this_role)
+
                     role_found = True
             assert role_found, role_url
                 

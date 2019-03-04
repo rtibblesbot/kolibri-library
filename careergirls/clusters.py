@@ -6,12 +6,12 @@ requests_cache.install_cache()
 BASE_URL = "https://www.careergirls.org/explore-careers/career-clusters"
 
 role_data = []
+cluster_meta = {}
 
 def full(url):
     return urljoin(BASE_URL, url)
 
 def fetch_job_url(path, url):
-    global builder
     cluster, role = path
     html = requests.get(full(url)).content
     root = lxml.html.fromstring(html)
@@ -31,6 +31,9 @@ def fetch_cluster_url(title, url):
         new_title = tag.attrib['title']
         new_url = tag.attrib['href']
         fetch_job_url([title, new_title], new_url)
+    cluster_meta[title] = {'img': cluster_root.xpath("//div[@class='cluster__image']//img/@src")[0],
+                           'desc': cluster_root.xpath("//div[@class='cluster__introduction']")[0].text_content()}
+    
 
 def fetch_root_url(url):
     cluster_html = requests.get("https://www.careergirls.org/explore-careers/career-clusters/").content
@@ -47,3 +50,5 @@ top = set([x[0] for x in role_data])
 print (top)
 second = set([tuple(x[:2]) for x in role_data])
 print (second)
+
+# .top, .second, .role_data are imported, also .cluster_meta
