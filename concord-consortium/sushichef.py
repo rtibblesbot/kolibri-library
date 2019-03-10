@@ -1,6 +1,11 @@
 #!/usr/bin/env python
+
+import json
 import os
 import sys
+
+import requests
+
 from ricecooker.utils import downloader, html_writer
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, questions, licenses
@@ -62,13 +67,33 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
+        models = get_all_resources()['models']
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
 
+
+def get_all_resources():
+    api_search_url = 'https://learn.concord.org/api/v1/search/search?search_term=&sort_order=Newest&material_types%5B%5D=Investigation&material_types%5B%5D=Activity&material_types%5B%5D=Interactive&include_official=1&investigation_page=1&activity_page=1&interactive_page=1&per_page=1000'
+    api_response = requests.get(api_search_url)
+    all_resources = json.loads(api_response.text)
+
+    all_resources_new_format = {
+        'activities': [],
+        'models': [],
+        'sequences': []
+    }
+
+    for result in all_resources['results']:
+        if result['type'] == 'interactives':
+            all_resources_new_format['models'] = result['materials']
+        if result['type'] == 'investigations':
+            all_resources_new_format['sequences'] = result['materials']
+        if result['type'] == 'activities':
+            all_resources_new_format['activities'] = result['materials']
+
+    return all_resources_new_format
 
 
 # CLI
