@@ -3,8 +3,10 @@
 import json
 import os
 import sys
+import tempfile
 from urllib.parse import urlparse
 
+from bs4 import BeautifulSoup
 import requests
 
 from ricecooker.utils import downloader, html_writer
@@ -12,6 +14,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, questions, licenses
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
+from ricecooker.utils.downloader import download_static_assets
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
 
@@ -73,11 +76,41 @@ class MyChef(SushiChef):
         preview_urls = list(map(lambda x: x['preview_url'], models))
         resolved_urls = list(map(lambda x: requests.get(x).url, preview_urls))
         parsed_urls = list(map(lambda x: urlparse(x), resolved_urls))
+
+        # Narrow down to just embeddable models for now
         embeddable_parsed_urls = list(filter(lambda x: x.path == '/embeddable.html', parsed_urls))
+        embeddable_base_urls = list(map(lambda x: x.scheme + '://' + x.netloc, embeddable_parsed_urls))
+        embeddable_fragments = list(map(lambda x: x.fragment, embeddable_parsed_urls))
+
+        # Make parent directory ('temp') for all randomly-named temp dirs
+        temp_dir = get_temp_dir()
+        print(temp_dir)
+        print(os.path.basename(temp_dir))
+
+        # Download static assets for embeddable models into temp directory
+        soups = [get_soup(e.geturl()) for e in embeddable_parsed_urls]
+        for i, soup in enumerate(soups):
+            temp_subdir = temp_dir + os.sep + str(i)
+            os.makedirs(temp_subdir)
+
+            print('\n\n\n\nDOWNLOADING STATIC ASSETS FOR SOUP', i)
+            doc = download_static_assets(soup, temp_subdir, embeddable_base_urls[i],
+                    url_blacklist=['analytics.js']) #TODO add ga.js to blacklist
+
+            with open(temp_subdir + os.sep + 'embeddable.html', 'w') as f:
+                fragment = embeddable_parsed_urls[i].fragment
+                f.write(str(doc).replace('document.location.hash', "'#" + fragment + "'"))
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
+
+
+def get_temp_dir():
+    os.makedirs('temp', exist_ok=True)
+    temp_dir_prefix = os.getcwd() + os.sep + 'temp' + os.sep
+    temp_dir = tempfile.mkdtemp(prefix=temp_dir_prefix)
+    return temp_dir
 
 
 def get_all_resources():
@@ -100,6 +133,13 @@ def get_all_resources():
             all_resources_new_format['activities'] = result['materials']
 
     return all_resources_new_format
+
+
+def get_soup(url):
+    response = requests.get(url)
+    response.encoding = 'utf-8'
+    soup = BeautifulSoup(response.text, 'html5lib')
+    return soup
 
 
 # CLI
