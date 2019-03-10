@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from urllib.parse import urlparse
 
 import requests
 
@@ -68,6 +69,11 @@ class MyChef(SushiChef):
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
         models = get_all_resources()['models']
+
+        preview_urls = list(map(lambda x: x['preview_url'], models))
+        resolved_urls = list(map(lambda x: requests.get(x).url, preview_urls))
+        parsed_urls = list(map(lambda x: urlparse(x), resolved_urls))
+        embeddable_parsed_urls = list(filter(lambda x: x.path == '/embeddable.html', parsed_urls))
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
