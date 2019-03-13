@@ -93,13 +93,43 @@ class MyChef(SushiChef):
             temp_subdir = temp_dir + os.sep + str(i)
             os.makedirs(temp_subdir)
 
-            print('\n\n\n\nDOWNLOADING STATIC ASSETS FOR SOUP', i)
+            print('\nDOWNLOADING STATIC ASSETS FOR SOUP', i)
+            print('embeddable:', embeddable_parsed_urls[i].geturl())
+
+            stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
             doc = download_static_assets(soup, temp_subdir, embeddable_base_urls[i],
                     url_blacklist=['analytics.js']) #TODO add ga.js to blacklist
+            sys.stdout.close()
+            sys.stdout = stdout
 
             with open(temp_subdir + os.sep + 'embeddable.html', 'w') as f:
                 fragment = embeddable_parsed_urls[i].fragment
                 f.write(str(doc).replace('document.location.hash', "'#" + fragment + "'"))
+
+            # Save model json responses
+            embeddable_fragment = embeddable_fragments[i]
+            fragment_file_dir = temp_subdir + os.sep + os.path.dirname(embeddable_fragment)
+            fragment_filename = os.path.basename(embeddable_fragment)
+            os.makedirs(fragment_file_dir)
+
+            fragment_url = embeddable_base_urls[i] + os.sep + embeddable_fragment
+            fragment_json = json.loads(requests.get(fragment_url).text)
+            model_paths = []
+            with open(fragment_file_dir + os.sep + fragment_filename, 'w') as f:
+                f.write(json.dumps(fragment_json))
+                if fragment_json.get('models'):
+                    for model in fragment_json['models']:
+                        if model.get('url'):
+                            model_paths.append(model['url'])
+
+            for j, model_path in enumerate(model_paths):
+                model_url = embeddable_base_urls[i] + os.sep + model_paths[j]
+                model_json = json.loads(requests.get(model_url).text)
+
+                os.makedirs(temp_subdir + os.sep + os.path.dirname(model_path), exist_ok=True)
+                with open(temp_subdir + os.sep + model_path, 'w') as g:
+                    g.write(json.dumps(model_json))
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
