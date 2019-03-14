@@ -31,7 +31,7 @@ from libpyppeteer import visit_page, get_resource_requests_from_networktab
 
 
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 
 
@@ -60,13 +60,14 @@ EDRAAK_SKIP_COMPONENT_IDS = [
 
 # Used to temporarily focus work on subset relevant to upcoming Jordan training  TODO uncomment
 EDRAAK_SELECTED_COURSES = [
-    # '5b9e193f78e7f904a04379e0',     # التفاضل والتكامل  = Calculus
-    # '5b9e191a78e7f904a04379dd',     # الرياضيات التطبيقية (الميكانيكا) = Applied Mathematics (Mechanics)
-    # '5a60881e6b9064043689772d',     # الإحصاء و الاحتمالات  =  Statistics and Probability
-    # '5a608819f3a50d049abf68ea',     # الهندسة وعلم المثلثات = Engineering and Trigonometry
+    '5b9e193f78e7f904a04379e0',     # التفاضل والتكامل  = Calculus
+    '5b9e191a78e7f904a04379dd',     # الرياضيات التطبيقية (الميكانيكا) = Applied Mathematics (Mechanics)
+    '5a60881e6b9064043689772d',     # الإحصاء و الاحتمالات  =  Statistics and Probability
+    '5a608819f3a50d049abf68ea',     # الهندسة وعلم المثلثات = Engineering and Trigonometry
     '5a6088188c9a02049a3e69e5',     # الجبر و الأنماط = Algebra and patterns
     '5a608815f3a50d049abf68e9',     # الأعداد والعمليات الحسابية عليها = Numbers and computations
  ]
+ 
 
 
 
