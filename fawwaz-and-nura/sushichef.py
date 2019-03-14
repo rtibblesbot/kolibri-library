@@ -290,13 +290,13 @@ class FawwazandNuraChef(JsonTreeChef):
     def lessons(self):
         global CHANNEL_SOURCE_ID
         self.RICECOOKER_JSON_TREE = 'ricecooker_json_tree.json'
-        CHANNEL_NAME = "Fawwaz and Nura (العربيّة)"
+        CHANNEL_NAME = "Fawwaz wa Nura (العربيّة)"
         CHANNEL_SOURCE_ID = "fawwaz-and-nura-ar"
         channel_tree = dict(
                 source_domain=CHANNEL_DOMAIN,
                 source_id=CHANNEL_SOURCE_ID,
                 title=CHANNEL_NAME,
-                description="""Fawwaz and Nura is a 60 episode- show for children (4-12 years old) created by Tatweer for Educational Services and the Ministry of Education in Saudi Arabia. The show teaches children different human values, morals and national citizenship."""
+                description="""تحت عنوان " قيمنا الغالية " أنتجت شركة تطوير التعليمية بالتعاون مع وزارة التعليم المسلسل التربوي ( فواز ونورة )، والذي يتكون من٦٠ حلقة هادفة؛ لغرس القيم الإنسانية وتعزيز الهوية الوطنية لدى الأطفال من عمر 4 سنوات وحتى 12 سنة."""
 [:400], #400 UPPER LIMIT characters allowed 
                 thumbnail=CHANNEL_THUMBNAIL,
                 author=AUTHOR,
