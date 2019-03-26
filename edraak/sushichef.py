@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import base64
 from bs4 import BeautifulSoup
+from bs4.element import NavigableString
 import hashlib
 import json
 import os
@@ -45,6 +46,13 @@ EDRAAK_MAIN_CONTENT_COMPONENT_ID = '5a6087f46380a6049b33fc19'
 EXERCISE_IMAGES_DIR = 'chefdata/exerciseimages/'
 EXERCISE_DOWNLOADED_IMAGES_DIR = 'chefdata/downloadedimages/'
 EXERCISE_IMAGE_MAX_WIDTH = 500
+
+class UnsupportedMarkdowSyntaxError(Exception):
+    """
+    This exception is raised when the chef encounters HTML tables with `colspan`
+    attributes, which are not supported in Markdown.
+    """
+    pass
 
 
 # something breaks when trying to import these exercises --- TODO followup invesigations
@@ -272,22 +280,24 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
     # Add questions to exercise node
     questions = []
     for question in question_set_children:
-        component_type = question['component_type']
-        if question['id'] in EDRAAK_SKIP_COMPONENT_IDS:
-            continue
+        try:
+            component_type = question['component_type']
+            if question['id'] in EDRAAK_SKIP_COMPONENT_IDS:
+                continue
 
-        if component_type == 'MultipleChoiceQuestion':
-            question_dict = question_from_edraak_MultipleChoiceQuestion(question)
-            if question_dict:
-                questions.append(question_dict)
+            if component_type == 'MultipleChoiceQuestion':
+                question_dict = question_from_edraak_MultipleChoiceQuestion(question)
+                if question_dict:
+                    questions.append(question_dict)
 
-        elif component_type == 'NumericResponseQuestion':
-            question_dict = question_from_edraak_NumericResponseQuestion(question)
-            if question_dict:
-                questions.append(question_dict)
-
-        else:
-            print('skipping component_type', component_type)
+            elif component_type == 'NumericResponseQuestion':
+                question_dict = question_from_edraak_NumericResponseQuestion(question)
+                if question_dict:
+                    questions.append(question_dict)
+            else:
+                print('skipping component_type', component_type)
+        except UnsupportedMarkdowSyntaxError:
+            LOGGER.warning('Skipping question ' + question['id'] + ' in exercise id=' + exercise['id'])
 
     if questions:
         exercise_dict['questions'] = questions
@@ -550,11 +560,58 @@ def replace_base64_images(page):
     return page
 
 
+def replace_text_in_tables(page):
+    """
+    Replace <p> tags with their contents because `html2text` has troubles with p
+    tags inside tables.
+    """
+    tables = page.find('body').find_all('table')
+    has_colspan = False
+    for table in tables:
+        rows = table.find_all(["th", "tr"])
+        for row in rows:
+            tds = row.find_all('td')
+            for td in tds:
+                if td.get('colspan') or td.get('rowspan'):
+                    raise UnsupportedMarkdowSyntaxError
+                new_children = []
+                for child in td.children:
+                    if type(child) == NavigableString:
+                        if child.strip() == '':
+                            continue
+                        else:
+                            new_children.append(child)
+                    elif child.name == 'p':
+                        # replace p tag with its contents
+                        for gchild in child.children:
+                            new_children.append(gchild)
+                    else:
+                        new_children.append(child)
+                    child.extract()    # remove child element from containing td
+                for new_child in new_children:  # add all new_children to the td
+                    td.append(new_child)
+    return page
+
+def clean_img_attributes(page):
+    """
+    Remove image alt and data-mathml attributes because they confuse html2text.
+    """
+    imgs = page.find_all('img')
+    for img in imgs:
+        img['alt'] = ''
+        img['data-mathml'] = ''
+    return page
+
 def text_from_html(html):
+    """
+    Extract the markdown contents from an HTML snippet
+    """
     page = BeautifulSoup(html, 'html5lib')
     # note  BeautifulSoup turned the HTML fragment into a valid HTML document
     # by wrapping in  html > body > {}  and elements
     page = replace_base64_images(page)
+    page = replace_text_in_tables(page)
+    page = clean_img_attributes(page)
     clean_html = ''.join(str(el) for el in page.find('body').children)
     text = html2text(clean_html, bodywidth=0)
     return text.strip()
@@ -597,6 +654,7 @@ class EdraakChef(JsonTreeChef):
             children=[],
         )
         self.add_content_nodes(ricecooker_json_tree)
+        # self.add_sample_content_nodes(ricecooker_json_tree)
 
         json_tree_path = self.get_json_tree_path()
         write_tree_to_json_tree(json_tree_path, ricecooker_json_tree)
@@ -632,17 +690,39 @@ class EdraakChef(JsonTreeChef):
     #     exercise_dict2 = exercise_from_edraak_Exercise(exercise2, parent_title='Example NumericResponseQuestion')
     #     channel['children'].append(exercise_dict2)
     # 
-    #     sample_video_id = '5a4c84397dd197090857ee5c'
-    #     vid = get_component_from_id(sample_video_id)
-    #     video_dict = video_from_edraak_Video(vid)
-    #     channel['children'].append(video_dict)
-    #
-    # exercise with math images
-    # sample_exercise_id = '5a4c9ff07dd197047e9ad8ee'
-    # exercise = get_component_from_id(sample_exercise_id)
-    # exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Example MultipleChoiceQuestion')
-    # channel['children'].append(exercise_dict)
-
+    #     # exercise with math images
+    #     sample_exercise_id4 = '5a4c9ff07dd197047e9ad8ee'
+    #     exercise4 = get_component_from_id(sample_exercise_id4)
+    #     exercise_dict4 = exercise_from_edraak_Exercise(exercise4, parent_title='Example MultipleChoiceQuestion with images')
+    #     channel['children'].append(exercise_dict4)
+    # 
+    # 
+    #     # NEW STUFF
+    #     #
+    #     exercises_with_tables = [
+    #         '5acb6cc06b9064043e21c48a',
+    #         '5a4c84497dd197090857fa84',
+    #         '5adefc0a6b9064043c647f3b',  # working table
+    #         '5b54384045dea204a20aa0e0',  # another working table
+    #     ]
+    #     for i, sample_exercise_id3 in enumerate(exercises_with_tables):
+    #         exercise3 = get_component_from_id(sample_exercise_id3)
+    #         exercise_dict3 = exercise_from_edraak_Exercise(exercise3, parent_title='Markdown table example ' + str(i+1) )
+    #         channel['children'].append(exercise_dict3)
+    # 
+    #     sample_exercise_id5 = '5b5445bb6b9064043d448ec8'
+    #     exercise5 = get_component_from_id(sample_exercise_id5)
+    #     exercise_dict5 = exercise_from_edraak_Exercise(exercise5, parent_title='SVG images and weird math')
+    #     channel['children'].append(exercise_dict5)
+    # 
+    #     sample_exercise_id6 = '5acb733e3a891b049fe0897c'
+    #     # also c0160ae0434e5888a5ea090625ec1703
+    #     exercise6 = get_component_from_id(sample_exercise_id6)
+    #     exercise_dict6 = exercise_from_edraak_Exercise(exercise6, parent_title='Check math alignment for Arabic')
+    #     channel['children'].append(exercise_dict6)
+    # 
+    # 
+    #     # 'c0160ae0434e5888a5ea090625ec1703' # check 
 
 
 # CLI
