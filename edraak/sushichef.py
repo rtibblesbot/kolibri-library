@@ -8,6 +8,8 @@ import os
 from PIL import Image
 import re
 import requests
+from requests.exceptions import HTTPError, ConnectionError
+
 from urllib.parse import urljoin
 
 
@@ -398,7 +400,7 @@ def video_from_edraak_Video(video):
         files=[]
     )
     file_dict = dict(
-        file_type=content_kinds.VIDEO,
+         file_type=content_kinds.VIDEO,
          youtube_id=youtube_id,
          high_resolution=False
     )
@@ -519,22 +521,25 @@ def replace_base64_images(page):
         # Step 2. Download image at `replacement_src` if is a HTTP resource
         httpm = re.search('http[s]?://', replacement_src)
         if httpm:
-            response = requests.get(replacement_src)
-            if response.status_code == 200:
-                _, imgfilename = os.path.split(replacement_src)
-                _, ext = os.path.splitext(imgfilename)
-                if ext == '':
-                    ext = '.png'
-                dfilename = get_hash_value(replacement_src) + ext
-                downloadpath = os.path.join(EXERCISE_DOWNLOADED_IMAGES_DIR, dfilename)
-                with open(downloadpath, 'wb') as f:
-                    f.write(response.content)
-                replacement_src = downloadpath
-            else:
-                print('Problem downloading image ', replacement_src)
+            try:
+                response = requests.get(replacement_src)
+                if response.status_code == 200:
+                    _, imgfilename = os.path.split(replacement_src)
+                    _, ext = os.path.splitext(imgfilename)
+                    if ext == '':
+                        ext = '.png'
+                    dfilename = get_hash_value(replacement_src) + ext
+                    downloadpath = os.path.join(EXERCISE_DOWNLOADED_IMAGES_DIR, dfilename)
+                    with open(downloadpath, 'wb') as f:
+                        f.write(response.content)
+                    replacement_src = downloadpath
+                else:
+                    print('Problem downloading image ', replacement_src)
+            except (HTTPError, ConnectionError) as e:
+                LOGGER.warning('Failed to download img src=' + replacement_src)
 
         # Step 3. Resize image at `replacement_src` if necessary
-        if replacement_src.endswith('.png'):
+        if replacement_src.endswith('.png') and 'http' not in replacement_src:
             print('replacement_src=', replacement_src)
             try:
                 image = Image.open(replacement_src)                
