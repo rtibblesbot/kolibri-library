@@ -2,9 +2,19 @@
 Sushi Chef script for importing edraak content from https://www.edraak.org/
 
 
+
+Notes for QA
+------------
+  - students will have to provide numeric inputs as "western digits" not Arabic digits
+  - is video compression set appropriately? (can you read all text in slides)
+  - check math alignment in 5acb733e3a891b049fe0897c' and c0160ae0434e5888a5ea090625ec1703
+
+
 TODOs
 -----
-  - check and fix Markdown table rendering
+  - Generate full content tree for each course from Edraak API
+  - Investigate Exam/Test bank (ask help from Hiba)
+
 
 
 TODOs P2
@@ -30,16 +40,19 @@ Run
 
 
 
-Samples
--------
-
-Exercise with image (first qustion): '5a4c843b7dd197090857f05c'
-
-
-
-
-
-
+Taster
+------
+Import the channel `c205795819f25567ad7c52b8d3622104` into Kolibri, then use the
+Kolibri search feature to find the following examples:
+  - '5a4c843b7dd197090857f05c'  # Exercise with image (first qustion Example MultipleChoiceQuestion
+  - '5a4c84377dd197090857ecf2' # Example NumericResponseQuestion
+  - '5a4c9ff07dd197047e9ad8ee' # exercise with math images
+  - '5acb6cc06b9064043e21c48a', # Tables fixed? check 
+  - '5a4c84497dd197090857fa84', # Tables fixed? check2
+  - '5adefc0a6b9064043c647f3b',  # working table
+  - '5b54384045dea204a20aa0e0',  # another working table
+  - '5b5445bb6b9064043d448ec8' # weird long math breaking alt attribute
+  - '5acb733e3a891b049fe0897c' and c0160ae0434e5888a5ea090625ec1703  # Check math vertical alignment')
 
 
 
@@ -47,20 +60,22 @@ Exercise with image (first qustion): '5a4c843b7dd197090857f05c'
 Exercise HTML --> MD conversion
 -------------------------------
 
-We use `html2text` which seems to work well.
+  - We use `html2text` which seems to work well.
+  - Question that contain HTML tables that use colspan or rowspan property are skipped
+  - Backup options:
+    - https://github.com/gaojiuli/tomd
+    - https://github.com/matthewwithanm/python-markdownify
+    - https://pandoc.org/
+    - https://pub.dartlang.org/packages/html2md
 
-Backup options:
-  - https://github.com/gaojiuli/tomd
-  - https://github.com/matthewwithanm/python-markdownify
-  - https://pandoc.org/
-  - https://pub.dartlang.org/packages/html2md
-  - 
+
+
 
 
 Videos
 ------
 
-after compression (specify `--compress` on command line)
+After compression (specify `--compress` on command line) the video sizes are reasonable:
 
     -rw-r--r--  1 ivan  staff   6.2M  5 Feb 03:28 a/0/a041d36b231e2c2d4f66b346b0992d9f.mp4
 
