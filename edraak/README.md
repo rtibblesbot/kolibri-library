@@ -79,9 +79,15 @@ After compression (specify `--compress` on command line) the video sizes are rea
 
 
 
-BUGS
-----
 
+
+
+UPSTREAM ISSUES
+---------------
+During the import process, we noticed some problem with some of the content nodes.
+
+
+## Empty Video nodes
 The following components are empty videos: (list shows `parent_id`, `id`) tuples:
 
     [('5ad4a3e4f342d704a74e8119', '5ad4a40a6b9064043e25d4ce'),
@@ -141,4 +147,29 @@ The following components are empty videos: (list shows `parent_id`, `id`) tuples
      ('5b4e3ad845dea204a16048d8', '5b4e3b1321eb8704a0b6c061'),
      ('5ad4682d6b9064043e259b24', '5ad4682d3a891b049fe410bd')]
  
+
+
+## Bad URLs in Exercises
+
+  - Question 5a58818d7dd197717bd5d478: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-sealed.gif
+  - Question 5a58818d7dd197717bd5d478: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-sealed.gif
+  - Question 5a5890737dd197717c9aef08: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-smile.gif
+  - Question 5a5890737dd197717c9aef08: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-smile.gif
+  - Question 5a572acf7dd197717bd532ea: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-wink.gif
+  - Question 5a572acf7dd197717bd532ea: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-wink.gif
+  - Question 5a5731667dd197717bd53532: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-cool.gif
+  - Question 5a5731667dd197717bd53532: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-cool.gif
+  - Question 5a4c845f7dd1970908580734: file:////Users/rayazubyoklah/Library/Group%20Containers/UBF8T346G9.Office/msoclip1/01/clip_image001.gif
+  - Question 5a4c845f7dd1970908580734: file:////Users/rayazubyoklah/Library/Group%20Containers/UBF8T346G9.Office/msoclip1/01/clip_image001.gif
+  - Question 5a4c845f7dd1970908580734: file:////Users/rayazubyoklah/Library/Group%20Containers/UBF8T346G9.Office/msoclip1/01/clip_image002.gif
+  - Question 5a4c845f7dd1970908580734: file:////Users/rayazubyoklah/Library/Group%20Containers/UBF8T346G9.Office/msoclip1/01/clip_image002.gif
+  - Question 5a5cb5747dd197717bd721f8: file:////Users/rayazubyoklah/Library/Group%20Containers/UBF8T346G9.Office/msoclip1/01/clip_image001.gif
+  - Question 5a5cb5747dd197717bd721f8: file:////Users/rayazubyoklah/Library/Group%20Containers/UBF8T346G9.Office/msoclip1/01/clip_image001.gif
+  - Question 5a5b19557dd197717bd6ba49: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-cool.gif
+  - Question 5a5b19557dd197717bd6ba49: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-cool.gif
+  - Question 5a4ded527dd1972c134bb3e5: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-foot-in-mouth.gif
+  - Question 5a4ded527dd1972c134bb3e5: https://d3n43jef99gosn.cloudfront.net/static/bower_components/tinymce/plugins/emoticons/img/smiley-foot-in-mouth.gif
+  - Question 5b4ee4866b9064043d4115d3: https://lh6.googleusercontent.com/gstaMJWS4B8-aFGxfIOZ4Twqd6WPOoAaiUgpS5yKHvGJ0FhK6NkoFNI4m9LCPsGuIkPztEQq2LKOmvdQISjNr-Ms4yfovo8XwTwvZFAftx803OF5KfE3S2b_r9vNVLNRvSLJ9zgv7xNgeZkOpg
+  - Question 5b4ee4866b9064043d4115d3: https://lh6.googleusercontent.com/gstaMJWS4B8-aFGxfIOZ4Twqd6WPOoAaiUgpS5yKHvGJ0FhK6NkoFNI4m9LCPsGuIkPztEQq2LKOmvdQISjNr-Ms4yfovo8XwTwvZFAftx803OF5KfE3S2b_r9vNVLNRvSLJ9zgv7xNgeZkOpg
+
 
