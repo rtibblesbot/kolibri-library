@@ -17,7 +17,7 @@ from urllib.parse import urljoin
 
 
 
-from le_utils.constants import content_kinds, exercises, file_types, licenses
+from le_utils.constants import content_kinds, exercises, file_types, licenses, roles
 from le_utils.constants.languages import getlang  # see also getlang_by_name, getlang_by_alpha2
 from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes.licenses import get_license
@@ -252,13 +252,17 @@ def get_component_from_id(component_id):
 # EXERCISES
 ################################################################################
 
-def exercise_from_edraak_Exercise(exercise, parent_title=''):
-    """ Parse one of these:
-        {'id': '5a4c843b7dd197090857f05c',
-            ?? 'deleted': False,
-         'visibility': 'staff_and_teachers',
+def exercise_from_edraak_Exercise_or_Test(exercise, parent_title=None, istest=False):
     """
-    exercise_title = parent_title + ' ' + exercise['title']
+    Parse an Edraaak `Exercise` or `Test` and create a Kolibri exercise from it.
+      - Take questions from: exercise['question_set']['children']
+      - Set title based on parent topic
+    """
+    if parent_title:
+        exercise_title = parent_title + ' ' + exercise['title']
+    else:
+        exercise_title = exercise['title']
+
     # Exercise node
     exercise_dict = dict(
         kind = content_kinds.EXERCISE,
@@ -276,10 +280,12 @@ def exercise_from_edraak_Exercise(exercise, parent_title=''):
         # thumbnail=
         questions=[],
     )
-    question_set = exercise['question_set']
-    question_set_children = question_set['children']
+    if istest:
+        exercise_dict['role'] = roles.COACH
 
     # Add questions to exercise node
+    question_set = exercise['question_set']
+    question_set_children = question_set['children']
     questions = []
     for question in question_set_children:
         try:
@@ -418,16 +424,15 @@ FOLDER_LIKE_CONTENTY_TYPES = [
     'Section',
     'SubSection',
     'OnlineLesson',
-    'Test',
 ]
 
-def topic_node_from_component(component):
+def node_from_component(component, parent_title=None):
     component_type = component['component_type']
 
     # Imported components
     if component_type == 'ImportedComponent':
         target_component = component['target_component']
-        return topic_node_from_component(target_component)
+        return node_from_component(target_component)
 
     # Topic nodes
     if component_type in FOLDER_LIKE_CONTENTY_TYPES:
@@ -443,7 +448,7 @@ def topic_node_from_component(component):
         )
         child_source_ids = []
         for child in component['children']:
-            child_node = topic_node_from_component(child)
+            child_node = node_from_component(child, parent_title=component['title'].strip())
             if child_node:
                 if child_node['source_id'] not in child_source_ids:
                     topic_dict['children'].append(child_node)
@@ -467,13 +472,22 @@ def topic_node_from_component(component):
         print('processing exercise id=', component['id'])
         component_id = component['id']
         exercise = get_component_from_id(component_id)
-        exercise_dict = exercise_from_edraak_Exercise(exercise)
+        exercise_dict = exercise_from_edraak_Exercise_or_Test(exercise, parent_title=parent_title)
         return exercise_dict
-    
+
+    elif component_type == 'Test':
+        print('processing test id=', component['id'])
+        component_id = component['id']
+        test = get_component_from_id(component_id)
+        test_dict = exercise_from_edraak_Exercise_or_Test(test, parent_title=parent_title, istest=True)
+        return test_dict
+
     else:
         print(component)
         raise ValueError('unknown component')
-    
+
+
+
 
 # IMG TRANSFORMS
 ################################################################################
@@ -676,7 +690,7 @@ class EdraakChef(JsonTreeChef):
             course = get_component_from_id(root_component_id)
             if root_component_id in EDRAAK_SELECTED_COURSES:
                 print('Processing course', course['title'], 'id=', course['id'] )
-                topic_dict = topic_node_from_component(course)
+                topic_dict = node_from_component(course)
                 topic_dict['thumbnail'] = course_web_resouece['thumbnail_url']
                 channel['children'].append(topic_dict)
                 print('\n')
@@ -685,20 +699,21 @@ class EdraakChef(JsonTreeChef):
 
 
     # def add_sample_content_nodes(self, channel):
+    # 
     #     sample_exercise_id = '5a4c843b7dd197090857f05c'
     #     exercise = get_component_from_id(sample_exercise_id)
-    #     exercise_dict = exercise_from_edraak_Exercise(exercise, parent_title='Example MultipleChoiceQuestion')
+    #     exercise_dict = exercise_from_edraak_Exercise_or_Test(exercise, parent_title='Example MultipleChoiceQuestion')
     #     channel['children'].append(exercise_dict)
     # 
     #     sample_exercise_id2 = '5a4c84377dd197090857ecf2'
     #     exercise2 = get_component_from_id(sample_exercise_id2)
-    #     exercise_dict2 = exercise_from_edraak_Exercise(exercise2, parent_title='Example NumericResponseQuestion')
+    #     exercise_dict2 = exercise_from_edraak_Exercise_or_Test(exercise2, parent_title='Example NumericResponseQuestion')
     #     channel['children'].append(exercise_dict2)
     # 
     #     # exercise with math images
     #     sample_exercise_id4 = '5a4c9ff07dd197047e9ad8ee'
     #     exercise4 = get_component_from_id(sample_exercise_id4)
-    #     exercise_dict4 = exercise_from_edraak_Exercise(exercise4, parent_title='Example MultipleChoiceQuestion with images')
+    #     exercise_dict4 = exercise_from_edraak_Exercise_or_Test(exercise4, parent_title='Example MultipleChoiceQuestion with images')
     #     channel['children'].append(exercise_dict4)
     # 
     # 
@@ -712,22 +727,28 @@ class EdraakChef(JsonTreeChef):
     #     ]
     #     for i, sample_exercise_id3 in enumerate(exercises_with_tables):
     #         exercise3 = get_component_from_id(sample_exercise_id3)
-    #         exercise_dict3 = exercise_from_edraak_Exercise(exercise3, parent_title='Markdown table example ' + str(i+1) )
+    #         exercise_dict3 = exercise_from_edraak_Exercise_or_Test(exercise3, parent_title='Markdown table example ' + str(i+1) )
     #         channel['children'].append(exercise_dict3)
     # 
     #     sample_exercise_id5 = '5b5445bb6b9064043d448ec8'
     #     exercise5 = get_component_from_id(sample_exercise_id5)
-    #     exercise_dict5 = exercise_from_edraak_Exercise(exercise5, parent_title='SVG images and weird math')
+    #     exercise_dict5 = exercise_from_edraak_Exercise_or_Test(exercise5, parent_title='SVG images and weird math')
     #     channel['children'].append(exercise_dict5)
     # 
     #     sample_exercise_id6 = '5acb733e3a891b049fe0897c'
     #     # also c0160ae0434e5888a5ea090625ec1703
     #     exercise6 = get_component_from_id(sample_exercise_id6)
-    #     exercise_dict6 = exercise_from_edraak_Exercise(exercise6, parent_title='Check math alignment for Arabic')
+    #     exercise_dict6 = exercise_from_edraak_Exercise_or_Test(exercise6, parent_title='Check math alignment for Arabic')
     #     channel['children'].append(exercise_dict6)
     # 
-    # 
     #     # 'c0160ae0434e5888a5ea090625ec1703' # check 
+    #
+    #
+    #     sample_test_id = '5b3a6d25316e6c04b2919348'
+    #     exercise = get_component_from_id(sample_test_id)
+    #     test_dict = exercise_from_edraak_Exercise_or_Test(exercise, parent_title='Subsection title', istest=True)
+    #     channel['children'].append(test_dict)
+
 
 
 # CLI

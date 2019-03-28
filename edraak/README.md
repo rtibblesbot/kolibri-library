@@ -12,8 +12,6 @@ Notes for QA
 
 TODOs
 -----
-  - Generate full content tree for each course from Edraak API
-  - Investigate Exam/Test bank (ask help from Hiba)
 
 
 
