@@ -15,6 +15,7 @@ from ricecooker.classes import nodes, files, questions, licenses
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from ricecooker.utils.downloader import download_static_assets
+from ricecooker.utils.zip import create_predictable_zip
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
 
@@ -103,7 +104,7 @@ class MyChef(SushiChef):
             sys.stdout.close()
             sys.stdout = stdout
 
-            with open(temp_subdir + os.sep + 'embeddable.html', 'w') as f:
+            with open(temp_subdir + os.sep + 'index.html', 'w') as f:
                 fragment = embeddable_parsed_urls[i].fragment
                 f.write(str(doc).replace('document.location.hash', "'#" + fragment + "'"))
 
@@ -131,9 +132,38 @@ class MyChef(SushiChef):
                 with open(temp_subdir + os.sep + model_path, 'w') as g:
                     g.write(json.dumps(model_json))
 
+            zip_path = create_predictable_zip(temp_subdir)
+
+            # topic_node_title = fragment_json.get('title', 'topic_title')
+            topic_node_title = fragment_json.get('title', 'topic_node_title_at_redirect') #TODO follow fragment_json redirects to get title
+            topic_node_source_id = 'model/' + str(models[i]['id']) # str() in case it's an array with multiple 'about's
+            topic_node = nodes.TopicNode(title=topic_node_title, source_id=topic_node_source_id)
+            channel.add_child(topic_node)
+
+            app_node_source_id = 'embeddable/' + os.path.splitext(os.path.basename(embeddable_fragment))[0]
+            app_node_title = fragment_json.get('title', 'app_node_title_at_redirect') #TODO follow fragment_json redirects to get title
+            app_node_description = str(fragment_json.get('about', 'app_node_description_at_redirect')) # str() in case it's an array with multiple 'about's #TODO follow fragment_json redirects to get title
+            license = get_model_license(models[i])
+            topic_node.add_child(nodes.HTML5AppNode(
+                source_id=app_node_source_id,
+                title=app_node_title,
+                description=app_node_description,
+                license=licenses.PublicDomainLicense(copyright_holder=license),
+                # thumbnail=thumbnail,
+                files=[files.HTMLZipFile(zip_path)],
+                language='en',
+            ))
+
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
+
+
+def get_model_license(model):
+    try:
+        return model.get['license_info']['code']
+    except:
+        return 'unknown_license'
 
 
 def get_temp_dir():
