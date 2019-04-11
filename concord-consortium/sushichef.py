@@ -97,12 +97,8 @@ class MyChef(SushiChef):
             print('\nDOWNLOADING STATIC ASSETS FOR SOUP', i)
             print('embeddable:', embeddable_parsed_urls[i].geturl())
 
-            stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
-            doc = download_static_assets(soup, temp_subdir, embeddable_base_urls[i],
+            doc = quietly(download_static_assets, soup, temp_subdir, embeddable_base_urls[i],
                     url_blacklist=['analytics.js']) #TODO add ga.js to blacklist
-            sys.stdout.close()
-            sys.stdout = stdout
 
             with open(temp_subdir + os.sep + 'index.html', 'w') as f:
                 fragment = embeddable_parsed_urls[i].fragment
@@ -157,6 +153,15 @@ class MyChef(SushiChef):
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
+
+
+def quietly(func, *args, **kwargs):
+    stdout = sys.stdout
+    sys.stdout = open(os.devnull, 'w')
+    returnValue = func(*args, **kwargs)
+    sys.stdout.close()
+    sys.stdout = stdout
+    return returnValue
 
 
 def get_model_license(model):
