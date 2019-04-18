@@ -9,6 +9,7 @@ from ricecooker.classes.licenses import SpecialPermissionsLicense
 from ricecooker.classes.nodes import DocumentNode, VideoNode, TopicNode, HTML5AppNode
 from ricecooker.classes.files import HTMLZipFile, VideoFile, SubtitleFile, DownloadFile, YouTubeVideoFile, YouTubeSubtitleFile, DocumentFile, ThumbnailFile
 import cg_index
+from le_utils.constants.roles import COACH, LEARNER
 from le_utils.constants.languages import getlang
 import clusters # role_data top secon
 import hook
@@ -16,6 +17,7 @@ import lessons # import student_resources, lesson_index
  
 LOGGER = logging.getLogger()
 LICENCE = SpecialPermissionsLicense("Career Girls", "For use on Kolibri")
+DEBUG = True
 
 disambig_number=0
 def disambig():
@@ -54,6 +56,16 @@ class CareerGirlsChef(SushiChef):
     }
 
     def construct_channel(self, **kwargs):
+ 
+        def add_resources(resources, node, role=LEARNER):
+            for title, url in resources:
+                pdf_node = DocumentNode(source_id = "pdf_"+url,
+                                        title = title,
+                                        license = LICENCE,
+                                        files = [DocumentFile(path=url)],
+                                        role = role
+                                       )
+                node.add_child(pdf_node)
   
         def get_things(all_things, parent_node, new_node=True):
             for thing in all_things:
@@ -98,18 +110,39 @@ class CareerGirlsChef(SushiChef):
                                  description = "What is your passion? What are you good at? Whether you think you want to be a fashion designer, a filmmaker, an engineer, or something else, these are two questions you might ask yourself when you think about a career. Watch our role models to learn more.")
 
         resources_node = TopicNode(source_id="resources", title="Student Resources")
-        
+        skill_node = TopicNode(source_id="skill", title="Skill-Based Empowerment Lessons")
+        major_node = TopicNode(source_id="major", title="College Majors and Requirements")
+        advice_node = TopicNode(source_id="advice", title="College Advice")
+        educators_node = TopicNode(source_id="edu", title="Educators, Parents and Mentors") 
         channel.add_child(role_node)
         channel.add_child(lessons_node)
         channel.add_child(resources_node)
+        channel.add_child(skill_node)
+        channel.add_child(major_node)
+        channel.add_child(advice_node)
+        channel.add_child(educators_node)
 
-        def add_resources(resources, node):
-            for title, url in resources:
-                pdf_node = DocumentNode(source_id = "pdf_"+url,
-                                        title = title,
-                                        license = LICENCE,
-                                        files = [DocumentFile(path=url)])
-                node.add_child(pdf_node)
+        import educators
+        for title, resources in educators.resources:
+            node = TopicNode(source_id="edu"+title, title=title)
+            educators_node.add_child(node)
+            add_resources(resources, node, COACH)
+
+        if DEBUG:
+            return channel
+        
+        # college advice and lifeskills
+
+        import advice
+        for id_, title in advice.videos:
+            advice_node.add_child(make_youtube_video(id_, title, id_))
+        add_resources(advice.resources, advice_node)
+
+        import skills
+        for id_, title in skills.videos:
+            skill_node.add_child(make_youtube_video(id_, title, id_))
+        add_resources(skills.resources, skill_node)
+
  
         _lessons, resources = lessons.lesson_index()
         for lesson in _lessons:

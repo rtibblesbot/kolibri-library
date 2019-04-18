@@ -2,7 +2,7 @@ import lxml.html
 import requests
 from urllib.parse import urljoin
 import re
-from souschef import make_youtube_video
+from sushichef import make_youtube_video
 
 BASE_URL = "https://www.careergirls.org/"
 
