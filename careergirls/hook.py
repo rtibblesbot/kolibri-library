@@ -22,4 +22,4 @@ def new_nodes(*args, **kwargs):
 
     return retval
 
-ChannelManager.add_nodes = new_nodes
+# ChannelManager.add_nodes = new_nodes

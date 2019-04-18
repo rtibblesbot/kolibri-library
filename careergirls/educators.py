@@ -2,6 +2,7 @@ import requests
 import re
 import lxml.html
 import cg_index
+from bs4 import BeautifulSoup
 from urllib.parse  import urljoin
 urls = {
 "/educators-parents-mentors/teachers/": "Teachers",
@@ -30,4 +31,16 @@ for resource_title, resource_id in resource_data.items():
     resource_titles =  [x.text_content().strip() for x in root.xpath("//h2[@class='resource-listing__title']/a")]
     resources.append([resource_title, zip(resource_titles, resource_urls)])
 
+# get html apps
+import localise
 for url in urls: 
+    root = lxml.html.fromstring(requests.get(urljoin(top_url, url)).content)
+    container, = root.xpath("//section[@class='page__content']")
+    drop, = container.xpath(".//div[@id='resource-listing-container']")
+    drop.getparent().remove(drop)
+    html = lxml.html.tostring(container)
+    print(html)
+    soup = BeautifulSoup(html, "html5lib")
+    print(localise.make_local(soup, url))
+
+
