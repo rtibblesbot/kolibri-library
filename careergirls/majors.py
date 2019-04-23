@@ -43,7 +43,7 @@ for link, title in link_pairs:
     container.append(ul)
     
     html = lxml.html.tostring(container)
-    soup = BeautifulSoup(app_response.content, "html5lib")
+    soup = BeautifulSoup(html, "html5lib")
     # add roles to soup
     
     zip_ = localise.make_local(soup, link)
