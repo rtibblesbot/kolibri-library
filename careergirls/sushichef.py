@@ -122,15 +122,18 @@ class CareerGirlsChef(SushiChef):
         channel.add_child(advice_node)
         channel.add_child(educators_node)
 
+        import majors
+        for app in majors.apps:
+            major_node.add_child(app)
+
+        if DEBUG: return channel 
         import educators
+        for app in educators.apps:
+            educators_node.add_child(app)
         for title, resources in educators.resources:
             node = TopicNode(source_id="edu"+title, title=title)
             educators_node.add_child(node)
             add_resources(resources, node, COACH)
-
-        if DEBUG:
-            return channel
-        
         # college advice and lifeskills
 
         import advice
@@ -143,6 +146,7 @@ class CareerGirlsChef(SushiChef):
             skill_node.add_child(make_youtube_video(id_, title, id_))
         add_resources(skills.resources, skill_node)
 
+        if DEBUG: return channel 
  
         _lessons, resources = lessons.lesson_index()
         for lesson in _lessons:

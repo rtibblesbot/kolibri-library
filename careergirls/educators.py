@@ -4,6 +4,11 @@ import lxml.html
 import cg_index
 from bs4 import BeautifulSoup
 from urllib.parse  import urljoin
+from le_utils.constants.roles import COACH
+from ricecooker.classes.files import HTMLZipFile
+from ricecooker.classes.nodes import HTML5AppNode
+from ricecooker.classes.licenses import SpecialPermissionsLicense
+LICENCE = SpecialPermissionsLicense("Career Girls", "For use on Kolibri")
 urls = {
 "/educators-parents-mentors/teachers/": "Teachers",
 "/educators-parents-mentors/school-counselors/": "School Counselors",
@@ -33,7 +38,9 @@ for resource_title, resource_id in resource_data.items():
 
 # get html apps
 import localise
-for url in urls: 
+
+apps = []
+for url, title in urls.items(): 
     root = lxml.html.fromstring(requests.get(urljoin(top_url, url)).content)
     container, = root.xpath("//section[@class='page__content']")
     drop, = container.xpath(".//div[@id='resource-listing-container']")
@@ -41,6 +48,13 @@ for url in urls:
     html = lxml.html.tostring(container)
     print(html)
     soup = BeautifulSoup(html, "html5lib")
-    print(localise.make_local(soup, url))
+    zip_ = localise.make_local(soup, url)
+    app_file = HTMLZipFile(zip_)
+    app = HTML5AppNode(source_id = "app_{}".format(url),
+                       title = title,
+                       license = LICENCE,
+                       files = [app_file],
+                       role = COACH)
+    apps.append(app)
 
 
