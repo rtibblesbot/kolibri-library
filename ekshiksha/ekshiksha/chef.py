@@ -42,7 +42,7 @@ CONTENT_ROOT_EN = os.path.join(FILES_DIR, 'ekShiksha', 'ekShikshaEnglish')
 
 # IMPORTANT: REMOVE THIS NOTE ONCE LICENSING HAS BEEN FINALIZED!!!! CURRENT LICENSE INFO IS FOR TESTING!!!
 # License to be used for content under channel
-CHANNEL_LICENSE = licenses.PUBLIC_DOMAIN
+CHANNEL_LICENSE = licenses.CC_BY_NC
 
 
 """ The chef class that takes care of uploading channel to the content curation server. """
@@ -430,7 +430,8 @@ class EkShikshaChef(SushiChef):
                     files = node_files,
                     title = anode['title'],
                     source_id=anode['dir'],
-                    license=licenses.PUBLIC_DOMAIN, # MUSTFIX: CONFIRM THIS!!
+                    license=licenses.CC_BY_NC,
+                    copyright_holder="ekShiksha"
                 )
                 if 'description' in anode:
                     html_node.description = anode['description']
