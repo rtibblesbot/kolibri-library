@@ -1,3 +1,13 @@
+
+# WIP debugging
+webroot
+webroot1
+webroot2
+webroot3
+
+# phantomjs
+phantomjs*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

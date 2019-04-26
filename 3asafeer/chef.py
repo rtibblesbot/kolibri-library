@@ -42,7 +42,7 @@ headers = {
     "Connection": "keep-alive"
 }
 
-LOADING_WAIT_TIME = 5
+LOADING_WAIT_TIME = 10
 LOADING_WAIT_TIME_MS = LOADING_WAIT_TIME*1000
 
 
@@ -188,7 +188,7 @@ def click_read_and_wait(driver):
     read_link = driver.find_element_by_css_selector('#readLink')
     read_link.click()
     selenium_ui.WebDriverWait(driver, 60).until(
-            lambda driver: driver.find_element_by_id('list-container'))
+            lambda driver: driver.find_element_by_id('stories-container'))
     time.sleep(LOADING_WAIT_TIME)
 
 
@@ -196,17 +196,20 @@ def download_single(i):
     """Download the book at index i."""
     with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
 
-        print('Closing popup')
-        close_popup = driver.find_element_by_css_selector('.fancybox-item.fancybox-close')
-        close_popup.click()
-        time.sleep(1)
+        # print('Closing popup')
+        # close_popup = driver.find_element_by_css_selector('.fancybox-item.fancybox-close')
+        # close_popup.click()
+        # time.sleep(1)
 
+        print('i=', i)
         print('Clicking "read"')
         click_read_and_wait(driver)
 
         book = driver.find_elements_by_css_selector('.story-cover')[i]
+        print(book)
         book_id = book.get_attribute('id')
-        cover_src = book.find_element_by_css_selector('.cover').get_attribute('src')
+        cover_picture = book.find_element_by_css_selector('picture.cover')
+        cover_src = cover_picture.find_element_by_css_selector('.noimage').get_attribute('src')
         thumbnail = make_fully_qualified_url(cover_src)
         title = book.find_element_by_css_selector('.cover-title').text
         rating_text = book.find_element_by_css_selector('.rating-icon').text.strip()
@@ -427,6 +430,7 @@ def derive_filename(url):
 
 
 def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
+    print('Making request to', url)
     if clear_cookies:
         sess.cookies.clear()
 
