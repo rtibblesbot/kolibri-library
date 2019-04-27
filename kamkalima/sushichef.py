@@ -62,6 +62,7 @@ def get_all_items(start_url):
         else:
             # print('Reached end of results')
             break
+    print('Found', len(all_items), 'items')
     return all_items
 
 
