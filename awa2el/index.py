@@ -3,7 +3,7 @@ import requests_cache
 import lxml.html
 import re
 from urllib.parse import urljoin
-# requests_cache.install_cache()  # WARNING: May cache stale unlogged in data.
+requests_cache.install_cache()  # WARNING: May cache stale unlogged in data.
 session = requests.Session()
 
 rawheaders = """
@@ -36,10 +36,24 @@ Upgrade-Insecure-Requests: 1
 User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/71.0.3578.98 Chrome/71.0.3578.98 Safari/537.36
 """.strip()
 
+le_rawheaders_detail = """
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-GB,en-US;q=0.9,en;q=0.8
+Cache-Control: no-cache
+Connection: keep-alive
+Cookie: has_js=1; SSESSb5d96a45fb92cee9b9c59b85294fc5f6=Mk1k2BmgLd6jNmfyvrSQJnpP73FAATRqsAX9v3QPsXU; SESSb5d96a45fb92cee9b9c59b85294fc5f6=oMKsYHiW0cDQ0DTxwdqTNZCfheEVvqkMiUnPOMFbfnQ
+DNT: 1
+Host: www.nashmi.net
+Pragma: no-cache
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/71.0.3578.98 Chrome/71.0.3578.98 Safari/537.36
+""".strip()
+
 
 headers = dict([[h.partition(': ')[0], h.partition(': ')[2]] for h in rawheaders.split('\n')])
 headers_detail = dict([[h.partition(': ')[0], h.partition(': ')[2]] for h in rawheaders_detail.split('\n')])
-
+le_headers_detail = dict([[h.partition(': ')[0], h.partition(': ')[2]] for h in le_rawheaders_detail.split('\n')])
 
 
 def do_login():
@@ -71,30 +85,30 @@ def abs_links(urls):
 class Root(object):
     def __init__(self, url):
         self.url = url
-        self.response = session.get(self.url, headers=headers_detail)
+        self.response = session.get(self.url, headers=le_headers_detail)
         self.html = self.response.content
         self.root = lxml.html.fromstring(self.html)
 
 top = Root(BASE_URL)
 top.children = abs_links(top.root.xpath("//div[@class='views-field views-field-name-1']/a/@href"))
+top.childnames = [x.text_content().strip() for x in top.root.xpath("//div[@class='views-field views-field-name-1']/a")]
 
 def get_lectures():
-    for cat_url in top.children:
+    for cat_url, cat_name in zip(top.children, top.childnames):
         cat = Root(cat_url)
-        cat.title = cat.root.xpath("//h1")[0].text_content().strip()
+        #cat.title = cat.root.xpath("//h1")[0].text_content().strip()
+        cat.title = cat_name
         cat.courses = abs_links(cat.root.xpath("//span[@class='field-content']/a/@href"))
         for course_url in cat.courses:
             course = Root(course_url)
             course.title = course.root.xpath("//h1")[0].text_content().strip()
             course.lectures = abs_links(course.root.xpath("//span[@class='field-content']/a/@href"))
+            course.lecturenames = [x.text_content().strip() for x in course.root.xpath("//span[@class='field-content']/a")]
             assert not any("/user?" in x for x in course.lectures)
             # these links appear OK but will redirect to /user? if followed
-            print (course_url, cat.title, course.title, course.lectures)
-            if course.lectures:
-                l0 = course.lectures[0]
-            else:
-                l0 = ""
-            yield (course_url, cat.title, course.title, len(course.lectures), l0)
+            lectures = zip(course.lectures, course.lecturenames)
+            for lecture in lectures:
+                yield (course_url, cat.title, course.title, lecture[1], lecture[0])
 
 
 if __name__ == "__main__":
