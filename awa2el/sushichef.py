@@ -10,6 +10,8 @@ from ricecooker.chefs import SushiChef
 import logging
 import video
 
+assert "--compressed" in sys.argv, sys.argv
+
 LOGGER = logging.getLogger()
 LICENCE = SpecialPermissionsLicense("Career Girls", "For use on Kolibri")
 
@@ -51,9 +53,9 @@ class ArtsEdgeChef(SushiChef):
         for path, video_urls in video.videos():
             node = get_node(path)
             for i, video_url in enumerate(video_urls):
-                node.add_child(video_node(video_url, "Video "+str(i)))
+                node.add_child(video_node(video_url, "Video "+str(i+1)))
             
-            return channel # outdent if not debug
+        return channel # outdent if not debug
             
             
             
