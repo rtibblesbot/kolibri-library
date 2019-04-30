@@ -3,78 +3,10 @@ import requests_cache
 import lxml.html
 import re
 from urllib.parse import urljoin
+from headers import headers
+
 requests_cache.install_cache()  # WARNING: May cache stale unlogged in data.
 session = requests.Session()
-
-rawheaders = """
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
-Accept-Encoding: gzip, deflate, br
-Accept-Language: en-GB,en-US;q=0.9,en;q=0.8
-Cache-Control: no-cache
-Connection: keep-alive
-Cookie: has_js=1
-DNT: 1
-Host: www.nashmi.net
-Origin: https://www.nashmi.net
-Pragma: no-cache
-X-Referer: https://www.nashmi.net/ar/user
-Upgrade-Insecure-Requests: 1
-User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/71.0.3578.98 Chrome/71.0.3578.98 Safari/537.36
-""".strip()
-
-rawheaders_detail = """
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
-Accept-Encoding: gzip, deflate, br
-Accept-Language: en-GB,en-US;q=0.9,en;q=0.8
-Cache-Control: no-cache
-Connection: keep-alive
-Cookie: has_js=1; SSESSb5d96a45fb92cee9b9c59b85294fc5f6=Q-_2p30vSoIw3pjwQQ2iZf3LSzkTgrIi6DojHaZz7Oc
-DNT: 1
-Host: www.nashmi.net
-Pragma: no-cache
-Upgrade-Insecure-Requests: 1
-User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/71.0.3578.98 Chrome/71.0.3578.98 Safari/537.36
-""".strip()
-
-le_rawheaders_detail = """
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
-Accept-Encoding: gzip, deflate, br
-Accept-Language: en-GB,en-US;q=0.9,en;q=0.8
-Cache-Control: no-cache
-Connection: keep-alive
-Cookie: has_js=1; SSESSb5d96a45fb92cee9b9c59b85294fc5f6=Mk1k2BmgLd6jNmfyvrSQJnpP73FAATRqsAX9v3QPsXU; SESSb5d96a45fb92cee9b9c59b85294fc5f6=oMKsYHiW0cDQ0DTxwdqTNZCfheEVvqkMiUnPOMFbfnQ
-DNT: 1
-Host: www.nashmi.net
-Pragma: no-cache
-Upgrade-Insecure-Requests: 1
-User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/71.0.3578.98 Chrome/71.0.3578.98 Safari/537.36
-""".strip()
-
-
-headers = dict([[h.partition(': ')[0], h.partition(': ')[2]] for h in rawheaders.split('\n')])
-headers_detail = dict([[h.partition(': ')[0], h.partition(': ')[2]] for h in rawheaders_detail.split('\n')])
-le_headers_detail = dict([[h.partition(': ')[0], h.partition(': ')[2]] for h in le_rawheaders_detail.split('\n')])
-
-
-def do_login():
-    user_url = "http://nashmi.net/ar/user"
-    r = session.get(user_url).content
-    root = lxml.html.fromstring(r)
-    build_id, = root.xpath("//input[@name='form_build_id']/@value")
-    print(build_id)
-    p = session.post(user_url,
-                     data={
-                         "name": "dragon",
-                         "pass": 'password',
-                         "form_build_id": build_id,
-                         "form_id": "user_login",
-                         "op": "\u062a\u0633\u062c\u064a\u0644\u0020\u062f\u062e\u0648\u0644"
-                     },
-                     headers=headers,
-                     )
-
-    assert "dragon" in p.url  # logged in test
-
 
 BASE_URL = "https://www.nashmi.net/ar"
 # do_login() -- currently not working for some reason, we have hardcoded cookie instead.
@@ -85,7 +17,7 @@ def abs_links(urls):
 class Root(object):
     def __init__(self, url):
         self.url = url
-        self.response = session.get(self.url, headers=le_headers_detail)
+        self.response = session.get(self.url, headers=headers)
         self.html = self.response.content
         self.root = lxml.html.fromstring(self.html)
 
