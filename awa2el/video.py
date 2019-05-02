@@ -5,6 +5,12 @@ import requests_cache
 requests_cache.install_cache()
 from headers import headers
 
+def blacklist_f():
+    with open("nashmi_list.txt") as f:
+        l = [x.split("\t") for x in f.read().strip("\n").split("\n")]
+    return {x[1]: x[0] != "no" for x in l}
+blacklist = blacklist_f()
+
 def get_video_urls(url):
     r = requests.get(url, headers=headers)
     print (len(r.content), url)
@@ -23,7 +29,8 @@ def videos():
             if header:
                 header = False
                 continue
-            yield ((topname, middlename, lowername), get_video_urls(url))
+            if blacklist[middlename]:
+                yield ((topname, middlename, lowername), get_video_urls(url))
             
 if __name__ == "__main__":
     for v in videos():

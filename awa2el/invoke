@@ -1,1 +1,1 @@
-python sushichef.py --compress
+STUDIO_URL=https://studio.learningequality.org python sushichef.py --compress

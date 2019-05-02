@@ -10,11 +10,11 @@ from ricecooker.chefs import SushiChef
 import logging
 import video
 
-assert "--compressed" in sys.argv, sys.argv
+assert "--compress" in sys.argv, sys.argv
+assert "develop" not in os.environ['STUDIO_URL']
 
 LOGGER = logging.getLogger()
 LICENCE = SpecialPermissionsLicense("Career Girls", "For use on Kolibri")
-
 
 class ArtsEdgeChef(SushiChef):
     channel_info = {
@@ -30,13 +30,16 @@ class ArtsEdgeChef(SushiChef):
 
         def video_node(video, title):
             files = [VideoFile(video.decode('utf-8'))]
-            return VideoNode(source_id=video.decode('utf-8'),
+            return VideoNode(source_id="video "+video.decode('utf-8'),
                              title=title,
                              license=LICENCE,
                              copyright_holder="nashmi.net",
                              files=files,
                              )
         def get_node(path):
+            if len(path) == 3 and path in nodes:
+                # We've seen this before.
+                return None
             if len(path) > 1:
                 parent = get_node(path[:-1])
             else:
@@ -52,9 +55,9 @@ class ArtsEdgeChef(SushiChef):
         channel = self.get_channel(**kwargs)
         for path, video_urls in video.videos():
             node = get_node(path)
+            if not node: continue # skip repeat
             for i, video_url in enumerate(video_urls):
                 node.add_child(video_node(video_url, "Video "+str(i+1)))
-            
         return channel # outdent if not debug
             
             
