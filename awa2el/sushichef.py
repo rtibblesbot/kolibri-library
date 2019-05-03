@@ -9,7 +9,7 @@ from ricecooker.classes.licenses import SpecialPermissionsLicense
 from ricecooker.chefs import SushiChef
 import logging
 import video
-
+import arabic
 assert "--compress" in sys.argv, sys.argv
 assert "develop" not in os.environ['STUDIO_URL']
 
@@ -43,7 +43,7 @@ class ArtsEdgeChef(SushiChef):
             if len(path) > 1:
                 parent = get_node(path[:-1])
             else:
-                parent = channel
+                parent = video_tln
             
             if path not in nodes:
                 nodes[path] = TopicNode(source_id="topic"+path[-1],
@@ -53,6 +53,10 @@ class ArtsEdgeChef(SushiChef):
             
         nodes = {}
         channel = self.get_channel(**kwargs)
+        video_tln = TopicNode(source_id="videotln", title=arabic.video) 
+        pdf_tln = TopicNode(source_id="pdftln", title=arabic.dossier) 
+        channel.add_child(video_tln)
+        channel.add_child(pdf_tln)
         for path, video_urls in video.videos():
             node = get_node(path)
             if not node: continue # skip repeat

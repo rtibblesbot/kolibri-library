@@ -5,9 +5,11 @@ from urllib.parse import urljoin
 
 requests_cache.install_cache()
 DOWNLOAD = False
+DEBUG = False
 
 #BASE_URL = "https://www.awa2el.net/ar/search/type/80?field_related_grade_and_subject=All&uid="
 BASE_URL = "https://www.awa2el.net/ar/search/type/80?field_related_grade_and_subject={}&uid="
+#BASE_URL = "https://www.awa2el.net/ar/search/type/80?field_related_grade_and_subject={}"
 graderange = [453, 454, 455, 456]
 
 def abs_link(url):
@@ -28,6 +30,7 @@ class SearchResult(object):
         self.title = node.xpath(".//h5")[0].text_content().strip()
         self.author = node.xpath(".//article[@typeof='schema:Person']//span[@class='list-item__text']")[0].text_content().strip()
         self.link = abs_link(node.xpath(".//h5/a/@href")[0])
+        if DEBUG: print("SEARCH: ", self)
 
     def details(self):
         return Detail(self.link).details()
@@ -38,7 +41,7 @@ class SearchResult(object):
 class SearchResultsPage(Root):
     def get_results(self):
         wrappers = self.root.xpath("//div[@class='search-content-wrapper']")
-        print (f"Found {len(wrappers)} search results")
+        print ("Found {} search results".format(len(wrappers)))
         for wrapper in wrappers:
             yield SearchResult(wrapper)
 
@@ -56,10 +59,11 @@ class SearchResults(object):
         except:
             max_page = 0
         for result in page_0.get_results():
+            yield result
             self.results.append(result)
 
         for page in range(1, max_page+1):
-            print (f"Page {page} of {max_page}")
+            print ("Page {} of {}".format(page, max_page))
             search_page = SearchResultsPage(self.url+"&page={}".format(page)).get_results()
             for result in search_page:
                 yield result
@@ -68,6 +72,10 @@ class SearchResults(object):
 
 
 class Detail(Root):
+
+    def __repr__(self):
+        return ("[{}]".format(self.url))
+
     def details(self):
         # a hierarchy, top first. Write as if english for correct RTL.
         self.breadcrumbs = [x.text_content().strip() for x in self.root.xpath("//div[@class='grade-and-subject']//li")]
@@ -87,6 +95,6 @@ class Detail(Root):
 # &page=206 -- //a[@rel="last"]/@href
 
 if __name__ == "__main__":
-    for i, item in enumerate(SearchResults(BASE_URL.format("All")).get_results()):
+    for i, item in enumerate(SearchResults(BASE_URL.format(453)).get_results()):
         print (i, "\n", item.details())
 
