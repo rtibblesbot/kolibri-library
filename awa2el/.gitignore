@@ -4,3 +4,6 @@
 restore/
 storage/
 .ricecookerfilecache/
+dump
+download* 
+temp/
