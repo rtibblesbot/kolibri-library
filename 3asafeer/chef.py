@@ -196,10 +196,10 @@ def download_single(i):
     """Download the book at index i."""
     with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
 
-        # print('Closing popup')
-        # close_popup = driver.find_element_by_css_selector('.fancybox-item.fancybox-close')
-        # close_popup.click()
-        # time.sleep(1)
+        print('Closing popup')
+        close_popup = driver.find_element_by_css_selector('.ui-dialog-titlebar-close')
+        close_popup.click()
+        time.sleep(2)
 
         print('i=', i)
         print('Clicking "read"')
@@ -324,7 +324,8 @@ def download_static_assets(doc, destination):
 
             if is_blacklisted(url):
                 print('Skipping downloading blacklisted url', url)
-                node[attr] = ""
+                node.extract()
+                # node[attr] = ""
                 continue
 
             if 'jquery.fancybox.pack.js' in url:
@@ -349,8 +350,13 @@ def download_static_assets(doc, destination):
             download_file(url, destination, subpath="images",
                     request_fn=make_request, filename=img)
 
-        # Polyfill localStorage and document.cookie as iframes can't access
-        # them
+        # Monkey-patch the js code that use localStorage and document.cookie so
+        # to use window._localStorage (a plain js object) instead real localStorage
+        # This change primarily affects the functions getStoredValue and setStoredValue
+        # which are used to set the following properties:
+        #  - diffRange: sets age-range for stories (needed to avoid a dialog popup)
+        #  - lng: set to arabic
+        #  - audio: toggles between read-aloud vs. no read-aloud
         return (content
             .replace("localStorage", "_localStorage")
             .replace('document.cookie.split', '"".split')
@@ -419,6 +425,9 @@ url_blacklist = [
     'google-analytics.com/analytics.js',
     'fbds.js',
     'chimpstatic.com',
+    'fbcdn.net',
+    'facebook.com',
+    'facebook.net',
 ]
 
 def is_blacklisted(url):
@@ -430,7 +439,7 @@ def derive_filename(url):
 
 
 def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
-    print('Making request to', url)
+    # print('Making request to', url)
     if clear_cookies:
         sess.cookies.clear()
 
