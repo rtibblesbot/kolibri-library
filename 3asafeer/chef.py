@@ -10,6 +10,8 @@ import html
 import os
 import re
 import requests
+import shutil
+import sys
 import tempfile
 import time
 from urllib.parse import urlparse, parse_qs
@@ -28,13 +30,14 @@ import selenium.webdriver.support.ui as selenium_ui
 from distutils.dir_util import copy_tree
 
 
+DEBUG_MODE = True
+DEBUG_MODE_i = 3
+
 sess = requests.Session()
-cache = FileCache('.webcache')
-forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
-
-sess.mount('http://3asafeer.com/', forever_adapter)
-sess.mount('http://fonts.googleapis.com/', forever_adapter)
-
+# cache = FileCache('.webcache')
+# forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
+# sess.mount('http://3asafeer.com/', forever_adapter)
+# sess.mount('http://fonts.googleapis.com/', forever_adapter)
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0",
@@ -76,6 +79,8 @@ class ThreeAsafeerChef(SushiChef):
         )
 
         download_all(channel)
+        if DEBUG_MODE:
+            sys.exit(0)
         return channel
 
 
@@ -146,7 +151,8 @@ RATING_TOPIC_MAP = {
 
 
 def download_all(channel):
-    print("Getting number of books")
+    if DEBUG_MODE:
+        print("In download_all")
     books_count = get_books_count()
     print("There are %s books ... scraping them now!" % books_count)
 
@@ -155,11 +161,18 @@ def download_all(channel):
     channel.add_child(intermediate_topic)
     channel.add_child(advanced_topic)
 
-    for i in range(books_count):
-        print()
+    source_ids_seen = []
+    
+    for i in range(books_count)[0:13]:
         print('-' * 80)
+        if DEBUG_MODE and i > 0:
+            print('Processing just one book because in DEBUG_MODE')
+            return
+        if DEBUG_MODE:
+            i = DEBUG_MODE_i
         print('Downloading book %s of %s' % (i + 1, books_count))
         book, rating = download_single(i)
+
 
         if not topic_nodes.get(rating):
             title = RATING_NUM_MAP.get(rating, rating)
@@ -175,36 +188,60 @@ def download_all(channel):
                 channel.add_child(subtopic_node)
 
             print("creating topic node %s with title %s" % (topic_nodes[rating], title))
-        topic_nodes[rating].add_child(book)
+        
+        source_id = book.source_id
+        if source_id not in source_ids_seen:
+            topic_nodes[rating].add_child(book)
+            source_ids_seen.append(book.source_id)
+        else:
+            print('found duplicate of book.source_id', book.source_id, book.title)
 
 
 def get_books_count():
+    if DEBUG_MODE:
+        print('in get_books_count')
     with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
         click_read_and_wait(driver)
         return len(driver.find_elements_by_css_selector('.story-cover'))
 
 
 def click_read_and_wait(driver):
+    """
+    Clicks the READ link to load the page with the 3safeer apps, then async-loads
+    all the elements of the page using the `loadMoreData` javascript function.
+    """
     read_link = driver.find_element_by_css_selector('#readLink')
     read_link.click()
     selenium_ui.WebDriverWait(driver, 60).until(
             lambda driver: driver.find_element_by_id('stories-container'))
     time.sleep(LOADING_WAIT_TIME)
-
+    previous_count = 0
+    while True:
+        story_count = len(driver.find_elements_by_css_selector('.story-cover'))
+        if story_count == previous_count:
+            break
+        previous_count = story_count
+        if DEBUG_MODE:
+            print('story_count=', story_count)
+            print('getting more data')
+        driver.execute_script('window.loadMoreData()')
+        time.sleep(3)
 
 def download_single(i):
-    """Download the book at index i."""
+    """
+    Download the book at index i.
+    """
+    print('in download_single, i=', i)
     with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
-
-        print('Closing popup')
+        if DEBUG_MODE:
+            print('Closing popup')
         close_popup = driver.find_element_by_css_selector('.ui-dialog-titlebar-close')
         close_popup.click()
         time.sleep(2)
 
-        print('i=', i)
-        print('Clicking "read"')
+        if DEBUG_MODE:
+            print('Clicking "read"')
         click_read_and_wait(driver)
-
         book = driver.find_elements_by_css_selector('.story-cover')[i]
         print(book)
         book_id = book.get_attribute('id')
@@ -234,9 +271,20 @@ def download_single(i):
 
 
 def process_node_from_doc(doc, book_id, title, thumbnail):
-    """Extract a Ricecooker node given the HTML source and some metadata."""
-    # Create a temporary folder to download all the files for a book.
-    destination = tempfile.mkdtemp()
+    """
+    Create a Ricecooker HTML5AppNode instance given the HTML source and metadata.
+    """
+
+    if DEBUG_MODE:
+        # Save the book's contents to the folder `webroot` in the chef root dir.
+        # Use the script ./ricecooker/utils/kolibripreview.py to preview in K
+        destination = './webroot'
+        if os.path.exists(destination):
+            shutil.rmtree(destination)
+            os.mkdir(destination)
+    else:
+        # Create a temporary folder to download all the files for a book
+        destination = tempfile.mkdtemp()
 
     # Ensure the thumbnail is in a format Ricecooker can accept, and if not,
     # use the first slide as the thumbnail.
@@ -250,11 +298,10 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
         if not thumbnail.lower().endswith(thumbnail_extensions):
             thumbnail = None
 
-    # Download all the JS/CSS/images/audio/etc. we'll need to make a standalone
-    # app.
+    # Download all the JS/CSS/images/audio/et needed to make a standalone app
     doc = download_static_assets(doc, destination)
 
-    # Remove a bunch of HTML that we don't want showing in our standalone app.
+    # Remove a bunch of HTML that we don't want showing in our standalone app
     doc.select_one('base')['href'] = ''
     remove_node(doc, '#loading')
     remove_node(doc, '#finishedActions')
@@ -265,7 +312,7 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     remove_node(doc, '#exit')
     remove_node(doc, '#ttmenu')
 
-    # Write out the HTML source.
+    # Write out the HTML source
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
 
@@ -285,15 +332,22 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
 
 
 def remove_node(doc, selector):
+    """
+    Removes a DOM element from the tree.
+    """
     node = doc.select_one(selector)
     if node:
         node.decompose()
 
 
 def truncate_metadata(data_string):
+    """
+    Avoid probelms with Studio and Kolibri DB constraints.
+    """
     MAX_CHARS = 190
     if len(data_string) > MAX_CHARS:
         data_string = data_string[:190] + " ..."
+        print('Truncating string', data_string, 'to length 190.')
     return data_string
 
 
@@ -302,7 +356,8 @@ IMAGES_IN_JS_RE = re.compile(r"images/(.*?)['\")]")
 
 
 def download_static_assets(doc, destination):
-    """Download all the static assets for a given book's HTML soup.
+    """
+    Download all the static assets for a given book's HTML soup.
 
     Will download JS, CSS, images, and audio clips.
     """
@@ -316,20 +371,23 @@ def download_static_assets(doc, destination):
             if node_filter:
                 if not node_filter(node):
                     src = node[attr]
-                    node[attr] = ''
+                    # node[attr] = ''
+                    node.decompose()
                     print('Skipping node with src ', src)
                     continue
+
+            # Remove preconnect and preload links form header
+            relattr = node.get('rel', None)
+            if relattr in ['preconnect', 'preload', 'apple-touch-icon']:
+                node.decompose()
+                continue
 
             url = make_fully_qualified_url(node[attr])
 
             if is_blacklisted(url):
                 print('Skipping downloading blacklisted url', url)
-                node.extract()
+                node.decompose()
                 # node[attr] = ""
-                continue
-
-            if 'jquery.fancybox.pack.js' in url:
-                node[attr] = "static/jquery.fancybox.dummy.js"
                 continue
 
             if url_middleware:
@@ -343,6 +401,8 @@ def download_static_assets(doc, destination):
                     filename=filename, middleware_callbacks=content_middleware)
 
     def js_middleware(content, url, **kwargs):
+        if DEBUG_MODE:
+            print('in js_middleware', url)
         # Download all images referenced in JS files
         for img in IMAGES_IN_JS_RE.findall(content):
             url = make_fully_qualified_url('/images/%s' % img)
@@ -363,6 +423,8 @@ def download_static_assets(doc, destination):
             .replace('document.cookie', 'window._document_cookie'))
 
     def css_url_middleware(url):
+        if DEBUG_MODE:
+            print('in css_url_middleware', url)
         # Somehow the minified app CSS doesn't render images. Download the
         # original.
         return url.replace("app.min.css", "app.css")
@@ -371,6 +433,8 @@ def download_static_assets(doc, destination):
         return "stylesheet" in node["rel"]
 
     def css_content_middleware(content, url, **kwargs):
+        if DEBUG_MODE:
+            print('in css_content_middleware', url)
         # Download linked fonts and images
         def repl(match):
             src = match.group(1)
@@ -387,17 +451,21 @@ def download_static_assets(doc, destination):
 
         return CSS_URL_RE.sub(repl, content)
 
-    # Download all linked static assets.
-    download_assets("img[src]", "src")  # Images
+    # Download all linked static assets
+    # 1. Images
+    download_assets("img[src]", "src")
+    # 2. CSS
     download_assets("link[href]", "href", url_middleware=css_url_middleware,
             content_middleware=css_content_middleware,
-            node_filter=css_node_filter)  # CSS
-    download_assets("script[src]", "src", content_middleware=js_middleware) # JS
-    download_assets("source[src]", "src") # Audio
-    download_assets("source[srcset]", "srcset") # Audio
+            node_filter=css_node_filter)
+    # 3. JS
+    download_assets("script[src]", "src", content_middleware=js_middleware)
+    # 4. Audio
+    download_assets("source[src]", "src")
+    download_assets("source[srcset]", "srcset")
 
     # ... and also run the middleware on CSS/JS embedded in the page source to
-    # get linked files.
+    # get resources linked to in .css and .js files
     for node in doc.select('style'):
         node.string = css_content_middleware(node.get_text(), url='')
 
@@ -409,14 +477,37 @@ def download_static_assets(doc, destination):
     # page source.
     copy_tree("static", os.path.join(destination, "static"))
 
-    chef_head_script = doc.new_tag("script", src="static/chef_end_of_head.js")
-    doc.select_one('head').append(chef_head_script)
 
-    chef_body_script = doc.new_tag("script", src="static/chef_end_of_body.js")
-    doc.select_one('body').append(chef_body_script)
-
+    # HEAD START
+    # Define window.story global constants that needs to be there otherwise js not happy
+    # also defines window._localStorage that is used to mock-backend for localStorage
+    chef_head_script = doc.new_tag("script", src="static/chef_start_of_head.js")
+    doc.select_one('head').insert(0, chef_head_script)
+    #
+    #
+    # Sets some more global vars for compatibiliy:
+    # Modernizr.touch = true;    // needed to force mobile layout and show nav buttons
+    # setStoredValue('diffRange', 'All');          // Set the age range to avoid popup
+    #
+    # and sutup hook for displaying the content on document ready
+    #  $(document).ready(function() {
+    #      $('#maincontent').show();
+    #      animateButtons(0.9);            // This is necessary to force-show the buttons
+    #  });
+    chef_head_script2 = doc.new_tag("script", src="static/chef_end_of_head.js")
+    doc.select_one('head').append(chef_head_script2)
+    #
+    # CSS ovverides for Kolibri
     chef_css = doc.new_tag("link", href="static/chef.css", rel="stylesheet")
     doc.select_one('head').append(chef_css)
+    # HEAD END
+
+
+    # BODY START
+    chef_body_script = doc.new_tag("script", src="static/chef_end_of_body.js")
+    doc.select_one('body').append(chef_body_script)
+    # BODY END
+
 
     return doc
 
