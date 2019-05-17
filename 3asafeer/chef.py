@@ -17,7 +17,8 @@ import time
 from urllib.parse import urlparse, parse_qs
 import uuid
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
+
 
 import le_utils.constants
 from ricecooker.chefs import SushiChef
@@ -52,8 +53,11 @@ headers = {
     "Connection": "keep-alive"
 }
 
-LOADING_WAIT_TIME = 10
+# PAUSES and DELAYS
+################################################################################
+LOADING_WAIT_TIME = 10                                             # long delay
 LOADING_WAIT_TIME_MS = LOADING_WAIT_TIME*1000
+LOADING_WAIT_TIME_SHORT = 5                                        # short delay
 
 
 class ThreeAsafeerChef(SushiChef):
@@ -231,7 +235,7 @@ def click_read_and_wait(driver):
             print('story_count =', story_count)
             print('getting more data by calling window.loadMoreData()...')
         driver.execute_script('window.loadMoreData()')
-        time.sleep(4)
+        time.sleep(LOADING_WAIT_TIME_SHORT)
 
 
 def get_book_infos():
@@ -274,11 +278,11 @@ def download_book(book_id, title, thumbnail, rating_text):
             print('Closing popup')
         close_popup = driver.find_element_by_css_selector('.ui-dialog-titlebar-close')
         close_popup.click()
-        time.sleep(2)
+        time.sleep(LOADING_WAIT_TIME_SHORT)
 
         print("Calling getPage('read', 'story', '%s')..." % book_id)
         driver.execute_script("getPage('read', 'story', '{id}')".format(id=book_id))
-        time.sleep(4);
+        time.sleep(LOADING_WAIT_TIME_SHORT*2)
 
         try:
             selenium_ui.WebDriverWait(driver, 30).until(
@@ -336,6 +340,14 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     remove_node(doc, '#exit')
     remove_node(doc, '#ttmenu')
 
+    # Remove unnecessary scripts in the head
+    for pat in tag_content_patterns_to_remove_in_head:
+        remove_nodes_containing_pattern(doc, pat, parent_tag_name='head')
+    for pat in tag_content_patterns_to_remove_in_body:
+        remove_nodes_containing_pattern(doc, pat, parent_tag_name='body')
+    for pat_start, pat_end in cut_start_end_patterns:
+        remove_nodes_between_comments(doc, pat_start, pat_end, parent_tag_name='body')
+
     # Write out the HTML source
     with open(os.path.join(destination, "index.html"), "w") as f:
         f.write(str(doc))
@@ -362,6 +374,59 @@ def remove_node(doc, selector):
     node = doc.select_one(selector)
     if node:
         node.decompose()
+
+
+
+# DOM CLEANUP
+################################################################################
+
+tag_content_patterns_to_remove_in_head = [
+    'GoogleAnalyticsObject',
+    'chimpstatic.com',
+    'resolution=',
+    'facebook.com',
+    'fb_iframe_widget_fluid_desktop',
+    'connect.facebook.net',
+]
+
+tag_content_patterns_to_remove_in_body = [
+    'connect.facebook.net',
+    'refresh_session.php',
+]
+
+def remove_nodes_containing_pattern(doc, pattern, parent_tag_name='body'):
+    """
+    Remove DOM elements that text contain `pattern`.
+    """
+    parent = doc.select_one(parent_tag_name)
+    for child in parent.find_all('script'):
+        if pattern in str(child):
+            child.extract()
+            if DEBUG_MODE:
+                print('removed from DOM:', str(child))
+
+cut_start_end_patterns = [
+    ('FB SDK Code Start', 'FB SDK Code End')
+]
+
+def remove_nodes_between_comments(doc, pattern_start, pattern_end, parent_tag_name='body'):
+    """
+    Remove DOM elements between pattern_start and pattern_end inclusively.
+    """
+    parent = doc.select_one(parent_tag_name)
+    el_start = parent.find(text=lambda el: isinstance(el,Comment) and pattern_start in str(el))
+    el_end = parent.find(text=lambda el: isinstance(el,Comment) and pattern_end in str(el))
+    if el_start and el_end:
+        el = el_start
+        while True:
+            if el == el_end:
+                el.extract()
+                break
+            next_el = el.nextSibling
+            if DEBUG_MODE:
+                print('removed from DOM:', str(el))
+            el.extract()
+            el = next_el
 
 
 def truncate_metadata(data_string):
@@ -544,6 +609,9 @@ url_blacklist = [
     'facebook.com',
     'facebook.net',
 ]
+
+
+
 
 def is_blacklisted(url):
     return any((item in url) for item in url_blacklist)
