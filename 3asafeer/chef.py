@@ -224,7 +224,7 @@ def click_read_and_wait(driver):
     previous_count = 0
     while True:
         story_count = len(driver.find_elements_by_css_selector('.story-cover'))
-        if story_count == previous_count:
+        if story_count == previous_count or DOWNLOAD_ONE_TO_webroot:
             break
         previous_count = story_count
         if DEBUG_MODE:
@@ -246,7 +246,7 @@ def get_book_infos():
         book_infos = []
         for book in books:
             # print(book)
-            book_id = book.get_attribute('id')
+            book_id = book.get_attribute('storyid')
             cover_picture = book.find_element_by_css_selector('picture.cover')
             cover_src = cover_picture.find_element_by_css_selector('.noimage').get_attribute('src')
             thumbnail = make_fully_qualified_url(cover_src)
@@ -278,6 +278,7 @@ def download_book(book_id, title, thumbnail, rating_text):
 
         print("Calling getPage('read', 'story', '%s')..." % book_id)
         driver.execute_script("getPage('read', 'story', '{id}')".format(id=book_id))
+        time.sleep(4);
 
         try:
             selenium_ui.WebDriverWait(driver, 30).until(
