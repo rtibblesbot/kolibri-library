@@ -2,6 +2,21 @@
 Import script for the reading activities from http://3asafeer.com/
 
 
+Install
+-------
+
+    # Download phantomjs-2.1.1-linux-x86_64 binary to chef dir
+    pip install -r requirements.txt
+
+
+Run
+---
+
+    source venv/bin/activate
+    export PHANTOMJS_PATH=phantomjs-2.1.1-linux-x86_64/bin/phantomjs
+    ./chef.py -v --reset --token=<token> --stage --thumbnails
+
+
 
 Debug mode
 ----------

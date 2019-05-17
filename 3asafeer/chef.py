@@ -24,6 +24,7 @@ import le_utils.constants
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
+from cachecontrol.heuristics import ExpiresAfter
 from ricecooker.utils.browser import preview_in_browser
 from ricecooker.utils.html import download_file, WebDriver
 from ricecooker.utils.zip import create_predictable_zip
@@ -34,18 +35,18 @@ from distutils.dir_util import copy_tree
 
 # CHEF and CONTENT DEBUG
 ################################################################################
-DEBUG_MODE = True                     # print extra-verbose info
+DEBUG_MODE = False                    # print extra-verbose info
 DOWNLOAD_ONE_TO_webroot = False       # produce debug webroot/ and skip cheffing
-DOWNLOAD_ONLY_N = 15                  # patial chef run with only first N books
-
+DOWNLOAD_ONLY_N = False               # chef only first N books; set to False to disable
 
 
 
 sess = requests.Session()
-# cache = FileCache('.webcache')
-# forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
-# sess.mount('http://3asafeer.com/', forever_adapter)
-# sess.mount('http://fonts.googleapis.com/', forever_adapter)
+cache = FileCache('.webcache')
+chefdev_adapter = CacheControlAdapter(heuristic=ExpiresAfter(days=1), cache=cache)
+sess.mount('http://3asafeer.com/', chefdev_adapter)
+sess.mount('http://fonts.googleapis.com/', chefdev_adapter)
+
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0",
@@ -57,7 +58,7 @@ headers = {
 ################################################################################
 LOADING_WAIT_TIME = 10                                             # long delay
 LOADING_WAIT_TIME_MS = LOADING_WAIT_TIME*1000
-LOADING_WAIT_TIME_SHORT = 5                                        # short delay
+LOADING_WAIT_TIME_SHORT = 7                                        # short delay
 
 
 class ThreeAsafeerChef(SushiChef):
