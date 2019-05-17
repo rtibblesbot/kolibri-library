@@ -10,7 +10,9 @@ Context
 
   - This script can help with this https://github.com/learningequality/ricecooker/pull/209
 
-        kolibripreview.py --destzip ~/.kolibri/content/storage/9/c/9cf3a3ab65e771abfebfc67c95a8ce2a.zip --srcdir webroot
+        wget https://raw.githubusercontent.com/ivanistheone/ricecooker/kolibripreview/ricecooker/utils/kolibripreview.py
+        chmod +x kolibripreview.py
+        ./kolibripreview.py --destzip ~/.kolibri/content/storage/9/c/9cf3a3ab65e771abfebfc67c95a8ce2a.zip --srcdir webroot
 
   - This channel can be used if you need a starter channel with some zip in it
     https://studio.learningequality.org/channels/0413dd5173014d33b5a98a8c00943724/edit/0413dd5
@@ -58,7 +60,7 @@ Context
 Assuming the HTML5 content you want to test is in directory `./webroot/`, run:
 
     # replace placeholder .zip with contents of webroot/
-    kolibripreview.py \
+    ./kolibripreview.py \
         --destzip=~/.kolibrihomes/develop/content/storage/9/c/9cf3a3ab65e771abfebfc67c95a8ce2a.zip \
         --srcdir webroot
 
@@ -92,7 +94,7 @@ and save to local file `kolibri-0.11.1.pex`
     python kolibri-0.11.1.pex start --foreground
 
     # replace placeholder .zip with contents of webroot/
-    kolibripreview.py \
+    ./kolibripreview.py \
         --destzip=~/.kolibrihomes/release-v0.11.x/content/storage/9/c/9cf3a3ab65e771abfebfc67c95a8ce2a.zip \
         --srcdir webroot
 
@@ -130,7 +132,7 @@ and save to local file `kolibri-0.11.1.pex`
     python kolibri-0.12.3.pex start --foreground
 
     # replace placeholder .zip with contents of webroot/
-    kolibripreview.py \
+    ./kolibripreview.py \
         --destzip=~/.kolibrihomes/release-v0.12.3/content/storage/9/c/9cf3a3ab65e771abfebfc67c95a8ce2a.zip \
         --srcdir webroot
 
