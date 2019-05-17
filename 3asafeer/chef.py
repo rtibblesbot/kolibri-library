@@ -30,8 +30,15 @@ import selenium.webdriver.support.ui as selenium_ui
 from distutils.dir_util import copy_tree
 
 
-DEBUG_MODE = True
-DEBUG_MODE_i = 3
+
+# CHEF and CONTENT DEBUG
+################################################################################
+DEBUG_MODE = True                     # print extra-verbose info
+DOWNLOAD_ONE_TO_webroot = False       # produce debug webroot/ and skip cheffing
+DOWNLOAD_ONLY_N = 15                  # patial chef run with only first N books
+
+
+
 
 sess = requests.Session()
 # cache = FileCache('.webcache')
@@ -79,7 +86,8 @@ class ThreeAsafeerChef(SushiChef):
         )
 
         download_all(channel)
-        if DEBUG_MODE:
+        if DOWNLOAD_ONE_TO_webroot:
+            print('Skipping chef upload -- check webroot/ folder for sample book.')
             sys.exit(0)
         return channel
 
@@ -107,6 +115,7 @@ RATING_NUM_MAP = {
     'ع': "المتقدّم ع",
     'ف': "المتقدّم ف",
 }
+
 
 novice_topic = nodes.TopicNode(
     source_id="novice",
@@ -153,8 +162,13 @@ RATING_TOPIC_MAP = {
 def download_all(channel):
     if DEBUG_MODE:
         print("In download_all")
-    books_count = get_books_count()
-    print("There are %s books ... scraping them now!" % books_count)
+    # books_count = get_books_count()
+    book_infos = get_book_infos()
+    if DOWNLOAD_ONLY_N:
+        print("Scraping first %s books for testing out of total of %s books available." % (DOWNLOAD_ONLY_N, len(book_infos)))
+        book_infos = book_infos[0:DOWNLOAD_ONLY_N]
+    else:
+        print("There are %s books ... scraping them now!" % len(book_infos))
 
     topic_nodes = OrderedDict()
     channel.add_child(novice_topic)
@@ -162,17 +176,16 @@ def download_all(channel):
     channel.add_child(advanced_topic)
 
     source_ids_seen = []
-    
-    for i in range(books_count)[0:13]:
+    for i, book_info in enumerate(book_infos):
         print('-' * 80)
-        if DEBUG_MODE and i > 0:
-            print('Processing just one book because in DEBUG_MODE')
+        if DOWNLOAD_ONE_TO_webroot and i > 0:
+            print('Processing just one book because DOWNLOAD_ONE_TO_webroot is set')
             return
-        if DEBUG_MODE:
-            i = DEBUG_MODE_i
-        print('Downloading book %s of %s' % (i + 1, books_count))
-        book, rating = download_single(i)
-
+        print('Downloading book %s of %s' % (i + 1, len(book_infos)))
+        book, rating = download_book(book_info['book_id'],
+                                     book_info['title'],
+                                     book_info['thumbnail'],
+                                     book_info['rating_text'])
 
         if not topic_nodes.get(rating):
             title = RATING_NUM_MAP.get(rating, rating)
@@ -197,13 +210,6 @@ def download_all(channel):
             print('found duplicate of book.source_id', book.source_id, book.title)
 
 
-def get_books_count():
-    if DEBUG_MODE:
-        print('in get_books_count')
-    with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
-        click_read_and_wait(driver)
-        return len(driver.find_elements_by_css_selector('.story-cover'))
-
 
 def click_read_and_wait(driver):
     """
@@ -222,16 +228,47 @@ def click_read_and_wait(driver):
             break
         previous_count = story_count
         if DEBUG_MODE:
-            print('story_count=', story_count)
-            print('getting more data')
+            print('story_count =', story_count)
+            print('getting more data by calling window.loadMoreData()...')
         driver.execute_script('window.loadMoreData()')
-        time.sleep(3)
+        time.sleep(4)
 
-def download_single(i):
+
+def get_book_infos():
     """
-    Download the book at index i.
+    Simulate a web visitor that loads the entire list of books on the READ page.
+    Returns a list of dictionaries that contain the info for each book encountered.
     """
-    print('in download_single, i=', i)
+    print('in get_book_infos')
+    with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
+        click_read_and_wait(driver)
+        books = driver.find_elements_by_css_selector('.story-cover')
+        book_infos = []
+        for book in books:
+            # print(book)
+            book_id = book.get_attribute('id')
+            cover_picture = book.find_element_by_css_selector('picture.cover')
+            cover_src = cover_picture.find_element_by_css_selector('.noimage').get_attribute('src')
+            thumbnail = make_fully_qualified_url(cover_src)
+            title = book.find_element_by_css_selector('.cover-title').text
+            rating_text = book.find_element_by_css_selector('.rating-icon').text.strip()
+            book_info = dict(
+                book_id=book_id,
+                title=title,
+                thumbnail=thumbnail,
+                rating_text=rating_text
+            )
+            if DEBUG_MODE:
+                print('  - found book_info', book_info)
+            book_infos.append(book_info)
+        return book_infos
+
+
+def download_book(book_id, title, thumbnail, rating_text):
+    """
+    Download book id=`book_id` by calling the website's `getPage(.,.,.)` function.
+    """
+    print('in download_book, book_id =', book_id)
     with WebDriver("http://3asafeer.com/", delay=LOADING_WAIT_TIME_MS) as driver:
         if DEBUG_MODE:
             print('Closing popup')
@@ -239,21 +276,8 @@ def download_single(i):
         close_popup.click()
         time.sleep(2)
 
-        if DEBUG_MODE:
-            print('Clicking "read"')
-        click_read_and_wait(driver)
-        book = driver.find_elements_by_css_selector('.story-cover')[i]
-        print(book)
-        book_id = book.get_attribute('id')
-        cover_picture = book.find_element_by_css_selector('picture.cover')
-        cover_src = cover_picture.find_element_by_css_selector('.noimage').get_attribute('src')
-        thumbnail = make_fully_qualified_url(cover_src)
-        title = book.find_element_by_css_selector('.cover-title').text
-        rating_text = book.find_element_by_css_selector('.rating-icon').text.strip()
-
-        print('Clicking book %s' % book_id)
-        link = book.find_element_by_css_selector('.story')
-        link.click()
+        print("Calling getPage('read', 'story', '%s')..." % book_id)
+        driver.execute_script("getPage('read', 'story', '{id}')".format(id=book_id))
 
         try:
             selenium_ui.WebDriverWait(driver, 30).until(
@@ -274,8 +298,7 @@ def process_node_from_doc(doc, book_id, title, thumbnail):
     """
     Create a Ricecooker HTML5AppNode instance given the HTML source and metadata.
     """
-
-    if DEBUG_MODE:
+    if DOWNLOAD_ONE_TO_webroot:
         # Save the book's contents to the folder `webroot` in the chef root dir.
         # Use the script ./ricecooker/utils/kolibripreview.py to preview in K
         destination = './webroot'
