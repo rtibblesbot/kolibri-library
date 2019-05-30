@@ -72,7 +72,8 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        models = get_all_resources()['models'] # TODO activities and sequences
+        api_search_url = 'https://learn.concord.org/api/v1/search/search?search_term=&sort_order=Alphabetical&material_types%5B%5D=Investigation&material_types%5B%5D=Activity&material_types%5B%5D=Interactive&include_official=1&investigation_page=1&activity_page=1&interactive_page=1&per_page=1000'
+        models = get_all_resources(api_search_url)['models'] # TODO activities and sequences
 
         preview_urls = list(map(lambda x: x['preview_url'], models))
         resolved_urls = list(map(lambda x: requests.get(x).url, preview_urls))
@@ -214,8 +215,7 @@ def get_temp_dir(parent_dir):
     return temp_dir
 
 
-def get_all_resources():
-    api_search_url = 'https://learn.concord.org/api/v1/search/search?search_term=&sort_order=Alphabetical&material_types%5B%5D=Investigation&material_types%5B%5D=Activity&material_types%5B%5D=Interactive&include_official=1&investigation_page=1&activity_page=1&interactive_page=1&per_page=1000'
+def get_all_resources(api_search_url):
     api_response = requests.get(api_search_url)
     all_resources = json.loads(api_response.text)
 
