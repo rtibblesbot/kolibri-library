@@ -4,8 +4,9 @@ import lxml.html
 import templater
 from foundry import foundry
 requests_cache.install_cache()
+foundry.DEBUG = True
+# url = "https://global-asp.github.io/storybooks-minnesota/stories/en/0087/"
 
-url = "https://global-asp.github.io/storybooks-minnesota/stories/en/0087/"
 class Book(object):
     svg_replace = {"pencil": "author",
                    "art": "artist",
@@ -72,14 +73,13 @@ class Book(object):
 class MyFoundry(foundry.Foundry):
     def melt(self):
         "just take it from Carousel"
-        self.raw_content = templater.Carousel(Book(url)).html().encode('utf-8')
+        self.raw_content = templater.Carousel(Book(self.url)).html().encode('utf-8')
 
     def centrifuge(self, callback=None):
         "null centrifuge"
         self.centrifuged = self.raw_content
 
 
-f = MyFoundry(url)
-print(dir(f))
-print (f.zipname)
-print (f.files)
+if __name__ == "__main__":
+    f = MyFoundry(url)
+    print (f.node())
