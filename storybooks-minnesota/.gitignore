@@ -1,0 +1,7 @@
+.webcache/
+__foundry/
+__pycache__/
+cache.sqlite
+demo/
+*.pyc
+
