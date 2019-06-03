@@ -109,9 +109,9 @@ venv.bak/
 .mypy_cache/
 
 # specific
-sample_*.pdf
 *_thumb.png
 restore/
 storage/
 .ricecookerfilecache/
 .webcache/
+*.swp
