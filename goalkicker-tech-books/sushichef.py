@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+# encoding=utf-8
 import os
 import re
 import requests
@@ -10,6 +10,12 @@ from ricecooker.classes.nodes import ChannelNode, TopicNode, DocumentNode
 from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.pdf import PDFParser
+from tempfile import NamedTemporaryFile
+import thumbnail
+def get_temp_filename(suffix):
+    "usage: get_temp_filename('.mp3')"
+    return NamedTemporaryFile(suffix=suffix, delete=False).name
+
 
 LIGATURES = {   u"\u00DF": "fs",
                 u"\u00C6": "AE",
@@ -30,7 +36,7 @@ class GoalkickerChef(SushiChef):
     channel_info = {
         'CHANNEL_TITLE': 'Goalkicker',
         'CHANNEL_SOURCE_DOMAIN': 'goalkicker.com',
-        'CHANNEL_SOURCE_ID': 'goalkicker',
+        'CHANNEL_SOURCE_ID': 'goalkicker_dragon',
         'CHANNEL_LANGUAGE': 'en',
         'CHANNEL_THUMBNAIL': 'chefdata/channel_thumbnail.png',
         'CHANNEL_DESCRIPTION': 'Programming Notes for Professionals books',
@@ -57,13 +63,19 @@ class GoalkickerChef(SushiChef):
 
             # Add book to channel tree
             book_node_source_id = 'topic/' + book_info['subject']
-            book_node = TopicNode(title=book_info['subject'], source_id=book_node_source_id)
-            channel.add_child(book_node)
 
             # Use separate download directory for each book's pdf chunks. Avoids name conflicts between books
             download_dir = os.path.join('downloads', 'book_' + str(book_counter).rjust(2, '0') + '--' + book_info['subject'])
             # Get chapters info
             pdf_path = book_info['absolute_url']
+            book_thumbnail_filename = get_temp_filename(".png")
+            thumbnail.pdf_smart_crop(pdf_path,
+                                     book_thumbnail_filename,
+                                     chapter=False)
+            book_node = TopicNode(title=book_info['subject'],
+                                  source_id=book_node_source_id,
+                                  thumbnail=book_thumbnail_filename)
+            channel.add_child(book_node)
             with PDFParser(pdf_path, directory=download_dir) as pdfparser:
                 chapters = pdfparser.split_chapters()
 
@@ -77,6 +89,11 @@ class GoalkickerChef(SushiChef):
                 else:
                     chapter_description = '"' + chapter['title'] + '" section of the Goalkicker book on ' + book_info['subject']
 
+                chapter_thumbnail_filename = get_temp_filename(".png")
+                thumbnail.pdf_smart_crop(chapter['path'],
+                                         chapter_thumbnail_filename,
+                                         chapter=True)
+
                 chapter_node = DocumentNode(
                     title=chapter['title'],
                     description=chapter_description,
@@ -84,9 +101,9 @@ class GoalkickerChef(SushiChef):
                     license=get_license('CC BY-SA', copyright_holder='Stack Overflow'),
                     language='en',
                     files=[DocumentFile(path=chapter['path'], language='en')],
+                    thumbnail=chapter_thumbnail_filename,
                 )
                 book_node.add_child(chapter_node)
-
         return channel
 
 def replace_ligatures(string):
