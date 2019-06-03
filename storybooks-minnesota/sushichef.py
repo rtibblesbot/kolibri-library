@@ -8,10 +8,11 @@ import logging
 from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import TopicNode
 import index, detail
-
+from foundry import foundry
 
 LOGGER = logging.getLogger()
 
+foundry.copyright_holder="Global African Storybooks Project"
 
 class MathplanetChef(SushiChef):
     channel_info = {
@@ -27,6 +28,7 @@ class MathplanetChef(SushiChef):
         channel = self.get_channel(**kwargs)
         for lang_code, lang_name in index.languages.items():
             lang_node = TopicNode(lang_code, lang_name)
+            lang_node.language = lang_code
             channel.add_child(lang_node)
             for level in range(1,5+1):
                 level_node = TopicNode(lang_code+str(level), "Level "+str(level))
@@ -34,8 +36,10 @@ class MathplanetChef(SushiChef):
                 urls = index.get_lang_level(lang_code, level)
                 for url in urls:
                     f = detail.MyFoundry(url)
-                    level_node.add_child(f.node())
-                return channel
+                    node = f.node()
+                    node.language = lang_code
+                    level_node.add_child(node)
+        return channel
 
 
 if __name__ == '__main__':

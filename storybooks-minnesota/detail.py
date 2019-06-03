@@ -12,7 +12,8 @@ class Book(object):
                    "art": "artist",
                    "megaphone": "narrator",
                    "language": "language",
-                   "level": "level"}
+                   "level": "level",
+                   "global": "translator"}
 
     def get_text(self, query):
         """There's exactly one tag"""
@@ -20,6 +21,7 @@ class Book(object):
         return tag.text_content()
 
     def __init__(self, url):
+        print(url)
         self.url = url
         html = requests.get(url).content
         root = lxml.html.fromstring(html)
@@ -32,6 +34,16 @@ class Book(object):
 
     def get_title(self):
         return self.get_text("//h1/span[@class='def']")
+
+    def license(self):
+        cc = []
+        url = self.xpath("//div[@id='colophon']//a[contains(@href,'commons')]/@href")[0]
+        print(url)
+        url_bit = url.partition("licenses")[2]
+        for bit in ["by", "nc", "sa", "nd"]:
+            if bit in url_bit:
+                cc.append(bit.upper())
+        return "CC "+"-".join(cc)
 
     def cover_url(self):
         return self.xpath("//div[@id='text01']//img[@class='img-responsive']/@src")[0]
@@ -73,11 +85,17 @@ class Book(object):
 class MyFoundry(foundry.Foundry):
     def melt(self):
         "just take it from Carousel"
-        self.raw_content = templater.Carousel(Book(self.url)).html().encode('utf-8')
+
+        self.book = Book(self.url)
+        self.raw_content = templater.Carousel(self.book).html().encode('utf-8')
 
     def centrifuge(self, callback=None):
         "null centrifuge"
         self.centrifuged = self.raw_content
+
+    def license(self):
+        return self.book.license()
+
 
 
 if __name__ == "__main__":
