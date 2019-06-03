@@ -32,7 +32,7 @@ class GoalkickerChef(SushiChef):
         'CHANNEL_SOURCE_DOMAIN': 'goalkicker.com',
         'CHANNEL_SOURCE_ID': 'goalkicker',
         'CHANNEL_LANGUAGE': 'en',
-        'CHANNEL_THUMBNAIL': 'https://goalkicker.com/JavaScriptBook/JavaScriptGrow.png', # picked an arbitrary book cover
+        'CHANNEL_THUMBNAIL': 'chefdata/channel_thumbnail.png',
         'CHANNEL_DESCRIPTION': 'Programming Notes for Professionals books',
     }
 
@@ -133,5 +133,6 @@ if __name__ == '__main__':
         python goalkicker_chef.py -v --reset --token=YOURTOKENHERE9139139f3a23232
     """
     goalkicker_chef = GoalkickerChef()
+    os.environ['CONTENT_CURATION_TOKEN'] = os.environ['KOLIBRI_STUDIO_TOKEN']
     goalkicker_chef.main()
 

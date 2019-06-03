@@ -1,0 +1,2 @@
+STUDIO_URL="https://develop.studio.learningequality.org"
+python sushichef.py -v --reset --token=c738e0971587868d7be296dc16736abc68482f1a

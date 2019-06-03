@@ -107,3 +107,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# specific
+sample_*.pdf
+*_thumb.png
+restore/
+storage/
+.ricecookerfilecache/
+.webcache/
