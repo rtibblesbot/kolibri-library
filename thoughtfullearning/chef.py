@@ -64,7 +64,7 @@ class ThoughtfulLearningChef(SushiChef):
         'CHANNEL_SOURCE_ID': "thoughtful-learning",
         'CHANNEL_TITLE': "Thoughtful Learning",
         'CHANNEL_THUMBNAIL': "thumbnail.png",
-        'CHANNEL_DESCRIPTION': "Learning resources on Langugage Arts, 21st Century Learning, and Social-Emotional Learning.",
+        'CHANNEL_DESCRIPTION': "Learning resources on Language Arts, 21st Century Learning, and Social-Emotional Learning.",
     }
 
     def construct_channel(self, **kwargs):
