@@ -6,6 +6,10 @@ from pathlib import Path
 import os
 import requests_cache
 import zipfile
+from collections import namedtuple
+from urllib.parse import urlparse
+
+Metadata = namedtuple("Metadata", ["title", "author", "description"])
 
 requests_cache.install_cache()
 ELP = Path("elp/")
@@ -25,10 +29,23 @@ def elp_metadata(elp_filename):
         with zf.open("contentv3.xml") as xml:
             data = xml.read()
             root = lxml.etree.fromstring(data)
-            print ("T",query('_title'))
-            print ("A",query('_author'))
-            print ("D", query('_description'))
+            return Metadata(query('_title'), query('_author'), query('_description'))
 
+def zipscan(zip_filename):
+    with zipfile.ZipFile(zip_filename, "r") as zf:
+        htmlfiles = [x for x in zf.namelist() if x.endswith("html")]
+        print (htmlfiles)
+        for htmlfilename in htmlfiles:
+            with zf.open(htmlfilename) as htmlfile:
+                root = lxml.html.fromstring(htmlfile.read())
+                for href in root.xpath("//@href"):
+                    domain =  urlparse(href).netloc
+                    if domain and domain != "creativecommons.org":
+                        print ("HREF", href)
+                for src in root.xpath("//@src"):
+                    domain =  urlparse(src).netloc
+                    if domain and domain != "creativecommons.org":
+                        print ("SRC", src)
 
 def elp_to_zip(elp_url):
     print()
@@ -60,8 +77,8 @@ def elp_to_zip(elp_url):
         print(stderr)
         assert not output.returncode
         assert "error was" not in stdout
-    elp_metadata(ELP/filename)
-    return zipfilename
+    zipscan(ZIP/zipfilename)
+    return zipfilename, elp_metadata(ELP/filename)
 
 # TODO - fix encoding
 BASE_URL = "http://cedec.intef.es/recursos/"
@@ -82,15 +99,9 @@ for link in links:
         elp_url = elp.attrib['href']
         if not elp_url.endswith(".elp"):
             continue
-        try:
-            grouping, = elp.xpath("./preceding::h2[1]")
-            print (grouping.text_content().strip())
-    #        title, = elp.xpath("./preceding::strong[1]")
-    #        title, = elp.xpath("./preceding::a[contains(@href, '.html') and text()][1]")
-            #title, = elp.xpath("./preceding::td[@class='column-1']//a[1]")
-            #print (title.text_content().strip())
-        except:
-            print (link)
-            raise
-        elp_to_zip(elp_url)
+        grouping, = elp.xpath("./preceding::h2[1]")
+        print (grouping.text_content().strip())
+        zipfilename, metadata = elp_to_zip(elp_url)
     print()
+
+
