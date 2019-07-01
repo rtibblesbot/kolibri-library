@@ -9,7 +9,11 @@ requests_cache.install_cache()
 ELP = Path("elp/")
 ZIP = Path("zip/")
 
+my_env = os.environ.copy()
+my_env["PYTHONIOENCODING"] = "utf-8"
+
 def elp_to_zip(elp_url):
+    print()
     filename = elp_url.split("/")[-1]
     try:
         os.mkdir(ELP)
@@ -20,6 +24,8 @@ def elp_to_zip(elp_url):
     except FileExistsError:
         pass
     zipfilename = filename + ".zip"
+    if os.path.isfile(ELP/filename):
+        print (f"WARNING: {ELP/filename} exists")
     if os.path.isfile(ZIP/zipfilename):
         return zipfilename
     with open(ELP/filename, "wb") as f:
@@ -28,12 +34,14 @@ def elp_to_zip(elp_url):
     print (repr(" ".join(invocation)))
     output = subprocess.run(invocation,
             stdout = PIPE,
-            stderr = PIPE)
-    stderr = output.stderr
+            stderr = PIPE,
+            env = my_env)
 
     print (filename)
-    print (stderr.decode('utf-8'))
-    exit()
+    stdout = output.stdout.decode('utf-8')
+    assert not output.returncode
+    print(stdout)
+    assert "error was" not in stdout
     return zipfilename
 
 # TODO - fix encoding
