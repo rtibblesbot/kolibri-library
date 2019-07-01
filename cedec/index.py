@@ -5,6 +5,8 @@ from subprocess import PIPE
 from pathlib import Path
 import os
 import requests_cache
+import zipfile
+
 requests_cache.install_cache()
 ELP = Path("elp/")
 ZIP = Path("zip/")
@@ -12,9 +14,26 @@ ZIP = Path("zip/")
 my_env = os.environ.copy()
 my_env["PYTHONIOENCODING"] = "utf-8"
 
+ns={'exe': 'http://www.exelearning.org/content/v0.3'}
+
+def elp_metadata(elp_filename):
+    def query(s):
+        response, = root.xpath("/exe:instance/exe:dictionary/exe:string[@value='"+s+"']/following-sibling::exe:unicode[1]/@value", namespaces=ns)
+        return response
+
+    with zipfile.ZipFile(elp_filename, "r") as zf:
+        with zf.open("contentv3.xml") as xml:
+            data = xml.read()
+            root = lxml.etree.fromstring(data)
+            print ("T",query('_title'))
+            print ("A",query('_author'))
+            print ("D", query('_description'))
+
+
 def elp_to_zip(elp_url):
     print()
-    filename = elp_url.split("/")[-1]
+    print(elp_url)
+    filename = elp_url.partition("cedec")[2].replace("/", "_")
     try:
         os.mkdir(ELP)
     except FileExistsError:
@@ -26,22 +45,22 @@ def elp_to_zip(elp_url):
     zipfilename = filename + ".zip"
     if os.path.isfile(ELP/filename):
         print (f"WARNING: {ELP/filename} exists")
-    if os.path.isfile(ZIP/zipfilename):
-        return zipfilename
-    with open(ELP/filename, "wb") as f:
-        f.write(requests.get(elp_url).content)
-    invocation = ["exe_do", "--export", "webzip", str(ELP/filename), str(ZIP/zipfilename)]
-    print (repr(" ".join(invocation)))
-    output = subprocess.run(invocation,
-            stdout = PIPE,
-            stderr = PIPE,
-            env = my_env)
+    if not os.path.isfile(ZIP/zipfilename):
+        with open(ELP/filename, "wb") as f:
+            f.write(requests.get(elp_url).content)
+        invocation = ["exe_do", "--export", "webzip", str(ELP/filename), str(ZIP/zipfilename)]
+        output = subprocess.run(invocation,
+                stdout = PIPE,
+                stderr = PIPE,
+                env = my_env)
 
-    print (filename)
-    stdout = output.stdout.decode('utf-8')
-    assert not output.returncode
-    print(stdout)
-    assert "error was" not in stdout
+        stdout = output.stdout.decode('utf-8')
+        stderr = output.stderr.decode('utf-8')
+        print(stdout)
+        print(stderr)
+        assert not output.returncode
+        assert "error was" not in stdout
+    elp_metadata(ELP/filename)
     return zipfilename
 
 # TODO - fix encoding
@@ -57,12 +76,21 @@ for link in links:
     html = requests.get(link).content
     root = lxml.html.fromstring(html)
     root.make_links_absolute(link)
-    elps = root.xpath("//td[@class='column-4']/a")
+    elps = root.xpath("//a")
+
     for elp in elps:
-        grouping, = elp.xpath("./preceding::h2[1]")
-        print (grouping.text_content().strip())
-        title, = elp.xpath("./preceding::strong[1]")
-        print (title.text_content().strip())
         elp_url = elp.attrib['href']
+        if not elp_url.endswith(".elp"):
+            continue
+        try:
+            grouping, = elp.xpath("./preceding::h2[1]")
+            print (grouping.text_content().strip())
+    #        title, = elp.xpath("./preceding::strong[1]")
+    #        title, = elp.xpath("./preceding::a[contains(@href, '.html') and text()][1]")
+            #title, = elp.xpath("./preceding::td[@class='column-1']//a[1]")
+            #print (title.text_content().strip())
+        except:
+            print (link)
+            raise
         elp_to_zip(elp_url)
     print()
