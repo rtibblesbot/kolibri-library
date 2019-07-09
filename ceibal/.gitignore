@@ -72,3 +72,8 @@ storage/*
 restore/*
 ghostdriver.log
 .webcache/*
+videos/
+gdrive/
+credentials.json
+credentials.txt
+
