@@ -149,10 +149,10 @@ class CeibalChef(SushiChef):
             # Parse categories
             for category in category_list.find_all('li', {'class': 'has-children'}):
                 # Add this topic to channel when scraping entire channel
-                # category_name = category.find('a').string
-                # topic = nodes.TopicNode(title=category_name, source_id=get_source_id(category_name))
-                # channel.add_child(topic)
-                # LOGGER.info(topic.title)
+                category_name = category.find('a').string
+                topic = nodes.TopicNode(title=category_name, source_id=get_source_id(category_name))
+                channel.add_child(topic)
+                LOGGER.info(topic.title)
 
                 # Parse subcategories
                 for subcategory in category.find_all('li'):
@@ -163,7 +163,7 @@ class CeibalChef(SushiChef):
                         subcategory_link = subcategory.find('a')['href']
                         LOGGER.info('  {}'.format(subcategory_name))
                         subtopic = nodes.TopicNode(title=subcategory_name, source_id=get_source_id(subcategory_link))
-                        channel.add_child(subtopic)
+                        topic.add_child(subtopic)
 
                         # Parse resources
                         self.scrape_subcategory(subcategory_link, subtopic)
@@ -195,8 +195,6 @@ class CeibalChef(SushiChef):
     def scrape_resource(self, url, topic):
         resource = BeautifulSoup(downloader.read(url), 'html5lib')
         LOGGER.info('      {}'.format(resource.find('h2').string))
-        if 'en_la_agenda_e_participaci_n_ciudadana' not in url:
-            return
 
         filepath = self.download_resource(resource.find('div', {'class': 'decargas'}).find('a')['href'])
         license = None
@@ -221,34 +219,21 @@ class CeibalChef(SushiChef):
                 tags = [tag.string for tag in resource.find_all('a', {'class': 'tags'})],
                 files=[files.HTMLZipFile(path=filepath)],
             ))
-        raise KeyError
 
     def download_resource(self, endpoint):
-        url = '{}{}'.format(BASE_URL, endpoint.lstrip('/'))
-        # try:
-        contents = BeautifulSoup(downloader.read(url), 'html5lib')
-
         filename, ext = os.path.splitext(endpoint)
         write_to_path = os.path.sep.join([DOWNLOAD_DIRECTORY, '{}.zip'.format(filename.lstrip('/').replace('/', '-'))])
 
-        # if not os.path.isfile(write_to_path):
-        # return None
-        with html_writer.HTMLWriter(write_to_path) as zipper:
-            try:
+        # if os.path.isfile(write_to_path):
+        #     return write_to_path
+        try:
+            url = '{}{}'.format(BASE_URL, endpoint.lstrip('/'))
+            contents = BeautifulSoup(downloader.read(url), 'html5lib')
+            with html_writer.HTMLWriter(write_to_path) as zipper:
                 write_zip_page(url, contents, zipper)
-            except Exception as e:
-                print(str(e))
-                import pdb; pdb.set_trace()
-
-        with zipfile.ZipFile(write_to_path, 'r') as zipf:
-            zipf.extractall(os.path.join(DOWNLOAD_DIRECTORY, filename.lstrip('/').replace('/', '-')))
-
-        return write_to_path
-        # except Exception as e:
-        #     LOGGER.error(str(e))
-            # import pdb; pdb.set_trace()
-
-
+            return write_to_path
+        except Exception as e:
+            LOGGER.error(str(e))
 
 
 def get_relative_url(url, endpoint):
@@ -265,6 +250,104 @@ def get_relative_url(url, endpoint):
         parsed = urlparse(url)
         return "{}://{}/{}".format(parsed.scheme, parsed.netloc, endpoint.strip('/'))
     return "/".join(url.split('/')[:-1] + [endpoint])
+
+
+BASIC_SITES = {
+    BASE_URL: {
+        'omit_list': [
+            ('p', {'id': 'nav-toggler'}),
+            ('nav', {'id': 'siteNav'}),
+        ]
+    },
+    'disfrutalasmatematicas.com': {
+        'omit_list': [
+            ('div', {'id': 'topads'}),
+            ('div', {'id': 'adhid2'}),
+            ('div', {'id': 'menu'}),
+            ('div', {'id': 'header'}),
+            ('div', {'class': 'related'}),
+            ('div', {'id': 'footer'}),
+            ('div', {'id': 'foot-menu'}),
+            ('div', {'id': 'cookieok'}),
+        ]
+    },
+    'wikipedia': {
+        'omit_list': [
+            ('span', {'class': 'mw-editsection'}),
+            ('div', {'id': 'mw-page-base'}),
+            ('div', {'id': 'mw-head-base'}),
+            ('div', {'id': 'mw-navigation'}),
+            ('div', {'id': 'footer'}),
+            ('a', {'class': 'mw-jump-link'}),
+            ('link', {'rel': 'apple-touch-icon'}),
+            ('link', {'rel': 'icon'}),
+            ('link', {'rel': 'search'}),
+            ('div', {'class': 'printfooter'}),
+        ]
+    },
+    'wikibooks': {
+        'omit_list': [
+            ('span', {'class': 'mw-editsection'}),
+            ('div', {'id': 'mw-page-base'}),
+            ('div', {'id': 'mw-head-base'}),
+            ('div', {'id': 'mw-navigation'}),
+            ('div', {'id': 'footer'}),
+            ('a', {'class': 'mw-jump-link'}),
+            ('link', {'rel': 'apple-touch-icon'}),
+            ('link', {'rel': 'icon'}),
+            ('link', {'rel': 'search'}),
+            ('div', {'class': 'printfooter'}),
+        ]
+    },
+    'impo.com.uy': {
+        'omit_list': [
+            ('nav', {'id': 'topnavbar'})
+        ]
+    },
+    'www.geoenciclopedia.com': {
+        'omit_list': [
+            ('header', {'id': 'main-header'}),
+            ('div', {'class': 'et_pb_widget_area_right'}),
+            ('footer', {'id': 'main-footer'})
+        ]
+    },
+    'ciudadseva.com': {
+        'omit_list': [
+            ('div', {'class': 'container'}),
+            ('nav', {'class': 'navbar-maqin'}),
+            ('div', {'class': 'hidden-print'})
+        ]
+    },
+    'www.literatura.us': {
+        'omit_list': [
+            ('a', {})
+        ]
+    },
+    'edu.glogster.com': {
+        'omit_list': [
+            ('div', {'class': 'no-print'})
+        ]
+    },
+    'infoymate.es': {
+        'omit_list': []
+    },
+    'edu.xunta.es': {
+        'omit_list': []
+    },
+    'www.uoc.edu': {
+        'omit_list': [
+            ('div', {'class': 'alert-text'}),
+            ('div', {'id': 'eines'})
+        ]
+    },
+    'contenidos.ceibal.edu.uy': {
+        'omit_list': [
+            ('ul', {'id': 'mainMenu'}),
+            ('div', {'class': 'button'}),
+            ('div', {'id': 'related'}),
+        ]
+    }
+}
 
 def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, scrape_subpages=True, omit_list=None, pre_process=None, post_process=None):
     # Some scripts only load if there's a video on the page
@@ -312,6 +395,7 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
             video_tag = new_soup.new_tag('video')
             video_tag['style'] = 'margin-left: auto; margin-right: auto; width: 500px;'
             video_tag['preload'] = 'auto'
+            video_tag['controls'] = 'controls'
             for source in video.find_all('source'):
                 source_tag = new_soup.new_tag('source')
                 source_tag['src'] = zipper.write_url(get_relative_url(url, source['src']), source['src'].split('/')[-1], directory="videos")
@@ -333,7 +417,17 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
             source['src'] = zipper.write_url(get_relative_url(url, audio.find('audio')['src']), audio.find('audio')['src'].split('/')[-1], directory="audio")
             audio.replaceWith(audio_tag)
         except:
-            LOGGER.warn('Cannot parse video at {}'.format(url.replace('inicio', filename)))
+            LOGGER.warn('Cannot parse audio at {}'.format(url.replace('inicio', filename)))
+
+    for embed in contents.find_all('embed'):
+        embed_fn, embed_ext = os.path.splitext(embed['src'].split('?')[0].split('/')[-1])
+        if embed_ext.lower() == '.swf':
+            embed.replaceWith(manage_unscrapable_source(url))
+        elif embed_ext.lower() == '.pdf':
+            embed['src'] = zipper.write_url(get_relative_url(url, embed['src']), '{}{}'.format(embed_fn, embed_ext), directory="embed")
+
+    for obj in contents.find_all('object'):
+        obj.replaceWith(manage_unscrapable_source(url))
 
     # Get style sheets
     for style in contents.find_all('link', {'rel': 'stylesheet'}):
@@ -344,14 +438,14 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
         try:
             style_url = get_relative_url(url, style['href'])
             css_link = style['href'].split('/')[-1].split('?')
-            style_sheet = downloader.read(style_url).decode('utf-8')
+            style_sheet = downloader.read(style_url).decode('utf-8-sig', errors='ignore')
 
             # Parse urls in css
             if style_url not in triaged:
                 triaged.append(style_url)
                 sheet = cssutils.parseString(style_sheet)  # parseString is significantly faster than parseUrl
                 for css_url in cssutils.getUrls(sheet):
-                    if not css_url.startswith('data:image'):
+                    if not css_url.startswith('data:image') and not css_url.startswith('data:application'):
                         try:
                             new_url = zipper.write_url(get_relative_url(style_url, css_url), css_url.split('/')[-1].split('?')[0], directory="css")
                             style_sheet = style_sheet.replace(css_url, os.path.basename(new_url))
@@ -363,6 +457,15 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
         except requests.exceptions.HTTPError as e:
             LOGGER.warn('Unable to download stylesheet link at {} ({})'.format(url, str(e)))
 
+    # Some thinglink images are embedded directly into the page
+    for thinglink_img in contents.find_all('img', {'class': 'alwaysThinglink'}):
+        if thinglink_img.find_next('script'):
+            thinglink_id = re.search(r'image/([^/]+)/', thinglink_img['src']).group(1)
+            message = manage_unscrapable_source('https://www.thinglink.com/scene/{}'.format(thinglink_id), is_downloadable=True)
+            thinglink_img.insert_before(message)
+            process_thinglink_embed_script(thinglink_img.find_next('script'), zipper, thinglink_id)
+            thinglink_img['src'] = zipper.write_url(get_relative_url(url, thinglink_img['src']), 'scaletowidth', directory='img')
+        thinglink_img['class'] = ['skip-scrape']
 
     # Get scripts
     for script in contents.find_all('script'):
@@ -373,60 +476,80 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
         elif script.get('src'):
             script_url = get_relative_url(url, script['src'])
             script_link = script['src'].split('/')[-1].split('?')
-            script['src'] = zipper.write_url(script_url, script_link[0], directory="js")
+            script['src'] = zipper.write_url(script_url, script_link[0][-20:], directory="js")
             script['src'] += '?' + script_link[1] if len(script_link) > 1 else ''
-        elif 'gtag()' in script.string or 'googletagmanager' in script.string:
+        elif script.string and ('gtag()' in script.string or 'googletagmanager' in script.string):
             script.decompose()
 
     # Get images
     for img in contents.find_all('img'):
         if 'skip-scrape' not in (img.get('class') or []) and img.get('src') and not img['src'].startswith('data:image'):
-            image_filename = img['src'].split('/')[-1].split('?')[0]
-            _fn, ext = os.path.splitext(image_filename)
-            if not ext:
-                image_filename += '.png'
-            img_url = get_relative_url(url, img['src'])
-            img['src'] = zipper.write_url(img_url, image_filename, directory="img")
+            try:
+                image_filename = img['src'].replace('%', '').split('/')[-1].split('?')[0]
+                _fn, ext = os.path.splitext(image_filename)
+                if not ext:
+                    image_filename += '.png'
+                img_url = get_relative_url(url, img['src'])
+                img['src'] = zipper.write_url(img_url, image_filename, directory="img")
+            except requests.exceptions.HTTPError as e:
+                LOGGER.warn(str(e))
 
 
     # Get links
     for link in contents.find_all('a') :
         if not link.get('href'):
             continue
-        elif 'javascript:void' in link.get('href') or link['href'].startswith("#"):
+        elif 'javascript:void' in link.get('href') or link['href'].startswith("#") or link['href'] == '/':
             continue
         elif 'mailto' in link['href']:
             link.replaceWith(link.text)
-        elif not os.path.splitext(link['href'].split('?')[0])[1].startswith('.htm') or 'creativecommons.org' in link['href']:
-            link.replaceWith(manage_unrecognized_source(url, link['href']))
-        elif not link['href'].endswith('.html') and not link['href'].endswith('.htm') and os.path.splitext(link['href'])[1]:
+        elif 'creativecommons.org' in link['href']:
             try:
-                link['href'] = zipper.write_url(get_relative_url(url, link['href']), link['href'].split('/')[-1])
-            except requests.exceptions.HTTPError as e:
-                LOGGER.warn('Resourece not found at {} ({})'.format(url, str(e)))
-                link.replaceWith(manage_unrecognized_source(url, link['href']))
+                new_text = BeautifulSoup('', 'html5lib').new_tag('b')
+                new_text.string = link.find('img').get('alt') if link.find('img') else link.string
+                link.replaceWith(new_text)
+            except Exception as e:
+                print(str(e))
+                import pdb; pdb.set_trace()
         elif not scrape_subpages:
             link.replaceWith(link.text)
             link['style'] = 'font-weight: bold;'
         elif link['href'].startswith('http'):
             link.replaceWith(manage_unscrapable_source(link['href']))
-        elif link['href'].split('#')[0] not in triaged:
+        elif not os.path.splitext(link['href'].split('?')[0])[1].startswith('.htm') and not os.path.splitext(link['href'])[1].startswith('.php'):
             try:
-                parts = link['href'].split('#')
-                triaged.append(parts[0])
-                page = BeautifulSoup(downloader.read(get_relative_url(url, parts[0])), 'html5lib')
-                link['href'] = write_zip_page(url, page, zipper, filename=parts[0], triaged=triaged)
-                if len(parts) > 1:
-                    link['href'] += '#' + parts[1]
+                link['href'] = zipper.write_url(get_relative_url(url, link['href']), link['href'].split('/')[-1])
             except requests.exceptions.HTTPError as e:
-                LOGGER.error("Broken link at {} ({})".format(url.replace('inicio', filename), link['href']))
-                new_soup = BeautifulSoup('<b>{}</b>'.format(link.string), 'html5lib')
-                link.replaceWith(new_soup.b)
-
+                LOGGER.warn('Resourece not found at {} ({})'.format(url, str(e)))
+        elif link['href'].split('#')[0] not in triaged:
+            # try:
+            parts = link['href'].split('#')
+            page_name, ext = os.path.splitext(parts[0])
+            triaged.append(parts[0])
+            page = BeautifulSoup(downloader.read(get_relative_url(url, link['href'])), 'html5lib')
+            # try:
+            link['href'] = write_zip_page(url, page, zipper, filename="{}".format(parts[0]), triaged=triaged, omit_list=omit_list, scrape_subpages=BASE_URL in url)
+            link['target'] = ''
+            if len(parts) > 1:
+                link['href'] += '#' + parts[1]
+            #     except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
+            #         LOGGER.warning('Error processing a page under {} ({})'.format(link['href'], str(e)))
+            #         new_soup = BeautifulSoup('<b>{}</b>'.format(link.string), 'html5lib')
+            #         link.replaceWith(new_soup.b)
+            # except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
+            #     LOGGER.warning("Broken link at {} ({})".format(url.replace('inicio', filename), link['href']))
+            #     new_soup = BeautifulSoup('<b>{}</b>'.format(link.string), 'html5lib')
+            #     link.replaceWith(new_soup.b)
 
     # Get iframe embeds
     for iframe in contents.find_all('iframe'):
-        if 'googletagmanager.com' in iframe['src']:
+        if not iframe.get('src'):
+            continue
+        iframe_ext = os.path.splitext(iframe['src'].split("?")[0])[1].lower()
+        message = manage_unscrapable_source(iframe['src'], is_downloadable=True)
+        iframe.insert_before(message)
+
+        if 'googletagmanager.com' in iframe['src'] or 'googleads' in iframe['src']:
             iframe.decompose()
         elif 'youtube' in iframe['src'] or 'vimeo' in iframe['src']:
             download_web_video(iframe, zipper)
@@ -434,12 +557,11 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
             download_google_drive_file(iframe, zipper)
         elif iframe['src'].endswith('.pdf'):
             download_pdf(iframe, zipper)
-        elif iframe['src'].lower().endswith('.png') or iframe['src'].lower().endswith('.jpg'):
+        elif iframe_ext == '.png' or iframe_ext == '.jpg':
             new_soup = BeautifulSoup('', 'html5lib')
             img = new_soup.new_tag('img')
             img['src'] = zipper.write_url(get_relative_url(url, iframe['src']), iframe['src'].split('/')[-1], directory='img')
             iframe.replaceWith(img)
-
         elif 'genial.ly' in iframe['src']:
             def preprocess_genial(url, contents, zipper):
                 genial_id = url.split('/')[-1]
@@ -463,7 +585,10 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
                             for img in code_contents.find_all('img'):
                                 image_filename = '-'.join(img['src'].split('?')[0].split('/')[-3:])
                                 image_filename = image_filename if os.path.splitext(image_filename) else '.{}'.format(image_filename)
-                                img['src'] = zipper.write_url(img['src'], image_filename, directory="webimg")
+                                try:
+                                    img['src'] = zipper.write_url(img['src'], image_filename, directory="webimg")
+                                except requests.exceptions.HTTPError as e:
+                                    LOGGER.warning("Error processing genial.ly at {} ({})".format(url, str(e)))
                             code['HtmlCode'] = code_contents.prettify()
                         script_contents = script_contents.replace('r.a.get(c).then(function(e){return n(e.data)})', 'n({})'.format(json.dumps(genial_data)))
                         script['class'] = ['skip-scrape']
@@ -473,25 +598,11 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
                 style_tag.string = '.genially-view-logo { pointer-events: none;} .genially-view-navigation-actions, .genially-view-navigation-actions-toggle-button{display: none !important; pointer-events:none;}'
                 contents.find('head').append(style_tag)
             download_webpage(iframe, zipper, pre_process=preprocess_genial)
-        elif 'wikipedia' in iframe['src'] or 'wikibooks' in iframe['src']:
-            omit_list = [
-                ('span', {'class': 'mw-editsection'}),
-                ('div', {'id': 'mw-page-base'}),
-                ('div', {'id': 'mw-head-base'}),
-                ('div', {'id': 'mw-navigation'}),
-                ('div', {'id': 'footer'}),
-                ('a', {'class': 'mw-jump-link'}),
-                ('link', {'rel': 'apple-touch-icon'}),
-                ('link', {'rel': 'icon'}),
-                ('link', {'rel': 'search'}),
-                ('div', {'class': 'printfooter'}),
-            ]
-            download_webpage(iframe, zipper, omit_list=omit_list)
         elif 'thinglink.com' in iframe['src']:
-            def process_thinglink(contents):
+            def process_thinglink(contents, page_url, zipper):
                 new_soup = BeautifulSoup('<div></div>', 'html5lib')
                 style_tag = new_soup.new_tag('style')
-                style_tag.string = '.tlExceededViewsLimit, .tlThingText:not(.tlVariantVideoThing) .tlThingClose, .tlSidebar {visibility: hidden;} .tlFourDotsButton, .btnViewOnSS {pointer-events: none;} .tlFourDotsButton .btn, .tlFourDotsButton .arrowRight {display: none !important;}'
+                style_tag.string = '.tlExceededViewsLimit, .tlThingText:not(.tlVariantVideoThing) .tlThingClose, .tlSidebar, .tlThinglinkSite {visibility: hidden !important;} .tlFourDotsButton, .btnViewOnSS {pointer-events: none;} .tlFourDotsButton .btn, .tlFourDotsButton .arrowRight {display: none !important;}'
                 contents.head.append(style_tag)
                 for script in contents.find_all('script'):
                     if not script.string or 'skip-scrape' in (script.get('class') or []):
@@ -505,8 +616,8 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
                             image_filename = image_filename if ext else image_filename + '.png'
                             new_str = match.group(0).replace(match.group(1), zipper.write_url(get_relative_url(match.group(1), match.group(1)), image_filename, directory="webimg"))
                             script.string = script.string.replace(match.group(0), new_str)
-                    elif 'var url = ' in script.string:
-                        regex = r"(?:'|\")(http[^'\"]+)(?:'|\")"
+                    elif re.search(r"var url\s*=\s*(?:'|\")([^'\"]+)(?:'|\")", script.string, re.MULTILINE):
+                        regex = r"var url\s*=\s*(?:'|\")([^'\"]+)(?:'|\")"
                         for match in re.finditer(regex, script.string, re.MULTILINE):
                             image_filename = '-'.join(match.group(1).split('?')[0].split('/')[-3:])
                             _fn, ext = os.path.splitext(image_filename)
@@ -520,6 +631,8 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
 
                 for nubbin in contents.find_all('div', {'class': 'nubbin'}):
                     for subnubbin in nubbin.find_all('div'):
+                        if not subnubbin.get('style'):
+                            continue
                         regex = r"\((?:'|\")*(http[^'\"]+)(?:'|\")*\)"
                         for match in re.finditer(regex, subnubbin['style'], re.MULTILINE):
                             image_filename = '-'.join(match.group(1).split('?')[0].split('/')[-3:])
@@ -530,38 +643,27 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
 
             def preprocess_thinglink(url, contents, zipper):
                 thinglink_id = url.split('/')[-1]
-                response = requests.get('https://www.thinglink.com/api/tags?url={}'.format(thinglink_id))
-                for script in contents.find_all('script'):
-                    if script.get('src') and 'embed.js' in script['src']:
-                        script_contents = downloader.read(get_relative_url(script['src'], script['src'])).decode('utf-8')
-                        tag_data = json.loads(response.content)
-                        for thing in tag_data[thinglink_id]['things']:
-                            if thing['thingUrl']:
-                                thing['thingUrl'] = download_youtube(thing['thingUrl'], zipper)
-                                thing['contentUrl'] = thing['thingUrl']
-                                icon_fn = '-'.join(thing['icon'].split('?')[0].split('/')[-2:])
-                                thing['icon'] = zipper.write_url(get_relative_url(thing['icon'], thing['icon']), 'thinglink-{}.jpg'.format(icon_fn), directory="img")
-                        script_contents = script_contents.replace('d.ajax({url:A+"/api/tags",data:u,dataType:"jsonp",success:z})', 'z({})'.format(json.dumps(tag_data)))
-                        script_contents = script_contents.replace('n.getJSON(A+"/api/internal/logThingAccess?callback=?",{thing:y,sceneId:w,e:"hover",referer:t.referer,dwell:v});', '')
-                        script_contents = script_contents.replace('n.getJSON(t.getApiBaseUrl()+"/api/internal/logThingAccess?callback=?",{time:y,sceneId:v,thing:w,e:"hoverend",referer:t.referer})', '')
-                        script_contents = script_contents.replace('n.getJSON(t.getApiBaseUrl()+"/api/internal/logSceneAccess?callback=?",{time:z,sceneId:w,referer:t.referer,dwell:v,event:"scene.hover"})', '')
-                        script_contents = script_contents.replace('n.getJSON(t.getApiBaseUrl()+"/api/internal/logSceneAccess?callback=?",{sceneId:v,referer:t.referer,event:"scene.view",channelId:b.getChannelId(x)})', '')
-                        script_contents = script_contents.replace('n.getJSON(B+"/api/internal/logThingAccess?callback=?",z,C);', '')
 
-                        icon_str = 'k.src=l;return"style=\\"background-image: url(\'"+l+"\') !important;\\"'
-                        script_contents = script_contents.replace(icon_str, 'var slices=l.split("/"); l="webimg/"+slices.slice(slices.length-3,slices.length).join("-")+".png";' + icon_str)
-                        script['class'] = ['skip-scrape']
-                        script['src'] = zipper.write_contents('thinglink-{}-embed.js'.format(thinglink_id), script_contents,  directory="js")
+                for script in contents.find_all('script'):
+                    process_thinglink_embed_script(script, zipper, thinglink_id)
             omit_list = [
                 ('nav', {'class': 'item-header'}),
             ]
             iframe['height'] = "500px"
             download_webpage(iframe, zipper, omit_list=omit_list, pre_process=preprocess_thinglink, post_process=process_thinglink, loadjs=True)
         elif 'slideshare.net' in iframe['src']:
-            thumbnail = 'https://www.google.com/url?sa=i&source=images&cd=&ved=2ahUKEwiGnfDu76rjAhXRvp4KHYpgBpwQjRx6BAgBEAU&url=http%3A%2F%2Fios.me%2Fapp%2F288429040%2Flinkedin-network-job-search&psig=AOvVaw34c1CuiFg5276TaO9gDDLq&ust=1562865993283163'
+            thumbnail = 'https://is1-ssl.mzstatic.com/image/thumb/Purple113/v4/03/df/99/03df99d1-48c0-d976-c0f3-3ad4a6af5b90/source/200x200bb.jpg'
             download_presentation(iframe, zipper, img_class='slide_image', img_attr='data-normal', source="SlideShare", source_thumbnail=thumbnail)
         elif 'easel.ly' in iframe['src']:
-            download_image(iframe, zipper, selector={'id': 'thumb'})
+            page_contents = BeautifulSoup(downloader.read(iframe['src']), 'html5lib')
+            new_soup = BeautifulSoup('<div></div>', 'html5lib')
+            image = new_soup.new_tag('img')
+            easel = page_contents.find('div', {'id': 'easelly-frame'}).find('img')
+            easelname = '-'.join(easel['src'].split('?')[0].split('/')[-3:])
+            image['src'] = zipper.write_url(easel['src'], easelname, directory='webimg')
+            iframe.replaceWith(image)
+        elif 'glogster' in iframe['src'] or 'glogengine' in iframe['src']:
+            download_webpage(iframe, zipper, loadjs=True)
         elif 'wevideo.com' in iframe['src']:
             video_id = iframe['src'].split('#')[1]
             new_soup = BeautifulSoup('<div></div>', 'html5lib')
@@ -581,23 +683,89 @@ def write_zip_page(url, contents, zipper, filename="index.html", triaged=None, s
             iframe.replaceWith(audio_tag)
         elif 'soundcloud' in iframe['src'] and 'search?' not in iframe['src']:
             download_soundcloud(iframe, zipper)
+        elif 'educaplay.com' in iframe['src']:
+            def preprocess_educaplay(page_url, contents, zipper):
+                for script in contents.find_all('script'):
+                    if script.get('src') and 'xapiEventos.js' in script['src']:
+                        script_contents = downloader.read(get_relative_url(page_url, script['src'])).decode('utf-8')
+                        script_contents = script_contents.replace('img.src=rutaRecursos+imagen;', 'img.src = "img/" + imagen;');
+                        script_contents = script_contents.replace('/snd_html5/', 'audio/-snd_html5-')
+                        script['class'] = ['skip-scrape']
+                        script['src'] = zipper.write_contents('educaplay-embed.js', script_contents,  directory="js")
+            def post_process_educaplay(page_contents, page_url, zipper):
+                new_soup = BeautifulSoup('', 'html5lib')
+                style_tag = new_soup.new_tag('style')
+                style_tag.string = '#banner { display: none !important; }'
+                page_contents.head.append(style_tag)
+                for audio in page_contents.find_all('audio'):
+                    for source in audio.find_all('source'):
+                        source['src'] = zipper.write_url(get_relative_url(page_url, source['src']), '-'.join(source['src'].split('?')[0].split('/')[-3:]), directory="audio")
+            download_webpage(iframe, zipper, pre_process=preprocess_educaplay, post_process=post_process_educaplay, omit_list=[('ins', {'class': 'adsbygoogle'})], loadjs=True)
+        elif 'recursostic.educacion.es' in iframe['src'] or 'recursos.cnice.mec.es' in iframe['src']:
+            def post_process_recursostic(page_contents, page_url, zipper):
+                for script in page_contents.find_all('script'):
+                    if script.string:
+                        script.string = script.string.replace('background="HalfBakedBG.gif"', '')
+                        for match in re.finditer(r'(?:src)=(?:\'|\")([^\'\"]+)(?:\'|\")', script.string, re.MULTILINE):
+                            img_filename = match.group(1).split('?')[0].split('/')[-1]
+                            script.string = script.string.replace(match.group(1), zipper.write_url(get_relative_url(page_url, match.group(1)), img_filename, directory="webimg"))
+                        for match in re.finditer(r"onclick=\\(?:'|\")parent\.location\s*=\s*(?:'|\")([^'\"]+)(?:'|\")", script.string, re.MULTILINE):
+                            page_filename = 'recursostic-{}'.format(match.group(1).split('?')[0].split('/')[-1])
+                            page = BeautifulSoup(downloader.read(get_relative_url(page_url, match.group(1))), 'html5lib')
+                            page_link = write_zip_page(get_relative_url(page_url, match.group(1)), page, zipper, filename=page_filename, scrape_subpages=False, post_process=post_process_recursostic)
+                            script.string = script.string.replace(match.group(1), page_link)
+            download_webpage(iframe, zipper, post_process=post_process_recursostic)
         else:
-            LOGGER.warning('Unhandled source found at {} ({})'.format(iframe['src'], url.replace('inicio', filename)))
-            iframe.replaceWith(manage_unrecognized_source(url, iframe['src']))
+            match_found = False
+            for (source_url, source_settings) in BASIC_SITES.items():
+                if source_url in iframe['src']:
+                    try:
+                        download_webpage(iframe, zipper, omit_list=source_settings['omit_list'], scrape_subpages=source_settings.get('scrape_subpages'), loadjs=source_settings.get('loadjs'))
+                        match_found = True
+                    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
+                        LOGGER.warn('Broken webpage at {} ({}: {})'.format(url, iframe['src'], str(e)))
+                    break
+            if not match_found:
+                message.decompose()
+                iframe.replaceWith(manage_unrecognized_source(url, iframe['src']))
 
     if post_process:
-        post_process(contents)
+        post_process(contents, url, zipper)
 
     return zipper.write_contents(filename, contents.prettify().encode('utf-8-sig'))
 
+def process_thinglink_embed_script(script, zipper, thinglink_id):
+    if script.get('src') and 'embed.js' in script['src']:
+        response = requests.get('https://www.thinglink.com/api/tags?url={}'.format(thinglink_id))
+        script_contents = downloader.read(get_relative_url(script['src'], script['src'])).decode('utf-8')
+        tag_data = json.loads(response.content)
 
-def download_image(iframe, zipper, selector=''):
-    contents = BeautifulSoup(downloader.read(iframe['src']), 'html5lib')
-    new_soup = BeautifulSoup('<div></div>', 'html5lib')
-    image = new_soup.new_tag('img')
-    filename = '-'.join(contents.find('img', selector)['src'].split('?')[0].split('/')[-3:])
-    image['src'] = zipper.write_url(contents.find('img')['src'], filename, directory='webimg')
-    iframe.replaceWith(image)
+        if tag_data[thinglink_id].get('image'):
+            tag_data[thinglink_id]['image'] = zipper.write_url(get_relative_url(tag_data[thinglink_id]['image'], tag_data[thinglink_id]['image']), tag_data[thinglink_id]['image'].split('/')[-1], directory='webimg')
+        for thing in tag_data[thinglink_id]['things']:
+            if thing['thingUrl']:
+                thing['thingUrl'] = download_youtube(thing['thingUrl'], zipper)
+                thing['contentUrl'] = thing['thingUrl']
+                icon_fn = '-'.join(thing['icon'].split('?')[0].split('/')[-2:])
+                thing['icon'] = zipper.write_url(get_relative_url(thing['icon'], thing['icon']), 'thinglink-{}.jpg'.format(icon_fn), directory="img")
+            zipper.write_url('https://cdn.thinglink.me/api/nubbin/{}/plain'.format(thing['nubbin']), 'nubbin-{}-plain.png'.format(thing['nubbin']), directory='webimg')
+            zipper.write_url('https://cdn.thinglink.me/api/nubbin/{}/highlight'.format(thing['nubbin']), 'nubbin-{}-highlight.png'.format(thing['nubbin']), directory='webimg')
+            zipper.write_url('https://cdn.thinglink.me/api/nubbin/{}/hover'.format(thing['nubbin']), 'nubbin-{}-hover.png'.format(thing['nubbin']), directory='webimg')
+            zipper.write_url('https://cdn.thinglink.me/api/nubbin/{}/hoverlink'.format(thing['nubbin']), 'nubbin-{}-hoverlink.png'.format(thing['nubbin']), directory='webimg')
+
+        script_contents = script_contents.replace('d.ajax({url:A+"/api/tags",data:u,dataType:"jsonp",success:z})', 'z({})'.format(json.dumps(tag_data)))
+        script_contents = script_contents.replace('n.getJSON(A+"/api/internal/logThingAccess?callback=?",{thing:y,sceneId:w,e:"hover",referer:t.referer,dwell:v});', '')
+        script_contents = script_contents.replace('n.getJSON(t.getApiBaseUrl()+"/api/internal/logThingAccess?callback=?",{time:y,sceneId:v,thing:w,e:"hoverend",referer:t.referer})', '')
+        script_contents = script_contents.replace('n.getJSON(t.getApiBaseUrl()+"/api/internal/logSceneAccess?callback=?",{time:z,sceneId:w,referer:t.referer,dwell:v,event:"scene.hover"})', '')
+        script_contents = script_contents.replace('n.getJSON(t.getApiBaseUrl()+"/api/internal/logSceneAccess?callback=?",{sceneId:v,referer:t.referer,event:"scene.view",channelId:b.getChannelId(x)})', '')
+        script_contents = script_contents.replace('n.getJSON(B+"/api/internal/logThingAccess?callback=?",z,C);', '')
+
+        icon_str = 'k.src=l;return"style=\\"background-image: url(\'"+l+"\') !important;\\"'
+        script_contents = script_contents.replace(icon_str, 'var slices=l.split("/"); l="webimg/"+slices.slice(slices.length-3,slices.length).join("-")+".png";' + icon_str)
+
+        script['class'] = ['skip-scrape']
+        script['src'] = zipper.write_contents('thinglink-{}-embed.js'.format(thinglink_id), script_contents,  directory="js")
+        return tag_data[thinglink_id]['image']
 
 def download_youtube(url, zipper):
     video_id = url.split('/')[-1].replace('?', '-')
@@ -658,8 +826,7 @@ def download_soundcloud(iframe, zipper):
 
 
     if 'playlists' in iframe['src']:
-        import pdb; pdb.set_trace()
-        return
+        iframe.replaceWith(manage_unrecognized_source(iframe['src']))
 
     try:
         audio_id = re.search(r'tracks(?:/|%2F)([^\&]*)\&', iframe['src']).group(1)
@@ -725,20 +892,18 @@ def download_pdf(iframe, zipper):
     iframe.replaceWith(embed_tag)
 
 
-def download_webpage(iframe, zipper, omit_list=None, loadjs=False, pre_process=None, post_process=None):
+def download_webpage(iframe, zipper, omit_list=None, loadjs=False, pre_process=None, post_process=None, scrape_subpages=False, triaged=None):
     page = BeautifulSoup(downloader.read(get_relative_url(iframe['src'], iframe['src']), loadjs=loadjs), 'html5lib')
-    message = page.new_tag('p')
-    message['style'] = 'color: #EA9600;font-weight: bold;font-size: 11pt;'
-    message.string = iframe['src'].strip('/')
-    filename = "{}.html".format('-'.join(iframe['src'].split('/')[2:]).replace('.html', '')).replace('www.', '')
+    filename = "".join(re.findall("[a-zA-Z0-9]+", iframe['src']))[-20:]
+    if not os.path.splitext(filename)[1]:
+        filename = "{}.html".format(filename)
     iframe['width'] = '100%'
-    iframe['src'] = write_zip_page(iframe['src'], page, zipper, filename=filename, scrape_subpages=False, omit_list=omit_list, pre_process=pre_process, post_process=post_process)
-    iframe.insert_before(message)
+    iframe['src'] = write_zip_page(iframe['src'], page, zipper, filename=filename, scrape_subpages=scrape_subpages, triaged=triaged, omit_list=omit_list, pre_process=pre_process, post_process=post_process)
 
 
 def download_presentation(iframe, zipper, img_class='', img_attr='src', source="", source_thumbnail="", filename="", loadjs=False):
     page = BeautifulSoup(downloader.read(get_relative_url(iframe['src'], iframe['src']), loadjs=loadjs), 'html5lib')
-    filename = filename or '-'.join(iframe['src'].split('.')[0].split('?')[0].split('/')[-3:])
+    filename = filename or "".join(re.findall("[a-zA-Z0-9]+", iframe['src']))[-20:]
     source_thumbnail = zipper.write_url(source_thumbnail, '{}-thumbnail.png'.format(iframe['src'].split('/')[-1].split('?')[0]), directory='webimg')
     images = []
     for img in page.find_all('img', {'class': img_class}):
@@ -749,49 +914,53 @@ def download_presentation(iframe, zipper, img_class='', img_attr='src', source="
     script_tag.string += 'let source = "{}"; let sourceLogo = "{}";'.format(source, source_thumbnail)
     iframe['src'] = zipper.write_contents('{}.html'.format(filename), new_page.prettify())
 
-
-
 def manage_unrecognized_source(url, link):
     new_soup = BeautifulSoup('<div></div>', 'html5lib')
     link = link.strip('%20')
     try:
         response = requests.get(get_relative_url(url, link))
         response.raise_for_status()
+        LOGGER.warning('Unhandled source found at {} ({})'.format(url, link))
         return manage_unscrapable_source(link)
     except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError, requests.exceptions.InvalidURL) as e:
+        LOGGER.warning('Broken source found at {} ({})'.format(url, link))
         # Replace with image and header
         error_message = new_soup.new_tag('p')
         error_message['style'] = 'color: red;font-weight: bold;font-style: italic; font-size: 9pt;';
         error_message.string = 'No se pudo cargar este contenido (mencionado por {})'.format(link)
         return error_message
 
-def manage_unscrapable_source(link):
+def manage_unscrapable_source(link, is_downloadable=False):
     new_soup = BeautifulSoup('<div></div>', 'html5lib')
     new_soup.div['style'] = 'text-align: center;'
-    header = new_soup.new_tag('p')
-    header['style'] = 'font-size: 12pt;margin-bottom: 0px;color: #249F98;font-weight: bold;'
-    header.string = "Este contenido no se puede ver desde Kolibri"
-    new_soup.div.append(header)
+
+    if not is_downloadable:
+        header = new_soup.new_tag('p')
+        header['style'] = 'font-size: 12pt;margin-bottom: 0px;color: #249F98;font-weight: bold;'
+        header.string = "Este contenido no se puede ver desde Kolibri"
+        new_soup.div.append(header)
 
     subheader = new_soup.new_tag('div')
-    subheader['style'] = 'font-weight: bold;margin-bottom: 10px;color: #E56124;'
+    subheader['style'] = 'font-weight: bold;margin-bottom: 10px;color: #EA9600;'
     subheader.string = 'Por favor, copie este enlace en su navegador para ver la fuente original'
     new_soup.div.append(subheader)
 
+    paragraph = new_soup.new_tag('p')
+    new_soup.div.append(paragraph)
     copytext = new_soup.new_tag('input')
     copytext['type'] = 'text'
     copytext['value'] = link
     copytext['style'] = 'width: 250px; max-width: 100vw;text-align: center;font-size: 12pt;margin-right: 10px;background-color: #ededed;border: none;padding: 5px 10px;color: #555;'
     copytext['readonly'] = 'readonly'
     copytext['id'] = "".join(re.findall(r"[a-zA-Z]+", link))
-    new_soup.div.append(copytext)
+    paragraph.append(copytext)
 
     copybutton = new_soup.new_tag('button')
     copybutton['style'] = 'background-color: white;border: 2px solid #249F98;border-radius: 5px;padding: 5px 10px;font-weight: bold;text-transform: uppercase;color: #249F98;cursor: pointer;'
     copybutton.string = 'Copiar'
     copybutton['id'] = 'btn-{}'.format(copytext['id'])
     copybutton['onclick'] = '{}()'.format(copytext['id'])  # Keep unique in case there are other copy buttons on the page
-    new_soup.div.append(copybutton)
+    paragraph.append(copybutton)
 
     copyscript = new_soup.new_tag('script')
     copyscript.string = "function {id}(){{ " \
@@ -831,17 +1000,15 @@ def test_page(url):
 ################################################################################
 import time
 if __name__ == '__main__':
-    # This code runs when sushichef.py is called from the command line
-    # chef = CeibalChef()
-    # chef.main()
     print("********** STARTING **********")
     start = time.time()
-    tests = [
-        'https://rea.ceibal.edu.uy/elp/como-se-hace-podcast/por_ejemplo.html',
-        'https://rea.ceibal.edu.uy/elp/un-n-mero-en-7-000-millones/investiguemos.html',
-    ]
-    for test in ['https://rea.ceibal.edu.uy/elp/el_efecto_invernadero_y_el_cambio_clim_tico/grafico_variacin_de_co2_atm_a_lo_largo_de_los_aos.html']:
-        print(test)
-        test_page('/'.join(test.split('/')[:-1]) + '/inicio')
-    print("FINISHED: {}".format(time.time() - start))
+    # This code runs when sushichef.py is called from the command line
+    chef = CeibalChef()
+    chef.main()
 
+    # for test in [
+    #     'https://rea.ceibal.edu.uy/elp/las_pioneras/afrogama.html',
+    # ]:
+    #     print(test)
+    #     test_page('/'.join(test.split('/')[:-1]) + '/inicio')
+    print("FINISHED: {}".format(time.time() - start))
