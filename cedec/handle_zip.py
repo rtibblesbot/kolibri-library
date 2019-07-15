@@ -4,10 +4,17 @@ import lxml.html
 import hashlib
 from urllib.parse import urlparse, urljoin
 from foundry.bits import get_resource, nice_ext
-from foundry.lxml_tools import globalise, handle_youtube
+from lxml_tools import globalise, handle_youtube
 import os
 
 from youtube_dl.utils import DownloadError
+
+ALLOYDIR = "__alloy"
+try:
+    os.mkdir(ALLOYDIR)
+except:
+    pass
+
 # html_bytes
 
 URL_ATTRS = ['src', 'href']
@@ -48,7 +55,7 @@ class NeoFoundry(object):
                 if "youtube.com" in tag_domain or "youtu.be" in tag_domain: # or "vimeo.com" in tag_domain:
                     debug(lxml.html.tostring(tag))
                     try:
-                        filename = handle_youtube(tag)  # placeholder, do something with file
+                        filename = handle_youtube(tag, path=ALLOYDIR)  # placeholder, do something with file
                     except DownloadError:
                         continue  # Permament error, e.g. video gone, copyright, geolocked
                     except Exception as e:
@@ -85,7 +92,7 @@ class NeoFoundry(object):
 
 # based on https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python?lq=1
 
-def updateZip(zipname_in, zipname_out, new_html): # new_html is dict of filename:data
+def updateZip(zipname_in, zipname_out, new_html, files): # new_html is dict of filename:data
     # create a temp copy of the archive without filenames
     with ZipFile(zipname_in, 'r') as zin:
         with ZipFile(zipname_out, 'w') as zout:
@@ -94,17 +101,27 @@ def updateZip(zipname_in, zipname_out, new_html): # new_html is dict of filename
                 if item.filename not in new_html.keys():
                     zout.writestr(item, zin.read(item.filename))
                 else:
+                    print ("Replacing ", item.filename)
                     zout.writestr(item.filename, new_html[item.filename])
+            for filename in files:
+                print ("Adding ", filename)
+                zout.write("files/"+filename, filename)
 ####
 
 
 in_zip = "in.zip"
 out_zip = "demo.zip"
 htmls = {}
+files = {}
 with ZipFile(in_zip, "r") as zf:
     for htmlfilename in [x for x in zf.namelist() if x.endswith("html")]:
         with zf.open(htmlfilename) as htmlf:
             html = htmlf.read()
-        htmls[htmlfilename] = NeoFoundry().alloy(html)
+            foundry = NeoFoundry()
+            foundry.alloy(html)
+            new_html = foundry.alloyed
+            files.update(foundry.files)
+        htmls[htmlfilename] = new_html
 
-updateZip(in_zip, out_zip, htmls)
+filelist = list(files)
+updateZip(in_zip, out_zip, htmls, filelist)
