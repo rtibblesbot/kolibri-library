@@ -8,7 +8,8 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes.licenses import get_license
 from ricecooker.classes.nodes import HTML5AppNode, TopicNode
 from ricecooker.classes.files import HTMLZipFile
-
+import index
+import handle_zip
 LOGGER = logging.getLogger()
 LICENCE=get_license('CC BY-SA', copyright_holder='Centro Nacional de Desarrollo Curricular en Sistemas no Propietarios.')
 
@@ -24,21 +25,33 @@ class CedecChef(SushiChef):
 
     def construct_channel(self, **kwargs):
         channel = self.get_channel(**kwargs)
+        old_title = None
+        old_group = None
+        i=0
 
-        role_node = TopicNode(source_id="roles", title="Career Clusters")
-        channel.add_child(role_node)
+        for metadata, zfilename, [title, group] in index.index():
+            if title != old_title:
+                old_title=title
+                title_node = TopicNode(source_id=title, title=title)
+                channel.add_child(title_node)
+                old_group = None
+            if group != old_group:
+                old_group = group
+                group_node = TopicNode(source_id=title+group, title=group)
+                title_node.add_child(group_node)
 
-        doc_node = HTML5AppNode(
-            title='Growing potatoes',
-            description='An article about growing potatoes on your rooftop.',
-            source_id='pubs/mafri-potatoe',
-            license=LICENCE,
-            language='es',
-            files=[HTMLZipFile(path='demo.zip')],
-        )
+            doc_node = HTML5AppNode(
+                title=metadata.title,
+                description=metadata.description,
+                source_id=zfilename,
+                license=LICENCE,
+                language='es',
+                files=[HTMLZipFile(path=zfilename)],
+            )
 
-
-        role_node.add_child(doc_node)
+            group_node.add_child(doc_node)
+            #i=i+5
+            if i>1: break
         return channel
 
 if __name__ == '__main__':

@@ -8,6 +8,9 @@ PRESERVE = "preserve"      # attribute on a tag which is not to be changed
 URL_TAGS = ["src", "href"] # tag attributes that might be URLs
 GLOBE = u"\U0001F310"
 
+class NoVideoError(Exception):
+    pass
+
 def absolve(root, url):
     "Modifies an lxml tree to make all links absolute, except those marked with PRESERVE and local #"
     tags = []
@@ -29,16 +32,21 @@ def handle_youtube(tag, path="."):
     if "results" in url: return None
 
     with YoutubeDL(ydl_opts) as ydl:
+        print ("**youtube: ", url)
         info_dict = ydl.extract_info(url, download=True)
         filename = path + "/" + (info_dict["id"]+".mp4")
         try:
             shutil.copy("X.mp4", filename)
             os.remove("X.mp4")
         except:
-            shutil.copy("X", filename)
-            os.remove("X")
+            try:
+                shutil.copy("X", filename)
+                os.remove("X")
+            except:
+                pass
 
-    assert os.path.exists(filename)
+    if not os.path.exists(filename):
+        raise NoVideoError()
 
     print (repr(filename), attr)
     tag.attrib[attr] = filename

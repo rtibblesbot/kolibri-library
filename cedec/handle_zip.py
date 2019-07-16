@@ -58,6 +58,8 @@ class NeoFoundry(object):
                         filename = handle_youtube(tag, path=ALLOYDIR)  # placeholder, do something with file
                     except DownloadError:
                         continue  # Permament error, e.g. video gone, copyright, geolocked
+                    except NoVideoError:
+                        continue
                     except Exception as e:
                         print (tag, e, str(e))
                         raise
@@ -113,7 +115,7 @@ def updateZip(zipname_in, zipname_out, new_html, files): # new_html is dict of f
                 zout.write(filename, files[filename])
 ####
 
-def handle_zip(in_zip, out_zip)
+def handle_zip(in_zip, out_zip):
     htmls = {}
     files = {}
     with ZipFile(in_zip, "r") as zf:

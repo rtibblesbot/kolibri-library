@@ -8,6 +8,8 @@ import requests_cache
 import zipfile
 from collections import namedtuple
 from urllib.parse import urlparse
+import handle_zip
+import ftfy
 
 Metadata = namedtuple("Metadata", ["title", "author", "description"])
 
@@ -23,13 +25,13 @@ ns={'exe': 'http://www.exelearning.org/content/v0.3'}
 def elp_metadata(elp_filename):
     def query(s):
         response, = root.xpath("/exe:instance/exe:dictionary/exe:string[@value='"+s+"']/following-sibling::exe:unicode[1]/@value", namespaces=ns)
-        return response
+        return ftfy.fix_text(response)
 
     with zipfile.ZipFile(elp_filename, "r") as zf:
-        with zf.open("contentv3.xml") as xml:
+        with zf.open("contentv3.xml", "r") as xml:
             data = xml.read()
             root = lxml.etree.fromstring(data)
-            return Metadata(query('_title'), query('_author'), query('_description'))
+            return Metadata(query('_title'), query('_author'), query('_description'), )
 
 def zipscan(zip_filename):
     with zipfile.ZipFile(zip_filename, "r") as zf:
@@ -78,7 +80,7 @@ def elp_to_zip(elp_url):
         assert not output.returncode
         assert "error was" not in stdout
     zipscan(ZIP/zipfilename)
-    return zipfilename, elp_metadata(ELP/filename)
+    return ZIP/zipfilename, elp_metadata(ELP/filename)
 
 # TODO - fix encoding
 BASE_URL = "http://cedec.intef.es/recursos/"
@@ -89,19 +91,28 @@ root.make_links_absolute(BASE_URL)
 links = root.xpath("//div[@id='icon']/a/@href")
 print (links)
 
-for link in links:
-    html = requests.get(link).content
-    root = lxml.html.fromstring(html)
-    root.make_links_absolute(link)
-    elps = root.xpath("//a")
+def index():
+    for link in links:
+        html = requests.get(link).content
+        root = lxml.html.fromstring(html)
+        root.make_links_absolute(link)
+        elps = root.xpath("//a")
 
-    for elp in elps:
-        elp_url = elp.attrib['href']
-        if not elp_url.endswith(".elp"):
-            continue
-        grouping, = elp.xpath("./preceding::h2[1]")
-        print (grouping.text_content().strip())
-        zipfilename, metadata = elp_to_zip(elp_url)
-    print()
+        for elp in elps:
+            elp_url = elp.attrib['href']
+            if not elp_url.endswith(".elp"):
+                continue
+            grouping, = elp.xpath("./preceding::h2[1]")
+            title, = root.xpath("//div[contains(@id, 'post')]/h2")
+            group_text = grouping.text_content().strip()
+            title_text = title.text_content().strip()
+            print(group_text)
+            zipfilename, metadata = elp_to_zip(elp_url)
+            finalzip = str(zipfilename)+".final.zip"
+            handle_zip.handle_zip(zipfilename, finalzip)
+            #for item in metadata:
+            #    if ftfy.fix_text(item) != item:
+            #        metadata[item] = ftfy.fix_text(item)
+            yield metadata, finalzip, [title_text, group_text]
 
 
