@@ -19,21 +19,22 @@ from tags import EXCEPTIONS, BasicScraper, DEFAULT_HANDLERS, BrokenSourceExcepti
 
 
 class BasicPageScraper(BasicScraper):
-    partially_scrapable = False
-    scrape_subpages = True
-    default_ext = '.html'
-    main_area_selector = None
-    omit_list = None
-    standalone = False
-    loadjs = False
-    scrapers = None
-    extra_tags = None
+    partially_scrapable = False     # Not all content can be viewed from within Kolibri (e.g. Wikipedia's linked pages)
+    scrape_subpages = True          # Determines whether to scrape any subpages within this page
+    default_ext = '.html'           # Default extension when writing files to zip
+    main_area_selector = None       # Place where main content is (replaces everything in <body> with this)
+    omit_list = None                # Specifies which elements to remove from the DOM
+    standalone = False              # Can return a standalone item (e.g. image, pdfs, videos, etc.)
+    loadjs = False                  # Determines whether to load js when loading the page
+    scrapers = None                 # List of additional scrapers to use on this page (e.g. GoogleDriveScraper)
+    extra_tags = None               # List of additional tags to look for (e.g. ImageTag)
+    color = 'rgb(153, 97, 137)'     # Color to use for messages (consider contrast when setting this)
+
 
     def __init__(self, *args, **kwargs):
         """
             url: string                                    # URL to read from
             html_writer: ricecooker.utils.html_writer      # Zip to write files to
-            loadjs: bool                                   # Load js on page read
             locale: string                                 # Language to use when writing error messages
         """
         super(BasicPageScraper, self).__init__(*args, **kwargs)
@@ -48,11 +49,13 @@ class BasicPageScraper(BasicScraper):
         self.scrapers = (self.scrapers or []) + [self.__class__]
 
     @classmethod
-    def test(self, value):
+    def test(self, url):
+        """ Used to determine if this is the correct scraper to use for a given url """
         return False
 
 
     def preprocess(self, contents):
+        """ Place for any operations to occur before main scraping method """
         # Implement in subclasses
         pass
 
@@ -84,6 +87,7 @@ class BasicPageScraper(BasicScraper):
 
 
     def postprocess(self, contents):
+        """ Place for any operations to occur after main scraping method """
         # Implement in subclasses
         pass
 
@@ -103,8 +107,8 @@ class WebVideoScraper(BasicPageScraper):
         self.video_id = self.url.split('/')[-1].replace('?', '-')
 
     @classmethod
-    def test(self, value):
-        return 'youtube' in value or 'vimeo' in value
+    def test(self, url):
+        return 'youtube' in url or 'vimeo' in url
 
     def process(self, **kwargs):
         try:
@@ -148,8 +152,8 @@ class PDFScraper(BasicPageScraper):
     standalone = True
 
     @classmethod
-    def test(self, value):
-        return value.split('?')[0].lower().endswith('.pdf')
+    def test(self, url):
+        return url.split('?')[0].lower().endswith('.pdf')
 
     def process(self, **kwargs):
        return self.write_url(self.url)
@@ -171,8 +175,8 @@ class ImageScraper(BasicPageScraper):
     standalone = True
 
     @classmethod
-    def test(self, value):
-        return value.lower().endswith('.png') or value.lower().endswith('.jpg')
+    def test(self, url):
+        return url.lower().endswith('.png') or url.lower().endswith('.jpg')
 
     def process(self, **kwargs):
        return self.write_url(self.url)
@@ -191,8 +195,8 @@ class FlashScraper(BasicPageScraper):
     standalone = True
 
     @classmethod
-    def test(self, value):
-        return value.split('?')[0].lower().endswith('.swf')
+    def test(self, url):
+        return url.split('?')[0].lower().endswith('.swf')
 
     def process(self, **kwargs):
         downloader.read(self.url) # Raises broken link error if fails
@@ -242,8 +246,8 @@ class GoogleDriveScraper(BasicPageScraper):
         self.drive = GoogleDrive(gauth)
 
     @classmethod
-    def test(self, value):
-        return re.match(r'https://[^\.]+.google.com/.*file/d/[^/]+/(?:preview|edit)', value)
+    def test(self, url):
+        return re.match(r'https://[^\.]+.google.com/.*file/d/[^/]+/(?:preview|edit)', url)
 
     def process(self, **kwargs):
         from pydrive.files import FileNotDownloadableError, ApiRequestError
@@ -283,8 +287,8 @@ class GeniallyScraper(BasicPageScraper):
     partially_scrapable = True
 
     @classmethod
-    def test(self, value):
-        return 'genial.ly' in value
+    def test(self, url):
+        return 'genial.ly' in url
 
     def preprocess(self, contents):
         # Hide certain elements from the page
@@ -331,7 +335,7 @@ class PresentationScraper(BasicPageScraper):
     directory='slides'
 
     @classmethod
-    def test(self, value):
+    def test(self, url):
         return False
 
     def process(self, **kwargs):
@@ -549,8 +553,8 @@ class SlideShareScraper(PresentationScraper):
     img_attr='data-normal'
 
     @classmethod
-    def test(self, value):
-        return 'slideshare.net' in value
+    def test(self, url):
+        return 'slideshare.net' in url
 
 
 class WikipediaScraper(BasicPageScraper):
@@ -563,5 +567,5 @@ class WikipediaScraper(BasicPageScraper):
     ]
 
     @classmethod
-    def test(self, value):
-        return 'wikipedia' in value or 'wikibooks' in value
+    def test(self, url):
+        return 'wikipedia' in url or 'wikibooks' in url

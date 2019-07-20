@@ -88,8 +88,8 @@ class ThingLinkScraper(BasicPageScraper):
     ]
 
     @classmethod
-    def test(self, value):
-        return 'thinglink.com' in value
+    def test(self, url):
+        return 'thinglink.com' in url
 
     def preprocess(self, contents):
         thinglink_id = self.url.split('/')[-1]
@@ -168,8 +168,8 @@ class CeibalPageScraper(BasicPageScraper):
     scrapers = [ThingLinkScraper, SlideShareScraper, WikipediaScraper]
 
     @classmethod
-    def test(self, value):
-        return 'rea.ceibal.edu.uy' in value
+    def test(self, url):
+        return 'rea.ceibal.edu.uy' in url
 
     def __init__(self, *args, **kwargs):
         super(CeibalPageScraper, self).__init__(*args, **kwargs)
