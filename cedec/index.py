@@ -115,4 +115,25 @@ def index():
             #        metadata[item] = ftfy.fix_text(item)
             yield metadata, finalzip, [title_text, group_text]
 
+def no_dl_index():
+    for link in links:
+        html = requests.get(link).content
+        root = lxml.html.fromstring(html)
+        root.make_links_absolute(link)
+        elps = root.xpath("//a")
 
+        for elp in elps:
+            elp_url = elp.attrib['href']
+            if not elp_url.endswith(".elp"):
+                continue
+            grouping, = elp.xpath("./preceding::h2[1]")
+            title, = root.xpath("//div[contains(@id, 'post')]/h2")
+            group_text = grouping.text_content().strip()
+            title_text = title.text_content().strip()
+            print(group_text)
+
+            ########
+            metadata = elp_metadata(elp_url)
+            zipfilename = ZIP / (filename + ".zip")
+            finalzip = str(zipfilename)+".final.zip"
+            yield metadata, finalzip, [title_text, group_text]

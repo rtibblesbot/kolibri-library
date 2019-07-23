@@ -4,7 +4,7 @@ import lxml.html
 import hashlib
 from urllib.parse import urlparse, urljoin
 from foundry.bits import get_resource, nice_ext
-from lxml_tools import globalise, handle_youtube
+from lxml_tools import globalise, handle_youtube, NoVideoError
 import os
 
 from youtube_dl.utils import DownloadError
@@ -111,8 +111,9 @@ def updateZip(zipname_in, zipname_out, new_html, files): # new_html is dict of f
                     zout.writestr(item.filename, new_html[item.filename])
             print ("FILES:", files)
             for filename in files:
-                print ("Adding ", files[filename])
-                zout.write(filename, files[filename])
+                if filename and not filename.startswith("http"):
+                    print ("Adding ", files[filename])
+                    zout.write(filename, files[filename])
 ####
 
 def handle_zip(in_zip, out_zip):

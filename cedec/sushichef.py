@@ -29,29 +29,28 @@ class CedecChef(SushiChef):
         old_group = None
         i=0
 
-        for metadata, zfilename, [title, group] in index.index():
+        for metadata, zfilename, [title, group] in index.no_dl_index():
+            i = i + 1
             if title != old_title:
                 old_title=title
-                title_node = TopicNode(source_id=title, title=title)
+                title_node = TopicNode(source_id=title+str(i), title=title)
                 channel.add_child(title_node)
                 old_group = None
             if group != old_group:
                 old_group = group
-                group_node = TopicNode(source_id=title+group, title=group)
+                group_node = TopicNode(source_id=title+group+str(i+0.5), title=group)
                 title_node.add_child(group_node)
 
             doc_node = HTML5AppNode(
                 title=metadata.title,
                 description=metadata.description,
-                source_id=zfilename,
+                source_id=zfilename+str(i+0.9),
                 license=LICENCE,
                 language='es',
                 files=[HTMLZipFile(path=zfilename)],
             )
 
             group_node.add_child(doc_node)
-            #i=i+5
-            if i>1: break
         return channel
 
 if __name__ == '__main__':
