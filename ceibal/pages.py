@@ -1,34 +1,85 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 import os
-import sys
 from bs4 import BeautifulSoup
 from ricecooker.utils import downloader, html_writer
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
-import cssutils
-import requests
 import re
-from urllib.parse import urlparse
 import youtube_dl
-import zipfile
 import shutil
 import tempfile
 import json
 
-from tags import EXCEPTIONS, BasicScraper, DEFAULT_HANDLERS, BrokenSourceException, UnscrapableSourceException, MESSAGES
+from le_utils.constants import content_kinds
 
+from tags import COMMON_TAGS, VideoTag
+from utils import EXCEPTIONS, BasicScraper, BrokenSourceException, UnscrapableSourceException, MESSAGES
 
 class BasicPageScraper(BasicScraper):
+    dl_directory = 'downloads'
+
+    @classmethod
+    def test(self, url):
+        """ Used to determine if this is the correct scraper to use for a given url """
+        raise NotImplementedError('Must implement a test method for {}'.format(str(self.__class__)))
+
+    @classmethod
+    def prefetch_filename(self, url):
+        return self.get_filename(self, url)
+
+
+    def preprocess(self, contents):
+        """ Place for any operations to occur before main scraping method """
+        # Implement in subclasses
+        pass
+
+    def process(self):
+        return downloader.read(self.url)
+
+    def postprocess(self, contents):
+        """ Place for any operations to occur after main scraping method """
+        # Implement in subclasses
+        pass
+
+
+    ##### Output methods #####
+    def _download_file(self, write_to_path):
+        with open(write_to_path) as fobj:
+            fobj.write(self.process())
+
+    def to_file(self, filename=None, directory=None):
+        directory = directory or self.directory
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        write_to_path = os.path.join(directory, filename or self.get_filename(self.url))
+
+        if not os.path.exists(write_to_path):
+            self._download_file(write_to_path)
+
+        return write_to_path
+
+    def to_zip(self, filename=None):
+        return self.write_url(self.url, filename=filename)
+
+    def to_tag(self, filename=None):
+        # Returns tag with scraped link
+        raise NotImplementedError('Must implement to_tag function on {}'.format(str(self.__class__)))
+
+
+######### KIND SCRAPERS ##########
+
+class HTMLPageScraper(BasicPageScraper):
     partially_scrapable = False     # Not all content can be viewed from within Kolibri (e.g. Wikipedia's linked pages)
     scrape_subpages = True          # Determines whether to scrape any subpages within this page
     default_ext = '.html'           # Default extension when writing files to zip
     main_area_selector = None       # Place where main content is (replaces everything in <body> with this)
     omit_list = None                # Specifies which elements to remove from the DOM
-    standalone = False              # Can return a standalone item (e.g. image, pdfs, videos, etc.)
     loadjs = False                  # Determines whether to load js when loading the page
     scrapers = None                 # List of additional scrapers to use on this page (e.g. GoogleDriveScraper)
     extra_tags = None               # List of additional tags to look for (e.g. ImageTag)
     color = 'rgb(153, 97, 137)'     # Color to use for messages (consider contrast when setting this)
+    kind = content_kinds.HTML5      # Content kind to write to
 
 
     def __init__(self, *args, **kwargs):
@@ -37,7 +88,7 @@ class BasicPageScraper(BasicScraper):
             html_writer: ricecooker.utils.html_writer      # Zip to write files to
             locale: string                                 # Language to use when writing error messages
         """
-        super(BasicPageScraper, self).__init__(*args, **kwargs)
+        super(HTMLPageScraper, self).__init__(*args, **kwargs)
         self.omit_list = self.omit_list or []
         self.omit_list += [
             ('link', {'type': 'image/x-icon'}),
@@ -48,24 +99,10 @@ class BasicPageScraper(BasicScraper):
         self.extra_tags = self.extra_tags or []
         self.scrapers = (self.scrapers or []) + [self.__class__]
 
-    @classmethod
-    def test(self, url):
-        """ Used to determine if this is the correct scraper to use for a given url """
-        return False
+    def process(self):
+        # Using html.parser as it is better at handling special characters
+        contents = BeautifulSoup(downloader.read(self.url, loadjs=self.loadjs), 'html.parser')
 
-
-    def preprocess(self, contents):
-        """ Place for any operations to occur before main scraping method """
-        # Implement in subclasses
-        pass
-
-
-    def process(self, filename='index.html'):
-        filename = filename or self.get_filename(self.url)
-        if self.zipper.contains(filename):
-            return filename
-
-        contents = BeautifulSoup(downloader.read(self.url, loadjs=self.loadjs), 'html5lib')
         self.preprocess(contents)
 
         if self.main_area_selector:
@@ -77,91 +114,48 @@ class BasicPageScraper(BasicScraper):
             for element in contents.find_all(*item):
                 element.decompose()
 
-        for tag_class in (self.extra_tags + DEFAULT_HANDLERS):
+        for tag_class in (self.extra_tags + COMMON_TAGS):
             for tag in contents.find_all(*tag_class.selector):
-                scraper = tag_class(tag, self.url, self.zipper, scrape_subpages=self.scrape_subpages, triaged=self.triaged, locale=self.locale, extra_scrapers=self.scrapers, color=self.color)
+                scraper = tag_class(tag, self.url,
+                    zipper=self.zipper,
+                    scrape_subpages=self.scrape_subpages,
+                    triaged=self.triaged,
+                    locale=self.locale,
+                    extra_scrapers=self.scrapers,
+                    color=self.color
+                )
                 scraper.scrape()
-
         self.postprocess(contents)
-        return self.write_contents(filename, contents.prettify().encode('utf-8-sig'))
 
+        return contents.prettify(formatter="minimal").encode('utf-8-sig', 'ignore')
 
-    def postprocess(self, contents):
-        """ Place for any operations to occur after main scraping method """
-        # Implement in subclasses
-        pass
-
-    def process_tag(self):
-        # Returns tag with scraped link
-        return self.create_tag('div')
-
-
-########## COMMON SCRAPERS ##########
-class WebVideoScraper(BasicPageScraper):
-    directory = 'media'
-    default_ext = '.mp4'
-    standalone = True
-
-    def __init__(self, *args, **kwargs):
-        super(WebVideoScraper, self).__init__(*args, **kwargs)
-        self.video_id = self.url.split('/')[-1].replace('?', '-')
-
-    @classmethod
-    def test(self, url):
-        return 'youtube' in url or 'vimeo' in url
-
-    def process(self, **kwargs):
-        try:
-            tempdir = tempfile.mkdtemp()
-            video_path = os.path.join(tempdir, '{}{}'.format(self.video_id, self.default_ext))
-            dl_settings = {
-                'outtmpl': video_path,
-                'quiet': True,
-                'overwrite': True,
-                'format': self.default_ext.split('.')[-1],
-            }
-            if not os.path.exists(video_path):
-                with youtube_dl.YoutubeDL(dl_settings) as ydl:
-                    ydl.download([self.url])
-
+    ##### Output methods #####
+    def _download_file(self, write_to_path):
+        with html_writer.HTMLWriter(write_to_path) as zipper:
             try:
-                return self.write_file(video_path)
+                self.zipper = zipper
+                self.to_zip(filename='index.html')
             except Exception as e:
-                LOGGER.warning('Unable to download video {}'.format(self.url))
-                raise UnscrapableSourceException(str(e))
-        except (youtube_dl.utils.DownloadError, youtube_dl.utils.ExtractorError) as e:
-            raise UnscrapableSourceException(str(e))  # Some errors are region-specific, so allow link
-        finally:
-            shutil.rmtree(tempdir)
+                # Any errors here will just say index.html file does not exist, so
+                # print out error for more descriptive debugging
+                LOGGER.error(str(e))
 
-
-    def process_tag(self):
-        video = self.create_tag('video')
-        video['controls'] = 'controls'
-        video['style'] = 'width: 100%;'
-        video['preload'] = 'auto'
-        source = self.create_tag('source')
-        source['src'] = self.process()
-        video.append(source)
-
-        return video
+    def to_zip(self, filename=None):
+        return self.write_contents(filename or self.get_filename(self.url), self.process())
 
 class PDFScraper(BasicPageScraper):
-    directory = 'pdfs'
+    directory = 'docs'
     default_ext = '.pdf'
-    standalone = True
+    kind = content_kinds.DOCUMENT
 
     @classmethod
     def test(self, url):
         return url.split('?')[0].lower().endswith('.pdf')
 
-    def process(self, **kwargs):
-       return self.write_url(self.url)
-
-    def process_tag(self, **kwargs):
+    def to_tag(self, filename=None):
         try:
             embed = self.create_tag('embed')
-            embed['src'] = self.process()
+            embed['src'] = self.to_zip(filename=filename)
             embed['width'] = '100%'
             embed['style'] = 'height: 500px;max-height: 100vh;'
             return embed
@@ -172,20 +166,66 @@ class PDFScraper(BasicPageScraper):
 class ImageScraper(BasicPageScraper):
     directory = 'img'
     default_ext = '.png'
-    standalone = True
+    kind = content_kinds.SLIDESHOW  # No image type in Studio, so use this
 
     @classmethod
     def test(self, url):
         return url.lower().endswith('.png') or url.lower().endswith('.jpg')
 
-    def process(self, **kwargs):
-       return self.write_url(self.url)
+    def to_file(self, filename=None):
+        raise NotImplementedError('Unable to write SLIDESHOW kind to a file')
 
-    def process_tag(self, **kwargs):
+    def to_tag(self, filename=None):
         try:
             img = self.create_tag('img')
-            img['src'] = self.process()
+            img['src'] = self.to_zip(filename=filename)
             return img
+        except EXCEPTIONS as e:
+            LOGGER.error(str(e))
+            return self.create_broken_link_message(self.url)
+
+class VideoScraper(BasicPageScraper):
+    default_ext = '.mp4'
+    kind = content_kinds.VIDEO
+    dl_directory = 'videos'
+    directory = 'videos'
+
+    @classmethod
+    def test(self, url):
+        return url.split('?')[0].lower().endswith('.mp4')
+
+    def to_tag(self, filename=None):
+        try:
+            video = self.create_tag('video')
+            video['controls'] = 'controls'
+            video['style'] = 'width: 100%;'
+            video['preload'] = 'auto'
+            source = self.create_tag('source')
+            source['src'] = self.to_zip(filename=filename)
+            video.append(source)
+            return video
+        except EXCEPTIONS as e:
+            LOGGER.error(str(e))
+            return self.create_broken_link_message(self.url)
+
+class AudioScraper(BasicPageScraper):
+    default_ext = '.mp3'
+    kind = content_kinds.AUDIO
+    directory = 'audio'
+
+    @classmethod
+    def test(self, url):
+        return url.split('?')[0].lower().endswith('.mp4')
+
+    def to_tag(self, filename=None):
+        try:
+            audio = self.create_tag('audio')
+            audio['controls'] = 'controls'
+            audio['style'] = 'width: 100%;'
+            source = self.create_tag('source')
+            source['src'] = self.to_zip(filename=filename)
+            audio.append(source)
+            return audio
         except EXCEPTIONS as e:
             LOGGER.error(str(e))
             return self.create_broken_link_message(self.url)
@@ -202,132 +242,72 @@ class FlashScraper(BasicPageScraper):
         downloader.read(self.url) # Raises broken link error if fails
         raise UnscrapableSourceException('Cannot scrape Flash content')
 
-    def process_tag(self, **kwargs):
-        downloader.read(self.url) # Raises broken link error if fails
-        raise UnscrapableSourceException('Cannot scrape Flash content')
+    def to_tag(self, **kwargs):
+        return self.process()
 
+    def to_zip(self, **kwargs):
+        return self.process()
+
+class WebVideoScraper(VideoScraper):
+    @classmethod
+    def test(self, url):
+        return 'youtube' in url or 'vimeo' in url
+
+
+    def process(self):
+        write_to_path = self.to_file()
+        with open(write_to_path) as fobj:
+            return fobj.read()
+
+    def _download_file(self, write_to_path):
+        try:
+            dl_settings = {
+                'outtmpl': write_to_path,
+                'quiet': True,
+                'overwrite': True,
+                'format': self.default_ext.split('.')[-1],
+            }
+            with youtube_dl.YoutubeDL(dl_settings) as ydl:
+                ydl.download([self.url])
+        except (youtube_dl.utils.DownloadError, youtube_dl.utils.ExtractorError) as e:
+            raise UnscrapableSourceException(str(e))  # Some errors are region-specific, so allow link
+
+
+    def to_zip(self, filename=None):
+        try:
+            tempdir = tempfile.mkdtemp()
+            video_path = os.path.join(tempdir, filename or self.get_filename(self.url))
+            self._download_file(video_path)
+            return self.write_file(video_path)
+        except FileNotFoundError as e:
+            # Some video links don't work, so youtube dl only partially downloads files but doesn't error out
+            # leading to the .mp4 not being found (just a .part file)
+            raise UnscrapableSourceException(str(e))
+        finally:
+            shutil.rmtree(tempdir)
+
+    def to_tag(self, filename=None):
+        video = self.create_tag('video')
+        video['controls'] = 'controls'
+        video['style'] = 'width: 100%;'
+        video['preload'] = 'auto'
+        source = self.create_tag('source')
+        source['src'] = self.to_zip(filename=filename)
+        video.append(source)
+        return video
 
 DEFAULT_PAGE_HANDLERS = [
     WebVideoScraper,
     PDFScraper,
     ImageScraper,
     FlashScraper,
+    VideoScraper,
+    AudioScraper
 ]
 
 ########## LESS COMMON SCRAPERS (import as needed) ##########
-class GoogleDriveScraper(BasicPageScraper):
-    directory = 'gdrive'
-    replace = True
 
-    def __init__(self, *args, **kwargs):
-        from pydrive.auth import GoogleAuth
-        from pydrive.drive import GoogleDrive
-
-        super(GoogleDriveScraper, self).__init__(*args, **kwargs)
-        gauth = GoogleAuth()
-        try:
-            gauth.DEFAULT_SETTINGS['client_config_file'] = "credentials.json"
-            gauth.LoadCredentialsFile("credentials.txt")
-        except:
-            # Try to load saved client credentials
-            gauth.LoadClientConfigFile("credentials.json")
-            if gauth.credentials is None:
-                # Authenticate if they're not there
-                gauth.LocalWebserverAuth()
-            elif gauth.access_token_expired:
-                # Refresh them if expired
-                gauth.Refresh()
-            else:
-                # Initialize the saved creds
-                gauth.Authorize()
-            # Save the current credentials to a file
-            gauth.SaveCredentialsFile("credentials.txt")
-
-        self.drive = GoogleDrive(gauth)
-
-    @classmethod
-    def test(self, url):
-        return re.match(r'https://[^\.]+.google.com/.*file/d/[^/]+/(?:preview|edit)', url)
-
-    def process(self, **kwargs):
-        from pydrive.files import FileNotDownloadableError, ApiRequestError
-        try:
-            file_id = re.search(r'https://[^\.]+.google.com/.*file/d/([^/]+)/(?:preview|edit)', iframe['src']).group(1)
-            drive_file = self.drive.CreateFile({'id': file_id})
-            _drivename, ext = os.path.splitext(drive_file.get('title') or '')
-            filename = '{}{}'.format(file_id, ext)
-
-            write_to_path = os.path.join(DRIVE_DIRECTORY, filename);
-            if not os.path.exists(write_to_path):
-                drive_file.GetContentFile(write_to_path)
-
-            return self.write_file(write_to_path)
-        except (FileNotDownloadableError, ApiRequestError) as e:
-            LOGGER.error(str(e))
-            raise BrokenSourceException(str(e))
-
-
-    def process_tag(self, **kwargs):
-        if ext.endswith('pdf'):
-            embed_tag = self.create_tag('embed')
-            embed_tag['style'] = 'width: 100%;min-height: 500px;'
-            embed_tag['src'] = self.process()
-            return embed_tag
-        elif ext.endswith('png') or ext.endswith('jpg'):
-            img_tag = self.create_tag('img')
-            img_tag['src'] = self.process()
-            return img_tag
-        else:
-            raise NotImplementedError('Unhandled google drive file type at {}'.format(self.link))
-
-
-class GeniallyScraper(BasicPageScraper):
-    scrape_subpages = False
-    directory = 'genially'
-    partially_scrapable = True
-
-    @classmethod
-    def test(self, url):
-        return 'genial.ly' in url
-
-    def preprocess(self, contents):
-        # Hide certain elements from the page
-        style_tag = self.create_tag('style')
-        style_tag.string = '.genially-view-logo { pointer-events: none;} .genially-view-navigation-actions,'\
-            ' .genially-view-navigation-actions-toggle-button{display: none !important; pointer-events:none;}'
-        contents.find('head').append(style_tag)
-
-
-        # Prefetch API response and replace script content accordingly
-        genial_id = self.url.split('/')[-1]
-        response = requests.get('https://view.genial.ly/api/view/{}'.format(genial_id))
-        for script in contents.find_all('script'):
-            if script.get('src') and 'main' in script['src']:
-                script_contents = downloader.read(self.get_relative_url(script['src'])).decode('utf-8')
-                genial_data = json.loads(response.content)
-
-                if len(genial_data['Videos']) or len(genial_data['Audios']):
-                    LOGGER.error('Unhandled genial.ly video or audio at {}'.format(url))
-
-                if genial_data['Genially']['ImageRender']:
-                    genial_data['Genially']['ImageRender'] = self.write_url(genial_data['Genially']['ImageRender'])
-                for image in genial_data['Images']:
-                    image['Source'] = self.write_url(image['Source'])
-                for slide in genial_data['Slides']:
-                    slide['Background'] = self.write_url(slide['Background'])
-                for code in genial_data['Contents']:
-                    code_contents = BeautifulSoup(code['HtmlCode'], 'html.parser')
-                    for img in code_contents.find_all('img'):
-                        try:
-                            img['src'] = self.write_url(img['src'])
-                        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
-                            LOGGER.warning("Error processing genial.ly at {} ({})".format(self.url, str(e)))
-                    code['HtmlCode'] = code_contents.prettify()
-                script_contents = script_contents.replace('r.a.get(c).then(function(e){return n(e.data)})', 'n({})'.format(json.dumps(genial_data)))
-                self.mark_tag_to_skip(script)
-                script['src'] = zipper.write_contents('genial-{}-embed.js'.format(genial_id), script_contents,  directory="js")
-
-class PresentationScraper(BasicPageScraper):
+class PresentationScraper(HTMLPageScraper):
     thumbnail = None
     source = ""
     img_selector = ('img',)
@@ -338,12 +318,17 @@ class PresentationScraper(BasicPageScraper):
     def test(self, url):
         return False
 
-    def process(self, **kwargs):
-        contents = BeautifulSoup(downloader.read(self.url, loadjs=self.loadjs), 'html5lib')
+    def process(self):
+        contents = BeautifulSoup(downloader.read(self.url, loadjs=self.loadjs), 'html.parser')
         images = []
         for img  in contents.find_all(*self.img_selector):
-            images.append(os.path.basename(self.write_url(img[self.img_attr], default_ext=".png")))
-        return self.write_contents(self.get_filename(self.url), self.generate_slideshow(images))
+            imgpath = self.write_url(img[self.img_attr])
+            images.append(os.path.basename(imgpath))
+        return self.generate_slideshow(images)
+
+    def to_zip(self, filename=None):
+        contents = self.process()
+        return self.write_contents(filename or self.get_filename(self.url), contents)
 
     def generate_slideshow(self, images):
         # <body>
@@ -545,27 +530,3 @@ class PresentationScraper(BasicPageScraper):
         page.body.append(script)
 
         return page.prettify()
-
-class SlideShareScraper(PresentationScraper):
-    thumbnail = "https://is1-ssl.mzstatic.com/image/thumb/Purple113/v4/03/df/99/03df99d1-48c0-d976-c0f3-3ad4a6af5b90/source/200x200bb.jpg"
-    source = "SlideShare"
-    img_selector = ('img', {'class': 'slide_image'})
-    img_attr='data-normal'
-
-    @classmethod
-    def test(self, url):
-        return 'slideshare.net' in url
-
-
-class WikipediaScraper(BasicPageScraper):
-    scrape_subpages = False
-    main_area_selector = ('div', {'id': "content"})
-    partially_scrapable = True
-    omit_list = [
-        ('span', {'class': 'mw-editsection'}),
-        ('a', {'class': 'mw-jump-link'}),
-    ]
-
-    @classmethod
-    def test(self, url):
-        return 'wikipedia' in url or 'wikibooks' in url
