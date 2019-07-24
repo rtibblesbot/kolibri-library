@@ -67,7 +67,7 @@ class BasicScraper(object):
             url: string                                    # URL to read from
             locale: string                                 # Language to use when writing error messages
         """
-        self.url = url
+        self.url = self.get_relative_url(url)
         self.triaged = triaged or {}
         self.locale = locale
         self.zipper = zipper
@@ -184,3 +184,13 @@ class BasicScraper(object):
         div.append(copyscript)
 
         return div
+
+
+def guess_scraper(url, scrapers=None):
+    from pages import DEFAULT_PAGE_HANDLERS
+    scrapers = scrapers or []
+    scrapers += DEFAULT_PAGE_HANDLERS
+
+    for scraper_class in scrapers:
+        if scraper_class.test(url):
+            return scraper_class(url)

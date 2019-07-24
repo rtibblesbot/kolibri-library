@@ -247,6 +247,7 @@ class SlideShareScraper(PresentationScraper):
     source = "SlideShare"
     img_selector = ('img', {'class': 'slide_image'})
     img_attr='data-normal'
+    color = '#007bb6'
 
     @classmethod
     def test(self, url):
@@ -306,6 +307,8 @@ class WikipediaScraper(HTMLPageScraper):
     omit_list = [
         ('span', {'class': 'mw-editsection'}),
         ('a', {'class': 'mw-jump-link'}),
+        ('div', {'class': 'navbox'}),
+        ('div', {'class': 'mw-hidden-catlinks'})
     ]
 
     @classmethod
@@ -352,7 +355,10 @@ class WikipediaScraper(HTMLPageScraper):
             ".catlinks ul { display: inline; list-style: none none; padding: 0;} .catlinks li { display: inline-block; margin: 0.125em 0;padding: 0 0.5em;}"\
             ".infobox { border: 1px solid #B4BBC8; background-color: #f9f9f9; margin: .5em 0 .7em 1.2em; padding: .4em; clear: right; float: right; font-size: 90%; line-height: 1.5em;width: 22.5em;}"\
             ".wikitable {background-color: #f8f9fa; color: #222; margin: 1em 0; border: 1px solid #a2a9b1; border-collapse: collapse;}"\
-            ".wikitable th {background-color: #eaecf0; text-align: center;} .wikitable th, .wikitable td {border: 1px solid #a2a9b1;padding: 0.2em 0.4em;}"
+            ".wikitable th {background-color: #eaecf0; text-align: center;} .wikitable th, .wikitable td {border: 1px solid #a2a9b1;padding: 0.2em 0.4em;}"\
+            ".gallery { text-align: center; } li.gallerybox { display: inline-block; }"\
+            ".hlist ul { margin: 0; padding: 0; } .hlist ul ul {display: inline;} .hlist li {display: inline; font-size: 8pt;} .hlist li:not(:last-child)::after {content: ' · ';font-weight: bold;}"\
+            ".reflist { font-size: 9pt; }"
 
         contents.head.append(style_tag)
 

@@ -44,17 +44,17 @@ class BasicPageScraper(BasicScraper):
 
     ##### Output methods #####
     def _download_file(self, write_to_path):
-        with open(write_to_path) as fobj:
+        with open(write_to_path, 'wb') as fobj:
             fobj.write(self.process())
 
-    def to_file(self, filename=None, directory=None):
+    def to_file(self, filename=None, directory=None, overwrite=False):
         directory = directory or self.directory
         if not os.path.exists(directory):
             os.makedirs(directory)
 
         write_to_path = os.path.join(directory, filename or self.get_filename(self.url))
 
-        if not os.path.exists(write_to_path):
+        if overwrite or not os.path.exists(write_to_path):
             self._download_file(write_to_path)
 
         return write_to_path
@@ -95,6 +95,7 @@ class HTMLPageScraper(BasicPageScraper):
             ('link', {'rel': 'apple-touch-icon'}),
             ('span', {'class': 'external-iframe-src'}),
             ('link', {'rel': 'icon'}),
+            ('div', {'class': 'mw-indicators'})
         ]
         self.extra_tags = self.extra_tags or []
         self.scrapers = (self.scrapers or []) + [self.__class__]
@@ -131,6 +132,7 @@ class HTMLPageScraper(BasicPageScraper):
 
     ##### Output methods #####
     def _download_file(self, write_to_path):
+
         with html_writer.HTMLWriter(write_to_path) as zipper:
             try:
                 self.zipper = zipper
@@ -140,11 +142,18 @@ class HTMLPageScraper(BasicPageScraper):
                 # print out error for more descriptive debugging
                 LOGGER.error(str(e))
 
+    def to_file(self, filename=None, **kwargs):
+        # Make sure html is being written to a zip file here
+        filename = filename or self.get_filename(self.url)
+        filename = filename.replace(self.default_ext, '.zip')
+        return super(HTMLPageScraper, self).to_file(filename=filename, **kwargs)
+
     def to_zip(self, filename=None):
         return self.write_contents(filename or self.get_filename(self.url), self.process())
 
 class SinglePageScraper(HTMLPageScraper):
     scrape_subpages = False
+    loadjs = True
 
     @classmethod
     def test(self, url):
@@ -312,7 +321,8 @@ DEFAULT_PAGE_HANDLERS = [
     ImageScraper,
     FlashScraper,
     VideoScraper,
-    AudioScraper
+    AudioScraper,
+    SinglePageScraper
 ]
 
 ########## LESS COMMON SCRAPERS (import as needed) ##########
@@ -322,7 +332,6 @@ class PresentationScraper(HTMLPageScraper):
     source = ""
     img_selector = ('img',)
     img_attr='src'
-    directory='slides'
 
     @classmethod
     def test(self, url):
@@ -332,8 +341,7 @@ class PresentationScraper(HTMLPageScraper):
         contents = BeautifulSoup(downloader.read(self.url, loadjs=self.loadjs), 'html.parser')
         images = []
         for img  in contents.find_all(*self.img_selector):
-            imgpath = self.write_url(img[self.img_attr])
-            images.append(os.path.basename(imgpath))
+            images.append(self.write_url(img[self.img_attr], directory="slides"))
         return self.generate_slideshow(images)
 
     def to_zip(self, filename=None):
@@ -359,8 +367,9 @@ class PresentationScraper(HTMLPageScraper):
                     '#navigation-menu {list-style: none; padding: 0px; overflow-y: auto; overflow-x: none; height: 250px; max-height: 100vh;background: '\
                         'white; width: max-content; margin: 0 auto; margin-top: -275px; border: 1px solid #ddd; display: none; position: relative;}\n'\
                     '#navigation-menu li:not(:first-child) {border-top: 1px solid #ddd; }'\
-                    '#navigation-menu li:hover { background-color: #ddd; }\n'\
-                    '#progressbar { height: 10px; background-color: rgb(153, 97, 137); transition: width 0.5s; }'
+                    '#navigation-menu li:hover { background-color: #ddd; }\n'
+
+        style.string += '#progressbar {{ height: 10px; background-color: {}; transition: width 0.5s; }}'.format(self.color)
 
         page.head.append(style)
 
