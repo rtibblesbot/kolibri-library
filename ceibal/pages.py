@@ -143,6 +143,16 @@ class HTMLPageScraper(BasicPageScraper):
     def to_zip(self, filename=None):
         return self.write_contents(filename or self.get_filename(self.url), self.process())
 
+class SinglePageScraper(HTMLPageScraper):
+    scrape_subpages = False
+
+    @classmethod
+    def test(self, url):
+        ext = os.path.splitext(url.split('?')[0].split('#')[0])[1].lower()
+        return not ext or ext.startswith('.htm')
+
+
+
 class PDFScraper(BasicPageScraper):
     directory = 'docs'
     default_ext = '.pdf'
