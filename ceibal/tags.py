@@ -49,6 +49,7 @@ class BasicScraperTag(BasicScraper):
                     self.tag[key] = ';'.join([(self.tag.get(key) or '').rstrip(';'), value])
                 else:
                     self.tag[key] = value
+            self.mark_tag_to_skip(self.tag)
             return self.process()
         except EXCEPTIONS as e:
             LOGGER.warning('Broken source found at {} ({})'.format(self.url, self.link))

@@ -186,11 +186,14 @@ class BasicScraper(object):
         return div
 
 
-def guess_scraper(url, scrapers=None):
-    from pages import DEFAULT_PAGE_HANDLERS
+def guess_scraper(url, scrapers=None, allow_default=False):
+    from pages import DEFAULT_PAGE_HANDLERS, SinglePageScraper
     scrapers = scrapers or []
     scrapers += DEFAULT_PAGE_HANDLERS
+    if allow_default:
+        scrapers.append(SinglePageScraper)
 
     for scraper_class in scrapers:
         if scraper_class.test(url):
             return scraper_class(url)
+

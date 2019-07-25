@@ -151,6 +151,7 @@ class HTMLPageScraper(BasicPageScraper):
     def to_zip(self, filename=None):
         return self.write_contents(filename or self.get_filename(self.url), self.process())
 
+
 class SinglePageScraper(HTMLPageScraper):
     scrape_subpages = False
     loadjs = True
@@ -252,6 +253,7 @@ class AudioScraper(BasicPageScraper):
 class FlashScraper(BasicPageScraper):
     default_ext = '.swf'
     standalone = True
+    kind = 'flash'
 
     @classmethod
     def test(self, url):
@@ -322,7 +324,6 @@ DEFAULT_PAGE_HANDLERS = [
     FlashScraper,
     VideoScraper,
     AudioScraper,
-    SinglePageScraper
 ]
 
 ########## LESS COMMON SCRAPERS (import as needed) ##########

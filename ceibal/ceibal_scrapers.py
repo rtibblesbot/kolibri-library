@@ -26,7 +26,6 @@ class CeibalVideoAudioTag(MediaTag):
             audio_tag.append(source_tag)
             source_tag['src'] = self.write_url(self.link)
             self.tag.replaceWith(audio_tag)
-            self.mark_tag_to_skip(audio_tag)
 
 class CeibalVideoTag(MediaTag):
     default_ext = '.mp4'
@@ -74,7 +73,6 @@ class ThingLinkTag(ImageTag):
         thinglink_id = re.search(r'image/([^/]+)/', self.link).group(1)
         self.tag['src'] = self.write_url(self.link)
         self.tag.insert_before(self.create_copy_link_message('https://www.thinglink.com/scene/{}'.format(thinglink_id)))
-        self.mark_tag_to_skip(self.tag)
 
         # Don't import script to render image
         if self.tag.find_next('script'):
@@ -341,7 +339,7 @@ class WikipediaScraper(HTMLPageScraper):
     def postprocess(self, contents):
         # Wikipedia uses a load.php file to load all the styles, so add the more common styling manually
         style_tag = self.create_tag('style')
-        style_tag.string = "body { font-family: sans-serif; } a {text-decoration: none;}"\
+        style_tag.string = "body { font-family: sans-serif; padding: 2%;} a {text-decoration: none;}"\
             "h1, h2 {font-family: 'Linux Libertine','Georgia','Times',serif;border-bottom: 1px solid #a2a9b1; font-weight:normal; margin-bottom: 0.25em;}"\
             "h2, h3, h4, h5, h6 {overflow: hidden;margin-bottom: .25em;} h3{font-size: 13pt;}"\
             ".toc {display: table; zoom: 1; border: 1px solid #a2a9b1; background-color: #f8f9fa;padding: 7px;}"\
@@ -518,6 +516,7 @@ class CeibalPageScraper(HTMLPageScraper):
     ]
 
     scrapers = [
+        WebVideoScraper,
         ThingLinkScraper,
         SlideShareScraper,
         WikipediaScraper,
@@ -544,6 +543,7 @@ class CeibalPageScraper(HTMLPageScraper):
         return 'rea.ceibal.edu.uy' in url
 
     def __init__(self, *args, **kwargs):
+
         super(CeibalPageScraper, self).__init__(*args, **kwargs)
         self.url = self.url.replace('inicio', 'index.html')
 
