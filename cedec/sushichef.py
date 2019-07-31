@@ -10,6 +10,7 @@ from ricecooker.classes.nodes import HTML5AppNode, TopicNode
 from ricecooker.classes.files import HTMLZipFile
 import index
 import handle_zip
+from mangled import replace
 LOGGER = logging.getLogger()
 LICENCE=get_license('CC BY-SA', copyright_holder='Centro Nacional de Desarrollo Curricular en Sistemas no Propietarios.')
 
@@ -33,12 +34,12 @@ class CedecChef(SushiChef):
             i = i + 1
             if title != old_title:
                 old_title=title
-                title_node = TopicNode(source_id=title+str(i), title=title)
+                title_node = TopicNode(source_id=title+str(i), title=replace(title))
                 channel.add_child(title_node)
                 old_group = None
             if group != old_group:
                 old_group = group
-                group_node = TopicNode(source_id=title+group+str(i+0.5), title=group)
+                group_node = TopicNode(source_id=title+group+str(i+0.5), title=replace(group))
                 title_node.add_child(group_node)
 
             doc_node = HTML5AppNode(

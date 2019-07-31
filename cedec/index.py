@@ -133,7 +133,8 @@ def no_dl_index():
             print(group_text)
 
             ########
-            metadata = elp_metadata(elp_url)
-            zipfilename = ZIP / (filename + ".zip")
+            elp_filename = elp_url.partition("cedec")[2].replace("/", "_")
+            metadata = elp_metadata(ELP/elp_filename)
+            zipfilename = ZIP / (elp_filename + ".zip")
             finalzip = str(zipfilename)+".final.zip"
             yield metadata, finalzip, [title_text, group_text]
