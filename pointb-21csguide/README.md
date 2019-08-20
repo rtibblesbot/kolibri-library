@@ -1,8 +1,9 @@
 # PointB 21csguide = A GUIDE TO BECOMING A 21ST CENTURY TEACHER
-Sushi Chef script for importing pointb-21csguide content from https://www.pointb.is/21csguide
 
+Sushi Chef script for importing pointb-21csguide content from [https://www.pointb.is/21csguide](https://www.pointb.is/21csguide)
 
 ## Installation
+
 1. Install the system prerequisites `ffmpeg` and `imagemagick` by following the
    [prerequisite install instructions](https://ricecooker.readthedocs.io/en/latest/installation.html#software-prerequisites).
 2. Install [Python 3](https://www.python.org/downloads/) if you don't have it already.
@@ -29,7 +30,6 @@ Sushi Chef script for importing pointb-21csguide content from https://www.pointb
 5. Run `pip install -r requirements.txt` to install the required python libraries.
 6. Run `pip install -r requirements-dev.txt` to install the development python libraries.
 
-
 ## Usage
 
 ### To view and run the dev notebooks
@@ -41,15 +41,14 @@ Run the following command to start the jupyter notebook server
 navigate to the folder `notebooks/` and click on the individual notebook to view
 and run interactively.
 
-### To run the sushi chef script:
+### To run the sushi chef script
 
       python sushichef.py -v --reset --token=<Kolibri Studio token>
-
-
 
 ---
 
 ## About
+
 A sushi chef script is responsible for importing content into Kolibri Studio.
 The [ricecooker](https://github.com/learningequality/ricecooker) library provides
 all helper methods necessary for uploading the content to Kolibri Studio.
@@ -57,12 +56,12 @@ The ricecooker docs can be found [here](https://ricecooker.readthedocs.io/en/lat
 
 This repo includes two sample chef scripts in `examples/openstax_sushichef.py` (json)
 and `examples/wikipedia_sushichef.py` (html). To find more code examples, search
-for [`sushi-chef-*` on github]https://github.com/search?q=org%3Alearningequality+sushi-chef-%2A)
+for [`sushi-chef-*` on github](https://github.com/search?q=org%3Alearningequality+sushi-chef-%2A)
 to see all the sushi chef scripts. They are all example of how to extract,
 transform, and upload content from various sources of openly licensed content.
 
-
 ## Instructions and channel rubric
+
 A sushi chef script has been created for you in `sushichef.py` to help you get
 started on the import of the content.
 
@@ -74,10 +73,12 @@ started on the import of the content.
 Use the following rubric as a checklist to know when your sushi chef script is done:
 
 ### Main checks
+
 1. Does the channel correspond to the spec provided?
 2. Does the content render as expected when viewed in Kolibri?
 
 ### Logistic checks
+
 1. Is the channel uploaded to Studio and PUBLISH-ed?
 2. Is the channel imported to a demo server where it can be previewed?
 3. Is the information about the channel token, the studio URL, and demo server URL
@@ -86,6 +87,7 @@ Use the following rubric as a checklist to know when your sushi chef script is d
    the `[+ New]` button at the bottom of the table.
 
 ### Metadata checks
+
 1. Do all nodes have appropriate titles?
 2. Do all nodes have appropriate descriptions (when available in the source)?
 3. Is the correct [language code](https://github.com/learningequality/le-utils/blob/master/le_utils/resources/languagelookup.json)
@@ -95,14 +97,15 @@ Use the following rubric as a checklist to know when your sushi chef script is d
    Use unique identifiers based on the source website or permanent url paths.
 
 ### Code standards
+
 1. Does the section `Usage` in this README contain all the required information
    for another developer to run the script?
    Document and extra credentials, env vars, and options needed to run the script.
 2. Is the Python code readable and succinct?
 3. Are clarifying comments provided where needed?
 
-
 ## Kolibri content development workflow
+
 Running the sushichef script is only one of the steps in the Kolibri content
 development workflow:
 
@@ -116,15 +119,16 @@ It is your responsibility as the chef author to take this channel all the way
 through this workflow and make sure that the final channel works in Kolibri.
 
 Notes on specific steps:
-  - `(1)`: the spec for the channel describes how the channel should be organized
-  - `(2)`: your main task as a chef author is to implement all the extraction
+
+* `(1)`: the spec for the channel describes how the channel should be organized
+* `(2)`: your main task as a chef author is to implement all the extraction
     and content transformation described in the spec. If you run into any kind
     of difficulties with this step post a question in the LE slack channel
     `#sushi-chefs` and someone from the content team will be able assist you.
     For example, "Hello @here I'm having trouble with the pointb-21csguide chef
     because X and Y cannot be organized according to the spec because Z."
     For complicated or very large channels the spec may go through multiple iterations.
-  - `(3)`: once the channel is on Studio you can preview the structure there
+* `(3)`: once the channel is on Studio you can preview the structure there
     and create or update a notion card with the channel information.
     The next step is to export the channel in the format necessary for use in
     Kolibri using the `PUBLISH` button on Studio. The PUBLISH action exports
@@ -132,13 +136,13 @@ Notes on specific steps:
     `https://studio.learningequality.org/content/databases/{channel_id}.sqlite3`
     the first time a channel is PUBLISH-ed a secret token is generated that can
     be used to import the channel in Kolibri. Note down the channel's token.
-  - `(4)`: the next step is to import your channel into a Kolibri instance. You
+* `(4)`: the next step is to import your channel into a Kolibri instance. You
     can use Kolibri installed on your local machine or an online demo server.
     Admin (`devowner`) credentials for the demo server will be provided for you
     so that you can import and update the channel every time you push a new version.
     Follow these steps to import your channel `Device` > `IMPORT` > `ONLINE` >
     `Try adding a token`, add the channel token, select all nodes > `IMPORT`.
-  - `(5)`: You can now go to the Kolibri Learn tab and preview your channel to
+* `(5)`: You can now go to the Kolibri Learn tab and preview your channel to
     see it the way learners will see it. Take the time to click around and browse
     the content to make sure everything works as expected. Update the notion card
     and leave a comment. For example "First draft of channel uploaded to demo server."
@@ -154,4 +158,3 @@ Notes on specific steps:
     html and js content, but it doesn't render right in Kolibri because of the
     iframe sandboxing." or "Does anyone have sample code for extracting content
     X from a shared drive link Y of type Z?".
-
