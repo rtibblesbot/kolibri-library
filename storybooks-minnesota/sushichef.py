@@ -41,7 +41,7 @@ class MathplanetChef(SushiChef):
                     epub_book = epub.make_book(book)
                     print (book)
 
-                    exit()
+                    raise RuntimeError()
                     node = f.node()
                     node.language = lang_code
                     level_node.add_child(node)

@@ -5,6 +5,11 @@ import requests
 requests_cache.install_cache()
 
 def make_book(book_data):
+
+
+    for attr in dir(book_data):
+        print (attr, getattr(book_data, attr))
+
     book = epub.EpubBook()
 
 # set metadata
@@ -69,8 +74,6 @@ def make_book(book_data):
 #                 (pages[0], ))
 #                )
 
-
-exit()
 
 
 def placeholder():

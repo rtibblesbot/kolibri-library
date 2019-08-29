@@ -27,7 +27,9 @@ class FakeBook(object):
 book_data = FakeBook()
 
 from ebooklib import epub
-
+import requests
+import requests_cache
+requests_cache.install_cache()
 def make_book(book_data):
     book = epub.EpubBook()
 
@@ -44,6 +46,25 @@ def make_book(book_data):
     book.add_author(book_data.author)
 
     # intro chapter
+    pages = []
+
+    for i, (text, image, audio) in enumerate(zip(book_data.texts, book_data.imgs, book_data.audios)):
+        image_data = requests.get(image).content
+        image_item = epub.EpubItem(file_name=f'image{i}.jpeg', content=image_data)
+        book.add_item(image_item)
+
+        audio_data = requests.get(image).content
+        audio_item = epub.EpubItem(file_name=f'audio{i}.mp3', content=audio_data)
+        book.add_item(audio_item)
+
+        page = epub.EpubHtml(title=book_data.title, file_name=f'page{i}.xhtml',
+                             media_overlay="intro_overlay")#, lang='hr')
+        page.content=f'<p style="font-size:800%" id=p>{text}</p><img src="image{i}.jpeg" id=play>'
+        book.add_item(page)
+        pages.append(page)
+
+
+
     c1 = epub.EpubHtml(title='Introduction', file_name='intro.xhtml', lang='en', media_overlay='intro_overlay')
     c1.content=u'<html><head></head><body><section epub:type="frontmatter colophon"><h1><span id="header_1">Introduction</span></h1><p><span id="para_1">Introduction paragraph where i explain what is happening.</span></p></section></body></html>'
 
@@ -63,6 +84,7 @@ def make_book(book_data):
 
     # create spine
     book.spine = ['nav', c1]
+    book.spine.extend(pages)
 
     # create epub file
     epub.write_epub('smil.epub', book, {})
