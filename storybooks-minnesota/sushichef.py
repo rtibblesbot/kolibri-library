@@ -9,6 +9,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import TopicNode
 import index, detail
 from foundry import foundry
+import epub
 
 LOGGER = logging.getLogger()
 
@@ -36,6 +37,11 @@ class MathplanetChef(SushiChef):
                 urls = index.get_lang_level(lang_code, level)
                 for url in urls:
                     f = detail.MyFoundry(url)
+                    book = f.book
+                    epub_book = epub.make_book(book)
+                    print (book)
+
+                    exit()
                     node = f.node()
                     node.language = lang_code
                     level_node.add_child(node)
