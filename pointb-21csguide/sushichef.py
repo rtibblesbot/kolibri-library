@@ -3,6 +3,7 @@
 import os
 import requests
 
+from copy import copy
 from PyPDF2 import PdfFileReader, PdfFileWriter
 
 from ricecooker.chefs import SushiChef
@@ -28,7 +29,7 @@ PDF_PATH_MY = os.path.join(os.getcwd(), DOWNLOADS_PATH, CSGUIDE_PDF_MY)
 PDF_PATH_MY_CROPPED = os.path.join(os.getcwd(), DOWNLOADS_PATH, CSGUIDE_PDF_MY_CROPPED)
 PDFS = (
     { 'pdf_url': PDF_URL_EN, 'pdf_path': PDF_PATH_EN },
-    { 'pdf_url': PDF_URL_MY, 'pdf_path': PDF_PATH_MY },
+    # { 'pdf_url': PDF_URL_MY, 'pdf_path': PDF_PATH_MY },
 )
 
 
@@ -61,8 +62,8 @@ def split_chapters_en():
 
     with PDFParser(PDF_PATH_EN_CROPPED, directory=SPLIT_PATH) as pdfparser:
         chapters = pdfparser.split_subchapters(jsondata=page_ranges)
-        for chapter in chapters:
-            print(chapter)
+        # for chapter in chapters:
+        #     print(chapter)
 
     print('DONE splitting chapters for English PDF.')
     return True
@@ -73,18 +74,25 @@ def download_pdfs():
         for pdf in PDFS:
             pdf_url = pdf['pdf_url']
             pdf_path = pdf['pdf_path']
-            print('Downloading PDF', pdf_url, 'TO', pdf_path)
-            response = requests.get(pdf_url)
-            assert response.status_code == 200
-            # save .pdf to the downloads folder
-            with open(pdf_path, 'wb') as pdf_file:
-                pdf_file.write(response.content)
-            print('... DONE downloading.')
+            # Do not download if file already exists.
+            if os.path.exists(pdf_path):
+                print('PDF already exists, NOT downloading:', pdf_path)
+            else:
+                print('Downloading PDF', pdf_url, 'TO', pdf_path)
+                response = requests.get(pdf_url)
+                assert response.status_code == 200
+                # save .pdf to the downloads folder
+                with open(pdf_path, 'wb') as pdf_file:
+                    pdf_file.write(response.content)
+                print('... DONE downloading.')
 
             # crop from two-paged pdf into single-page pdf
             print('Cropping from two-page into single-page...', pdf_path)
             pdf_path_cropped = pdf_path.replace('.pdf', '_cropped.pdf')
             split_left_right_pages(pdf_path, pdf_path_cropped)
+
+            print_pdf_info(pdf_path_cropped)
+
             print('... DONE cropping.')
 
         return True
@@ -108,38 +116,90 @@ def get_dimensions(pdfin1):
 def split_left_right_pages(pdfin_path, pdfout_path):
     """
     Splits the left and right halves of a page into separate pages.
+    We also remove the binders between those separated pages.
     """
+    # REF: https://gist.github.com/mdoege/0676e37ee2470fc755ea98177a560b4b
+    # RELATED-REF: https://github.com/mstamy2/PyPDF2/issues/100 
+
     pdfin1 = PdfFileReader(open(pdfin_path, "rb"))  # used for left pages
-    pdfin2 = PdfFileReader(open(pdfin_path, "rb"))  # used for right pages
     pdfout = PdfFileWriter()
 
-    page_width, page_height = get_dimensions(pdfin1)
-
     num_pages = pdfin1.getNumPages()
-    for page_num in range(0, num_pages):
-        left_page = pdfin1.getPage(page_num)
-        this_width = left_page.mediaBox.getUpperRight_x()
+    page_ranges = [pdfin1.getPage(i) for i in range(0, num_pages)]
+    for nn,left_page in enumerate(page_ranges):
+        # use copy for the right pages
+        right_page = copy(left_page)
+        # copy the existing page dimensions
+        (page_width, page_height,) = left_page.mediaBox.upperRight
 
-        if this_width > float(page_width) + 20:
-            # print(page_num, 'wide')
-
-            left_page = pdfin1.getPage(page_num)
-            left_page.cropBox.upperRight = (page_width, page_height)
-            left_page.trimBox.upperRight = (page_width, page_height)
-            pdfout.addPage(left_page)
-
-            right_page = pdfin2.getPage(page_num)
-            right_page.cropBox.lowerLeft = (page_width, 0)
-            right_page.trimBox.lowerLeft = (page_width, 0)
-            pdfout.addPage(right_page)
-
+        is_first_page = (nn == 0)
+        is_last_page = (nn + 1 >= num_pages)
+        if is_first_page or is_last_page:
+            # The first page has the binder to its left while the last page 
+            # has the binder to its right.
+            binder_width = 40
+            if is_first_page:
+                (page_width, page_height,) = right_page.mediaBox.upperLeft
+                right_page.mediaBox.upperLeft = (page_width + binder_width, page_height,)
+            if is_last_page:
+                (page_width, page_height,) = right_page.mediaBox.upperRight
+                right_page.mediaBox.upperRight = (page_width - binder_width, page_height,)
         else:
-            # print(page_num, 'normal')
+            # Divide the width by 2 for the other pages (except first and last).
+            # We also remove the binders on the left-side of the right pages
+            # and the right-side of the left pages.
+            page_width = page_width / 2
+            binder_width = 20
+            right_page.mediaBox.upperLeft = (page_width + binder_width, page_height,)
+            left_page.mediaBox.upperRight = (page_width - binder_width, page_height,)
             pdfout.addPage(left_page)
+        pdfout.addPage(right_page)
 
-    # save outpout PDF result
     with open(pdfout_path, "wb") as out_f:
         pdfout.write(out_f)
+
+
+def print_pdf_info(pdf_path):
+    pdf = PdfFileReader(open(pdf_path, "rb"))
+    page_width, page_height = get_dimensions(pdf)
+    print('PDF INFO:', page_width, page_height)
+    num_pages = pdf.getNumPages()
+    for page_num in range(0, num_pages):
+        page = pdf.getPage(page_num)
+        this_width = page.mediaBox.getUpperRight_x()
+        this_height = page.mediaBox.getUpperRight_y()
+        print('==> page', page_num, 'this_width', this_width, 'this_height', this_height)
+
+
+def local_construct():
+    if not download_pdfs():
+        print("Download of PDFS FAILED!")
+        return False
+
+    if not split_chapters_en():
+        print("Split chapters for English PDF FAILED!")
+        return False
+
+
+    main_topic = TopicNode(title="English", source_id="<21cs_en_id>")
+
+    frontmatter_file = "0-Front-Matter.pdf"
+
+    # Introduction
+    front_doc_node = DocumentNode(
+        title="Introduction",
+        description="Introduction",
+        source_id=frontmatter_file,
+        license=get_license("CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+        language="en",
+        files=[
+            DocumentFile(
+                path=os.path.join(SPLIT_PATH, frontmatter_file),
+                language="en"
+            )
+        ])
+    main_topic.add_child(front_doc_node)
+    return False
 
 
 class PointBChef(SushiChef):
@@ -168,8 +228,6 @@ class PointBChef(SushiChef):
         main_topic2 = TopicNode(title="Burmese", source_id="<21cs_my_id>")
         channel.add_child(main_topic)
         channel.add_child(main_topic2)
-
-        # return channel
 
         frontmatter_file = "0-Front-Matter.pdf"
         section_1_file = "1-Section-1---Setting-a-Vision-for-Your-21st-Century-Learning-Classroom.pdf"
@@ -424,3 +482,4 @@ if __name__ == "__main__":
     """
     chef = PointBChef()
     chef.main()
+    # local_construct()
