@@ -16,7 +16,9 @@ from ricecooker.utils.browser import preview_in_browser
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.html import download_file
 from ricecooker.utils.zip import create_predictable_zip
+from le_utils.constants import roles
 from le_utils.constants.languages import getlang
+
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -206,6 +208,7 @@ class PhETSushiChef(SushiChef):
                 title="Video: %s" % localized_sim["title"],
                 license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
                 thumbnail=sim["media"]["thumbnailUrl"],
+                role=roles.COACH,
             )
 
             topic.add_child(videonode)
