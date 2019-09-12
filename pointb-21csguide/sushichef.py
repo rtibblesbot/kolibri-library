@@ -4,17 +4,18 @@ import html
 import os
 import pprint
 import requests
-import youtube_dl
 
 from bs4 import BeautifulSoup
 from copy import copy
 from PyPDF2 import PdfFileReader, PdfFileWriter
 
 from ricecooker.chefs import SushiChef
-from ricecooker.classes.nodes import ChannelNode, TopicNode, DocumentNode
 from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.licenses import get_license
+from ricecooker.classes.nodes import ChannelNode, TopicNode, DocumentNode
 from ricecooker.utils.pdf import PDFParser
+
+from pointb import PointBVideo
 
 LANG_CODE_EN = 'en'
 LANG_CODE_MY = 'my'
@@ -23,6 +24,7 @@ LANG_CODES = (LANG_CODE_EN, LANG_CODE_MY,)
 POINTB_URL = 'http://www.pointb.is/'
 
 DOWNLOADS_PATH = "downloads/"
+DOWNLOADS_VIDEOS_PATH = "downloads/videos/"
 PDF_SPLIT_PATH = ''.join([DOWNLOADS_PATH, '/21CSGuide_English_split/'])
 
 POINTB_PDF_URL = ''.join([POINTB_URL, 's/'])
@@ -43,8 +45,8 @@ PDFS = (
 
 VIDEO_URL_EN = ''.join([POINTB_URL, '21cs-videos'])
 VIDEO_URL_MY = ''.join([POINTB_URL, '21cs-videos-mm'])
-VIDEO_FILENAME_PREFIX_EN = 'pointb21cs-video-%s-' % LANG_CODE_EN
-VIDEO_FILENAME_PREFIX_MY = 'pointb21cs-video-%s-' % LANG_CODE_MY
+VIDEO_FILENAME_PREFIX_EN = 'pointb-video-%s-' % LANG_CODE_EN
+VIDEO_FILENAME_PREFIX_MY = 'pointb-video-%s-' % LANG_CODE_MY
 VIDEO_URLS = (
     {
         'video_url': VIDEO_URL_EN, 
@@ -234,73 +236,14 @@ def local_construct_pdfs():
     return False
 
 
-class PointB21Video():
-
-    uid = 0  # unique ID
-    title = ''
-    description = ''
-    url = ''
-    lang_code = ''
-    filename_prefix = ''
-
-    def __init__(self, uid=0, url='', title='', description='', lang_code='', 
-            filename_prefix=''):
-        self.uid = uid  # TODO(cpauya): 
-        self.url = url
-        self.title = title
-        self.description = description
-        self.lang_code = lang_code
-        self.filename_prefix = filename_prefix
-
-    def __str__(self):
-        return 'PointB21Video (%s - %s - %s)' % (self.uid, self.title, self.url,)
-
-    def get_filename(self):
-        return self.filename_prefix + '%(id)s.%(ext)s'
-
-    def download(self):
-        ydl_options = {
-            'outtmpl': self.get_filename(),
-            'writethumbnail': True,
-            'no_warnings': True,
-            'continuedl': False,
-            'restrictfilenames': True,
-            'quiet': False,
-            # Note the format specification is important so we get mp4 and not taller than 480
-            'format': "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]"
-        }
-        with youtube_dl.YoutubeDL(ydl_options) as ydl:
-            pp = pprint.PrettyPrinter()
-            try:
-                ydl.add_default_info_extractors()
-                vinfo = ydl.extract_info(self.url, download=True)
-                # Replace "temporary values" of attributes with actual values.
-                self.uid = vinfo.get('id', '')
-                self.title = vinfo.get('title', '')
-                self.description = vinfo.get('description', '')
-                print('==> video', self)
-
-                # # These are useful when debugging.
-                # del vinfo['formats']  # to keep from printing 100+ lines
-                # del vinfo['requested_formats']  # to keep from printing 100+ lines
-                # print('==> Printing video info:')
-                # pp.pprint(vinfo)
-            except (youtube_dl.utils.DownloadError,
-                    youtube_dl.utils.ContentTooShortError,
-                    youtube_dl.utils.ExtractorError,) as e:
-                print('==> PointB21Video.download(): Error downloading videos')
-                pp.pprint(e)
-                return False
-        return True
-
-
 def scrape_video_data(url, lang_code, filename_prefix):
     """
-    Scrapes videos based on the URL passed and returns a list of PointB21Video objects.
+    Scrapes videos based on the URL passed and returns a list of PointBVideo objects.
     For efficiency, the actual download will be done outside of this function, 
     after all video links have been collected.
     """
     video_data = []
+    pp = pprint.PrettyPrinter()
     try:
         if lang_code in LANG_CODES:
             print('==> SCRAPING', url)
@@ -316,9 +259,27 @@ def scrape_video_data(url, lang_code, filename_prefix):
                 chunk = BeautifulSoup(data_html, 'html5lib')
                 iframe = chunk.find('iframe')
                 src = iframe['src']
-                title = 'TODO:'
-                description = 'TODO:'
-                video = PointB21Video(
+                title = iframe['title']
+
+                print('==> SCRAPED VALUES')
+                description = ''  # Get from the scraped page details
+                block_html = content_div.find_all('div', class_='sqs-block html-block sqs-block-html')
+                if isinstance(block_html, list) and len(block_html) > 1:
+                    # Video description is the second div block.
+                    desc_block = block_html[1]
+                    block_content = desc_block.find('div', class_='sqs-block-content')
+                    print('==> BLOCK_CONTENT', block_content)
+                    # NOTE: Some descriptions have <em> etc tags, some are separated by <br/> tags, while
+                    # most are separated with <p> tags.  So we use `get_text(" ") - replacing those tags
+                    # with " " and then stripping whitespaces for a "clean" description.`
+                    description = block_content.get_text(" ", strip=True)
+                    print('==> DESCRIPTION', description)
+                print('==> url==', src)
+                print('==> title==', title)
+                print('==> description==', description)
+                print('==> DONE with SCRAPED VALUES')
+
+                video = PointBVideo(
                             url=src, 
                             title=title, 
                             description=description, 
@@ -327,15 +288,13 @@ def scrape_video_data(url, lang_code, filename_prefix):
                 video_data.append(video)
     except Exception as e:
         print('==> Error scraping video URL', VIDEO_URL_EN)
-        pp = pprint.PrettyPrinter()
         pp.pprint(e)
     return video_data
 
 
 def download_videos():
     """
-    Actually download the videos.
-    TODO(cpauya): Download videos to the `downloads/videos/` folder.
+    Scrape, collect, and download the videos and their thumbnails.
     """
     for vinfo in VIDEO_URLS:
         try:
@@ -344,13 +303,14 @@ def download_videos():
                                 vinfo['lang_code'], 
                                 vinfo['filename_prefix'])
             print('==> DOWNLOADING', vinfo)
-            # Do the actual download of video and metadata info for all video objects.
+            # Download video and metadata info for all video objects collected.
             for i, video in enumerate(video_data):
                 progress = '%d/%d' % (i+1, len(video_data),)
                 progress = '==> %s: Downloading video from %s ...' % (progress, video.url,)
                 print(progress)
-                if video.download():
+                if video.download(download_dir=DOWNLOADS_VIDEOS_PATH):
                     # TODO(cpauya): Create VideoTopic then add to channel.
+                    pass
         except Exception as e:
             print('Error downloading videos:')
             pp = pprint.PrettyPrinter()
@@ -367,23 +327,6 @@ def local_construct_videos():
     if not download_videos():
         print('==> Download of Videos FAILED!')
         return False
-
-    # main_topic = TopicNode(title="English", source_id="<21cs_en_id>")
-
-    # # Introduction
-    # front_doc_node = DocumentNode(
-    #     title="Introduction",
-    #     description="Introduction",
-    #     source_id=frontmatter_file,
-    #     license=get_license("CC BY-NC-SA", copyright_holder="Point B Design and Training"),
-    #     language="en",
-    #     files=[
-    #         DocumentFile(
-    #             path=os.path.join(PDF_SPLIT_PATH, frontmatter_file),
-    #             language="en"
-    #         )
-    #     ])
-    # main_topic.add_child(front_doc_node)
     return False
 
 
@@ -682,18 +625,30 @@ class PointBChef(SushiChef):
 
         channel = self.get_channel(**kwargs)
 
-        main_topic = TopicNode(title="English", source_id="<21cs_en_id>")
-        main_topic2 = TopicNode(title="Burmese", source_id="<21cs_my_id>")
-        channel.add_child(main_topic)
-        channel.add_child(main_topic2)
+        # English topics
+        main_topic = TopicNode(title="English", source_id="21cs_en_main")
+        topic_guide = TopicNode(title="21st Century Guide", source_id="21cs_en_topic")
+        topic_videos_en = TopicNode(title="Videos", source_id="21cs_en_videos")
+        main_topic.add_child(topic_guide)
+        main_topic.add_child(topic_videos_en)
 
-        main_topic = build_english_pdf_topics(main_topic)
+        # Burmese topics
+        main_topic_my = TopicNode(title="Burmese", source_id="21cs_my_main")
+        topic_guide_my = TopicNode(title="21st Century Guide", source_id="21cs_my_guide")
+        topic_videos_my = TopicNode(title="Videos", source_id="21cs_my_videos")
+        main_topic_my.add_child(topic_guide_my)
+        main_topic_my.add_child(topic_videos_my)
+
+        channel.add_child(main_topic)
+        channel.add_child(main_topic_my)
+
+        main_topic = build_english_pdf_topics(topic_guide)
         # TODO(cpauya): English videos
-        main_topic = build_english_video_topics(main_topic)
+        main_topic = build_english_video_topics(topic_guide)
         # TODO(cpauya): Burmese .pdfs
-        main_topic = build_burmese_pdf_topics(main_topic)
+        main_topic = build_burmese_pdf_topics(topic_guide)
         # TODO(cpauya): Burmese videos
-        main_topic = build_burmese_video_topics(main_topic)
+        main_topic = build_burmese_video_topics(topic_guide)
 
         return channel
 
