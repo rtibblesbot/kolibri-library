@@ -10,22 +10,27 @@ from copy import copy
 from PyPDF2 import PdfFileReader, PdfFileWriter
 
 from ricecooker.chefs import SushiChef
-from ricecooker.classes.files import DocumentFile
+from ricecooker.classes.files import DocumentFile, VideoFile
 from ricecooker.classes.licenses import get_license
-from ricecooker.classes.nodes import ChannelNode, TopicNode, DocumentNode
+from ricecooker.classes.nodes import ChannelNode, DocumentNode, TopicNode, VideoNode
 from ricecooker.utils.pdf import PDFParser
 
 from pointb import PointBVideo
 
+LE = 'Learning Equality'
 LANG_CODE_EN = 'en'
 LANG_CODE_MY = 'my'
 LANG_CODES = (LANG_CODE_EN, LANG_CODE_MY,)
 
+POINTB = 'Point B Design and Training'
 POINTB_URL = 'http://www.pointb.is/'
 
-DOWNLOADS_PATH = "downloads/"
-DOWNLOADS_VIDEOS_PATH = "downloads/videos/"
-PDF_SPLIT_PATH = ''.join([DOWNLOADS_PATH, '/21CSGuide_English_split/'])
+# DOWNLOADS_PATH = "downloads/"
+DOWNLOADS_PATH = os.path.join(os.getcwd(), "downloads/")
+# DOWNLOADS_VIDEOS_PATH = "downloads/videos/"
+DOWNLOADS_VIDEOS_PATH = os.path.join(DOWNLOADS_PATH, "videos/")
+# PDF_SPLIT_PATH = ''.join([DOWNLOADS_PATH, '21CSGuide_English_split/')
+PDF_SPLIT_PATH = os.path.join(DOWNLOADS_PATH, '21CSGuide_English_split/')
 
 POINTB_PDF_URL = ''.join([POINTB_URL, 's/'])
 CSGUIDE_PDF_EN = '21CSGuide_English.pdf'
@@ -47,19 +52,20 @@ VIDEO_URL_EN = ''.join([POINTB_URL, '21cs-videos'])
 VIDEO_URL_MY = ''.join([POINTB_URL, '21cs-videos-mm'])
 VIDEO_FILENAME_PREFIX_EN = 'pointb-video-%s-' % LANG_CODE_EN
 VIDEO_FILENAME_PREFIX_MY = 'pointb-video-%s-' % LANG_CODE_MY
-VIDEO_URLS = (
-    {
+VIDEO_URLS = { 
+    'en': {
         'video_url': VIDEO_URL_EN, 
         'filename_prefix': VIDEO_FILENAME_PREFIX_EN,
-        'lang_code': LANG_CODE_EN
-    },
-    {
+        'lang_code': LANG_CODE_EN,
+        'download_path': os.path.join(os.getcwd(), DOWNLOADS_VIDEOS_PATH, LANG_CODE_EN, '')
+        },
+    'my': {
         'video_url': VIDEO_URL_MY, 
         'filename_prefix': VIDEO_FILENAME_PREFIX_MY,
-        'lang_code': LANG_CODE_MY
-    },
-)
-
+        'lang_code': LANG_CODE_MY,
+        'download_path': os.path.join(os.getcwd(), DOWNLOADS_VIDEOS_PATH, LANG_CODE_MY, '')
+        }
+    }
 
 def split_chapters_en():
     """
@@ -88,6 +94,7 @@ def split_chapters_en():
         {'title': 'Thanks To Our Teachers', 'page_start': 135, 'page_end': 137},
     ]
 
+    print('====> PDF_PATH_EN_CROPPED', PDF_PATH_EN_CROPPED, 'PDF_SPLIT_PATH', PDF_SPLIT_PATH)
     with PDFParser(PDF_PATH_EN_CROPPED, directory=PDF_SPLIT_PATH) as pdfparser:
         chapters = pdfparser.split_subchapters(jsondata=page_ranges)
         # for chapter in chapters:
@@ -119,7 +126,7 @@ def download_pdfs():
             pdf_path_cropped = pdf_path.replace('.pdf', '_cropped.pdf')
             split_left_right_pages(pdf_path, pdf_path_cropped)
 
-            print_pdf_info(pdf_path_cropped)
+            # print_pdf_info(pdf_path_cropped)
 
             print('... DONE cropping.')
 
@@ -214,7 +221,7 @@ def local_construct_pdfs():
         print('==> Split chapters for English PDF FAILED!')
         return False
 
-    main_topic = TopicNode(title="English", source_id="<21cs_en_id>")
+    main_topic = TopicNode(title="English", source_id="pointb_en_main")
 
     frontmatter_file = "0-Front-Matter.pdf"
 
@@ -224,7 +231,7 @@ def local_construct_pdfs():
         description="Introduction",
         source_id=frontmatter_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language=LANG_CODE_EN,
         files=[
             DocumentFile(
@@ -261,23 +268,23 @@ def scrape_video_data(url, lang_code, filename_prefix):
                 src = iframe['src']
                 title = iframe['title']
 
-                print('==> SCRAPED VALUES')
+                # print('==> SCRAPED VALUES')
                 description = ''  # Get from the scraped page details
                 block_html = content_div.find_all('div', class_='sqs-block html-block sqs-block-html')
                 if isinstance(block_html, list) and len(block_html) > 1:
                     # Video description is the second div block.
                     desc_block = block_html[1]
                     block_content = desc_block.find('div', class_='sqs-block-content')
-                    print('==> BLOCK_CONTENT', block_content)
+                    # print('==> BLOCK_CONTENT', block_content)
                     # NOTE: Some descriptions have <em> etc tags, some are separated by <br/> tags, while
                     # most are separated with <p> tags.  So we use `get_text(" ") - replacing those tags
                     # with " " and then stripping whitespaces for a "clean" description.`
                     description = block_content.get_text(" ", strip=True)
-                    print('==> DESCRIPTION', description)
-                print('==> url==', src)
-                print('==> title==', title)
-                print('==> description==', description)
-                print('==> DONE with SCRAPED VALUES')
+                    # print('==> DESCRIPTION', description)
+                # print('==> url==', src)
+                # print('==> title==', title)
+                # print('==> description==', description)
+                # print('==> DONE with SCRAPED VALUES')
 
                 video = PointBVideo(
                             url=src, 
@@ -286,48 +293,80 @@ def scrape_video_data(url, lang_code, filename_prefix):
                             lang_code=lang_code,
                             filename_prefix=filename_prefix)
                 video_data.append(video)
+
+                # # TODO(cpauya): delete when done debugging
+                # if len(video_data) > 0:
+                #     break
     except Exception as e:
         print('==> Error scraping video URL', VIDEO_URL_EN)
         pp.pprint(e)
     return video_data
 
 
-def download_videos():
+def download_videos(lang_code):
     """
     Scrape, collect, and download the videos and their thumbnails.
     """
-    for vinfo in VIDEO_URLS:
-        try:
-            video_data = scrape_video_data(
-                                vinfo['video_url'], 
-                                vinfo['lang_code'], 
-                                vinfo['filename_prefix'])
-            print('==> DOWNLOADING', vinfo)
-            # Download video and metadata info for all video objects collected.
-            for i, video in enumerate(video_data):
-                progress = '%d/%d' % (i+1, len(video_data),)
-                progress = '==> %s: Downloading video from %s ...' % (progress, video.url,)
-                print(progress)
-                if video.download(download_dir=DOWNLOADS_VIDEOS_PATH):
-                    # TODO(cpauya): Create VideoTopic then add to channel.
-                    pass
-        except Exception as e:
-            print('Error downloading videos:')
-            pp = pprint.PrettyPrinter()
-            pp.pprint(e)
-        print('==> DONE downloading videos for', vinfo)
-    print('==> DONE downloading videos!')
-    return True
+    video_data = []
+    vinfo = VIDEO_URLS[lang_code]
+    try:
+        download_path = vinfo['download_path']
+        video_data = scrape_video_data(
+                            vinfo['video_url'], 
+                            vinfo['lang_code'], 
+                            vinfo['filename_prefix'])
+        print('==> DOWNLOADING', download_path, '====> vinfo', vinfo)
+        # Download video and metadata info for all video objects collected.
+        for i, video in enumerate(video_data):
+            progress = '%d/%d' % (i+1, len(video_data),)
+            progress = '==> %s: Downloading video from %s ...' % (progress, video.url,)
+            print(progress)
+            if video.download(download_dir=download_path):
+                # TODO(cpauya): Create VideoTopic then add to channel.
+                pass
+    except Exception as e:
+        print('Error downloading videos:')
+        pp = pprint.PrettyPrinter()
+        pp.pprint(e)
+        raise e
+    print('==> DONE downloading videos for', vinfo)
+    return video_data
 
 
 def local_construct_videos():
     """
     TODO(cpauya): for testing, remove when done
     """
-    if not download_videos():
+    video_data = download_videos()
+    if not video_data:
         print('==> Download of Videos FAILED!')
         return False
-    return False
+
+    main_topic = TopicNode(title="English", source_id="pointb_en_main")
+
+    # TODO(cpauya: VideoNode constructor has no argument for language code?
+    for i, video in enumerate(video_data):
+        # # TODO(cpauya): Remove when done testing
+        # if i > 0:
+        #     break
+        filepath = os.path.join(DOWNLOADS_VIDEOS_PATH, video.filepath)
+        video_node = VideoNode(
+                source_id=video.uid, 
+                title=video.title, 
+                description=video.description,
+                thumbnail=video.thumbnail,
+                license=get_license(
+                    "CC BY-NC-SA", copyright_holder=POINTB),
+                files=[
+                    VideoFile(
+                        path=filepath,
+                        language=LANG_CODE_EN
+                    )
+                ])
+        main_topic.add_child(video_node)
+        print('====> VIDEO INFO', video.thumbnail, video.filepath)
+
+    return main_topic
 
 
 def build_english_pdf_topics(main_topic):
@@ -354,7 +393,7 @@ def build_english_pdf_topics(main_topic):
         description="Introduction",
         source_id=frontmatter_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -370,7 +409,7 @@ def build_english_pdf_topics(main_topic):
         description="Section 1: Setting a Vision for Your 21st Century Learning Classroom",
         source_id=section_1_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -383,14 +422,14 @@ def build_english_pdf_topics(main_topic):
     # Section 2
     section_2_topic = TopicNode(
         title="21st Century Mindsets & Practices",
-        source_id="21cs_section_2")
+        source_id="pointb_section_2")
 
     section_2_doc_node = DocumentNode(
         title="21st Century Mindsets and Practices",
         description="21st Century Mindsets and Practices",
         source_id=section_2_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -405,7 +444,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #1: Mindfulness",
         source_id=section_2_0_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -420,7 +459,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #2: Curiousity",
         source_id=section_2_1_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -435,7 +474,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #3: Growth",
         source_id=section_2_2_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -450,7 +489,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #4: Empathy",
         source_id=section_2_3_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -465,7 +504,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #5: Appreciation",
         source_id=section_2_4_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -480,7 +519,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #6: Experimentation",
         source_id=section_2_5_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -495,7 +534,7 @@ def build_english_pdf_topics(main_topic):
         description="Mindset #7: Systems Thinking",
         source_id=section_2_6_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -512,7 +551,7 @@ def build_english_pdf_topics(main_topic):
         description="Section 3: 21st Century Skills",
         source_id=section_3_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -528,7 +567,7 @@ def build_english_pdf_topics(main_topic):
         description="Section 4: Self Discovery",
         source_id=section_4_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -544,7 +583,7 @@ def build_english_pdf_topics(main_topic):
         description="Section 5: 21st Century Skills Building For Teachers",
         source_id=section_5_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -560,7 +599,7 @@ def build_english_pdf_topics(main_topic):
         description="Section 6: Integrating 21st Century Skills Into Your Classroom",
         source_id=section_6_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -576,7 +615,7 @@ def build_english_pdf_topics(main_topic):
         description="Section 7: Thanks To Our Teachers",
         source_id=section_7_file,
         license=get_license(
-            "CC BY-NC-SA", copyright_holder="Point B Design and Training"),
+            "CC BY-NC-SA", copyright_holder=POINTB),
         language="en",
         files=[
             DocumentFile(
@@ -588,16 +627,74 @@ def build_english_pdf_topics(main_topic):
     return main_topic
 
 
-def build_english_video_topics(main_topic):
-    return main_topic
+def build_english_video_topics(topic):
+    """
+    """
+    video_data = download_videos(LANG_CODE_EN)
+    if not video_data:
+        print('==> Download of Videos FAILED!')
+        return False
+
+    # TODO(cpauya: VideoNode constructor has no argument for language code?
+    for i, video in enumerate(video_data):
+        # TODO(cpauya): Remove when done testing
+        # if i > 0:
+        #     break
+        # print('==> video', video)
+        filepath = video.filepath
+        video_node = VideoNode(
+                source_id=video.uid, 
+                title=video.title, 
+                description=video.description,
+                aggregator=LE,
+                thumbnail=video.thumbnail,
+                license=get_license(
+                    "CC BY-NC-SA", copyright_holder=POINTB),
+                files=[
+                    VideoFile(
+                        path=filepath,
+                        language=LANG_CODE_EN
+                    )
+                ])
+        topic.add_child(video_node)
+
+    return topic
 
 
-def build_burmese_pdf_topics(main_topic):
-    return main_topic
+def build_burmese_pdf_topics(topic):
+    return topic
 
 
-def build_burmese_video_topics(main_topic):
-    return main_topic
+def build_burmese_video_topics(topic):
+    """
+    """
+    video_data = download_videos(LANG_CODE_MY)
+    if not video_data:
+        print('==> Download of Videos FAILED!')
+        return False
+
+    for i, video in enumerate(video_data):
+        # TODO(cpauya): Remove when done testing
+        # if i > 0:
+        #     break
+        # print('==> video', video)
+        filepath = video.filepath
+        video_node = VideoNode(
+                source_id=video.uid, 
+                title=video.title, 
+                description=video.description,
+                aggregator=LE,
+                thumbnail=video.thumbnail,
+                license=get_license(
+                    "CC BY-NC-SA", copyright_holder=POINTB),
+                files=[
+                    VideoFile(
+                        path=filepath,
+                        language=LANG_CODE_MY
+                    )
+                ])
+        topic.add_child(video_node)
+    return topic
 
 
 class PointBChef(SushiChef):
@@ -626,16 +723,16 @@ class PointBChef(SushiChef):
         channel = self.get_channel(**kwargs)
 
         # English topics
-        main_topic = TopicNode(title="English", source_id="21cs_en_main")
-        topic_guide = TopicNode(title="21st Century Guide", source_id="21cs_en_topic")
-        topic_videos_en = TopicNode(title="Videos", source_id="21cs_en_videos")
+        main_topic = TopicNode(title="English", source_id="pointb_en_main")
+        topic_guide = TopicNode(title="21st Century Guide", source_id="pointb_en_topic")
+        topic_videos_en = TopicNode(title="Videos", source_id="pointb_en_videos")
         main_topic.add_child(topic_guide)
         main_topic.add_child(topic_videos_en)
 
         # Burmese topics
-        main_topic_my = TopicNode(title="Burmese", source_id="21cs_my_main")
-        topic_guide_my = TopicNode(title="21st Century Guide", source_id="21cs_my_guide")
-        topic_videos_my = TopicNode(title="Videos", source_id="21cs_my_videos")
+        main_topic_my = TopicNode(title="Burmese", source_id="pointb_my_main")
+        topic_guide_my = TopicNode(title="21st Century Guide", source_id="pointb_my_guide")
+        topic_videos_my = TopicNode(title="Videos", source_id="pointb_my_videos")
         main_topic_my.add_child(topic_guide_my)
         main_topic_my.add_child(topic_videos_my)
 
@@ -644,11 +741,11 @@ class PointBChef(SushiChef):
 
         main_topic = build_english_pdf_topics(topic_guide)
         # TODO(cpauya): English videos
-        main_topic = build_english_video_topics(topic_guide)
+        topic = build_english_video_topics(topic_videos_en)
         # TODO(cpauya): Burmese .pdfs
         main_topic = build_burmese_pdf_topics(topic_guide)
         # TODO(cpauya): Burmese videos
-        main_topic = build_burmese_video_topics(topic_guide)
+        topic = build_burmese_video_topics(topic_videos_my)
 
         return channel
 
@@ -658,7 +755,7 @@ if __name__ == "__main__":
     Run this script on the command line using:
         python sushichef.py -v --reset --token=YOURTOKENHERE9139139f3a23232
     """
-    # chef = PointBChef()
-    # chef.main()
+    chef = PointBChef()
+    chef.main()
     # local_construct_pdfs()
-    local_construct_videos()
+    # local_construct_videos()

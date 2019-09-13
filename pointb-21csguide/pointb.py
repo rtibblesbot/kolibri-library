@@ -9,26 +9,50 @@ class PointBVideo():
     description = ''
     url = ''
     lang_code = ''
+    thumbnail = ''  # local path to thumbnail image
+    filepath = ''  # local path to video file
     filename_prefix = ''
+    download_dir = './'
 
     def __init__(self, uid=0, url='', title='', description='', lang_code='', 
             filename_prefix=''):
-        self.uid = uid
+        self.uid = str(uid)
         self.url = url
         self.title = title
         self.description = description
+        self.thumbnail = ''
+        self.filepath = ''
         self.lang_code = lang_code
         self.filename_prefix = filename_prefix
-        print(self)
 
     def __str__(self):
         return 'PointBVideo (%s - %s - %s - %s)' % (self.uid, self.url, self.title, self.description,)
 
-    def get_filename(self, download_dir):
+    def get_filename(self, download_dir='./'):
+        # TODO(cpauya): How to get the mp4 filename from local path?
         filename = download_dir + self.filename_prefix + '%(id)s.%(ext)s'
+        # MUST: make sure to save the `download_dir` for reuse later.
+        self.download_dir = download_dir
         return filename
 
+    def set_filepath_and_thumbnail(self, video_info, download_dir='./'):
+        # MUST: assign the filename to the `filepath` attribute based on
+        # the video_info dict argument.
+        # Also traverses the `video_info['thumbnails']` list to get the image filename
+        # to be used for the `thumbnail` attribute.
+        filename = self.get_filename(download_dir=self.download_dir)
+        self.filepath = filename % video_info
+
+        for thumbnail in video_info.get('thumbnails', None):
+            value = thumbnail.get('filename', '')
+            if value:
+                self.thumbnail = value
+                break
+
+        return self.filepath
+
     def download(self, download_dir="./"):
+        print('====> download()', self.get_filename(download_dir))
         ydl_options = {
             'outtmpl': self.get_filename(download_dir),
             'writethumbnail': True,
@@ -46,8 +70,10 @@ class PointBVideo():
                 vinfo = ydl.extract_info(self.url, download=True)
                 # Save the remaining "temporary scraped values" of attributes with actual values
                 # from the video metadata.
-                # self.uid = vinfo.get('id', '')
-                # self.title = vinfo.get('title', '')
+                self.uid = vinfo.get('id', '')
+                self.title = vinfo.get('title', '')
+                # Set the filepath and thumbnail attributes of the video object.
+                self.set_filepath_and_thumbnail(vinfo, download_dir=download_dir)
                 # pp.pprint(self)
 
                 # # These are useful when debugging.
@@ -55,11 +81,11 @@ class PointBVideo():
                 # del vinfo['requested_formats']  # to keep from printing 100+ lines
                 # print('==> Printing video info:')
                 # pp.pprint(vinfo)
-                print('==> NEW', self)
+                # print('==> NEW', self)
             except (youtube_dl.utils.DownloadError,
                     youtube_dl.utils.ContentTooShortError,
                     youtube_dl.utils.ExtractorError,) as e:
-                print('==> PointBVideo.download(): Error downloading videos')
-                pp.pprint(e)
-                return False
+                # print('==> PointBVideo.download(): Error downloading videos')
+                # pp.pprint(e)
+                raise e
         return True
