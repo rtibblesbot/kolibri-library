@@ -27,7 +27,11 @@ forever_adapter= CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=ca
 sess.mount('http://', forever_adapter)
 sess.mount('https://', forever_adapter)
 
-ID_BLACKLIST = ["html", "by-device", "new", "quantum", "general", "by-level"]
+ID_BLACKLIST_BY_LANG = {
+    'en': ["html", "by-device", "new", "quantum", "general"],
+    'ar': ["html", "by-device", "new", "quantum", "general", "by-level"]
+}
+
 ARABIC_NAME_CATEGORY = {
     "Physics": "الفيزياء",
     "Biology": "الأحياء",
@@ -127,7 +131,7 @@ class PhETSushiChef(SushiChef):
             # look up the child category by ID
             subcat = categories[str(child_id)]
             # skip it if it's in our blacklist
-            if subcat["name"] in ID_BLACKLIST:
+            if subcat["name"] in ID_BLACKLIST_BY_LANG.get(language, ID_BLACKLIST_BY_LANG['en']):
                 continue
             # make the title human-readable, and clean it up
             title = subcat["name"].replace("-", " ").title()
