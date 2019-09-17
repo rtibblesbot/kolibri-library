@@ -89,25 +89,26 @@ DATA = {
             'pdf_path': PDF_PATH_MY,
             'pdf_path_cropped': PDF_PATH_MY_CROPPED,
             'pdf_split_path': PDF_SPLIT_PATH_MY,
+            'title': '၂၁ ရာစုခေတ်ကာလ၊ စွမ်းရည်ပြည့်ဝ ဆရာဒ ဆရာမ',  # 21st century guide for teachers (PDF title)
             'page_ranges': [
-                {'title': 'Front Matter', 'page_start': 0, 'page_end': 13},
-                {'title': 'Section 1 - Setting a Vision for Your 21st Century Learning Classroom', 'page_start': 13, 'page_end': 23},
-                {'title': 'Section 2 - 21st Century Mindsets and Practices', 'page_start': 23, 'page_end': 61,
+                {'title': 'နိဒါန်းအဖွင့်', 'page_start': 0, 'page_end': 13},
+                {'title': '1 - သင်စ် ၂၁ ရာစု စာသင်ခန်းအတွက် မျှော်မှန်းချက်တစ်ခုထားရှိခြင်း', 'page_start': 13, 'page_end': 23},
+                {'title': '2 - ၂၁ ရာစု စိတ်နေသဘောထားများနှင့် အလေ့အကျင့်များ', 'page_start': 23, 'page_end': 61,
                 'children': [
-                    {'title': 'Mindset #1: Mindfulness', 'page_start': 25, 'page_end': 33},
-                    {'title': 'Mindset #2: Curiousity', 'page_start': 33, 'page_end': 39},
-                    {'title': 'Mindset #3: Growth', 'page_start': 39, 'page_end': 43},
-                    {'title': 'Mindset #4: Empathy', 'page_start': 43, 'page_end': 49},
-                    {'title': 'Mindset #5: Appreciation', 'page_start': 49, 'page_end': 53},
-                    {'title': 'Mindset #6: Experimentation', 'page_start': 53, 'page_end': 59},
-                    {'title': 'Mindset #7: Systems Thinking', 'page_start': 59, 'page_end': 63}
+                    {'title': '#1: စိတ်တည်ငြိမ်မူ သတိအားကောင်းခြင်း', 'page_start': 25, 'page_end': 33},
+                    {'title': '#2: သိလိုစိတ်ပြင်းပြခြင်း', 'page_start': 33, 'page_end': 39},
+                    {'title': '#3: ရှင်သန်ကြီးထွားသောစိတ်', 'page_start': 39, 'page_end': 43},
+                    {'title': '#4: ကိုယ်ချင်းစာ  နားလည်စိတ်', 'page_start': 43, 'page_end': 49},
+                    {'title': '#5: တန်ဖိုးထား ဆက်ဆံခြင်း', 'page_start': 49, 'page_end': 53},
+                    {'title': '#6: လက်တွေ့စမ်းသပ်ဆောင်ရွက်တတ်အောင်', 'page_start': 53, 'page_end': 59},
+                    {'title': '#7: စနစ်တစ်ခုလုံးအား ခြုံငုံရဲ စဉ်းစားတွေးခေါ်တတ်အောင်', 'page_start': 59, 'page_end': 63}
                 ]
                 },
-                {'title': 'Section 3 - 21st Century Skills', 'page_start': 63, 'page_end': 75},
-                {'title': 'Section 4 - Self-Discovery', 'page_start': 75, 'page_end': 101},
-                {'title': 'Section 5 - 21st Century Skills Building For Teachers', 'page_start': 101, 'page_end': 117},
-                {'title': 'Section 6 - Integrating 21st Century Skills Into Your Classroom', 'page_start': 117, 'page_end': 143},
-                {'title': 'Thanks To Our Teachers', 'page_start': 143, 'page_end': 145},
+                {'title': '3 - စွမ်းဆောင်ရည်မြှင်ရာစုသစ် 21', 'page_start': 63, 'page_end': 75},
+                {'title': '4 - ကိုယ်တိုင်စ် အစွမ်းအစများကို ပြန်လည်ရှာဖွေအကဲဖြတ်ခြင်း', 'page_start': 75, 'page_end': 101},
+                {'title': '5 - ဆရာ/ဆရာမများအတွက် စွမ်းရည်များ/ကျွမ်းကျင်မှုများ တည်ဆောက်ပေးခြင်း', 'page_start': 101, 'page_end': 117},
+                {'title': '6 - ၂၁ ရာစုခေတ်စွမ်းရည်များကို သင်စ် စာသင်ခန်း ထည့်သွင်းလေ့ကျင့်အသုံးချခြင်း', 'page_start': 117, 'page_end': 143},
+                {'title': 'ကျေးဇူးတင်စကား', 'page_start': 143, 'page_end': 145},
             ]
         },
         'video_info':  {
@@ -115,6 +116,14 @@ DATA = {
             'filename_prefix': 'pointb-video-%s-' % LANG_CODE_MY,
             'download_path': os.path.join(os.getcwd(), DOWNLOADS_VIDEOS_PATH, LANG_CODE_MY, '')
         },
+        'video_titles': {  # vimeo id --> title
+            '262755467': 'သင်ထောက်ကူ ပစ္စည်းများ',  # 'visual tools
+            '262570817': 'တွေးပါ! တ္ပဲပါ! မျှဝေပါ',  # think pair share
+            '262755072': 'ဂျစ်ဆော', # Jigsaw
+            '262755673': 'နေ့စဉ်သုံးသပ်ဆွေးနွေးခြင်းများ', # Daily review
+            '267661918': 'အတွေ့အကြုံများကို အခြေခံသော သင်ယူရေးဖြစ်ရပ်ယန္တယား', # Experiential Learning Cycle
+            '262572490': 'အင်တိုက်အားတိုက် ခေါင်းချင်းရိုက် အဖြေရှာခြင်း' # Brainstorming
+        }
     }
 }
 
