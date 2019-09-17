@@ -540,7 +540,7 @@ class PointBChef(SushiChef):
         # channel's unique id (change me!!) # TODO(cpauya): remove 'test-'     # NOTE when you remove test- the channel_id will change; make sure to update notion card
         "CHANNEL_SOURCE_ID": "test-21csguide",
         "CHANNEL_LANGUAGE": "mul",  # le_utils language code
-        "CHANNEL_THUMBNAIL": None,  # TODO(cpauya): set thumbnail
+        "CHANNEL_THUMBNAIL": 'chefdata/channel_thumbnail.png',
         # (optional)
         "CHANNEL_DESCRIPTION": "Guide To Becoming A 21St Century Teacher",
     }
