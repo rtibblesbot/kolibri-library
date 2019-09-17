@@ -5,7 +5,11 @@ import templater
 from foundry import foundry
 requests_cache.install_cache()
 foundry.DEBUG = True
-url = "https://global-asp.github.io/storybooks-minnesota/stories/en/0087/"
+url = "https://global-asp.github.io/storybooks-minnesota/stories/es/0087/"
+
+# TODO
+# get level, full audio, diff language headings
+# get all langs
 
 class Book(object):
     svg_replace = {"pencil": "author",
@@ -64,20 +68,23 @@ class Book(object):
         self.texts = []
         self.imgs = []
         self.audios = []
+        self.foreigns = []
         all_page_tags = self.xpath("//div[starts-with(@id, 'text')]")
         page_tags = [x for x in all_page_tags if x.attrib["id"] != "text01"]
         assert len(page_tags) != len(all_page_tags)
         for page_tag in page_tags:
-            text, img, audio = self.parse_page(page_tag)
+            text, img, audio, foreign = self.parse_page(page_tag)
             self.texts.append(text)
             self.imgs.append(img)
             self.audios.append(audio)
+            self.foreigns.append(foreign)
 
     def parse_page(self, tag):
         text = tag.xpath(".//h3")[0].text_content().strip().replace("\n", " ")
+        foreign = tag.xpath(".//h3")[2].text_content().strip().replace("\n", " ")
         img = tag.xpath(".//img[@class='img-responsive']/@src")[0]
         audio = tag.xpath(".//audio/@src")[0]
-        return text, img, audio
+        return text, img, audio, foreign
 
 #book = Book(url)
 #html = templater.Carousel(book).html()
