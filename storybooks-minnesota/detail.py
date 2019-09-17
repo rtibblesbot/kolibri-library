@@ -5,7 +5,7 @@ import templater
 from foundry import foundry
 requests_cache.install_cache()
 foundry.DEBUG = True
-# url = "https://global-asp.github.io/storybooks-minnesota/stories/en/0087/"
+url = "https://global-asp.github.io/storybooks-minnesota/stories/en/0087/"
 
 class Book(object):
     svg_replace = {"pencil": "author",
@@ -100,4 +100,4 @@ class MyFoundry(foundry.Foundry):
 
 if __name__ == "__main__":
     f = MyFoundry(url)
-    print (f.node())
+    print (f.book)
