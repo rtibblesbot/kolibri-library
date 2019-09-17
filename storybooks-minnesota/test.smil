@@ -11,5 +11,10 @@
             <text src="intro.xhtml#para_1"/>
             <audio src="chapter1_audio.mp3" clipBegin="0:00:12.000" clipEnd="0:00:22.000"/>
         </par>
+
+        <par id="id3">
+            <text src="page0.xhtml#p0"/>
+            <audio src="audio0.mp3" clipBegin="0:00:00.000" clipEnd="0:00:22.000"/>
+        </par>
     </body>
 </smil>

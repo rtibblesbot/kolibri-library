@@ -54,27 +54,39 @@ def make_book(book_data):
         book.add_item(image_item)
 
         audio_data = requests.get(image).content
-        audio_item = epub.EpubItem(file_name=f'audio{i}.mp3', content=audio_data)
+        audio_item = epub.EpubItem(file_name=f'audio{i}.mp3',
+                                   content=audio_data,
+                                   media_type="audio/mpeg")
         book.add_item(audio_item)
 
-        page = epub.EpubHtml(title=book_data.title, file_name=f'page{i}.xhtml',
-                             media_overlay="intro_overlay")#, lang='hr')
-        page.content=f'<p style="font-size:800%" id=p>{text}</p><img src="image{i}.jpeg" id=play>'
+        page = epub.EpubHtml(title=book_data.title,
+                             file_name=f'page{i}.xhtml',
+                             # lang = "en",
+                             media_overlay="intro_overlay")
+
+        page.content=f'<p style="font-size:800%" id=p{i}>{text}</p><img src="image{i}.jpeg" id=play>'
         book.add_item(page)
         pages.append(page)
 
 
+    ######
 
     c1 = epub.EpubHtml(title='Introduction', file_name='intro.xhtml', lang='en', media_overlay='intro_overlay')
     c1.content=u'<html><head></head><body><section epub:type="frontmatter colophon"><h1><span id="header_1">Introduction</span></h1><p><span id="para_1">Introduction paragraph where i explain what is happening.</span></p></section></body></html>'
 
-    s1 = epub.EpubSMIL(uid='intro_overlay', file_name='test.smil', content=open('test.smil', 'rt').read())
+    s1 = epub.EpubSMIL(uid='intro_overlay',
+                       file_name='test.smil',
+                       content=open('test.smil', 'rt').read())
 
-    a1 = epub.EpubItem(file_name='chapter1_audio.mp3', content=open('chapter1_audio.mp3', 'rb').read(), media_type='audio/mpeg')
+    a1 = epub.EpubItem(file_name='chapter1_audio.mp3',
+                       content=open('chapter1_audio.mp3', 'rb').read(),
+                       media_type='audio/mpeg')
     # add chapters to the book
     book.add_item(c1)
     book.add_item(s1)
     book.add_item(a1)
+
+    #####
 
     book.toc = [epub.Link('intro.xhtml', 'Introduction', 'intro')]
 
