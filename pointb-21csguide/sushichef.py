@@ -45,6 +45,7 @@ PDF_PATH_EN_CROPPED = os.path.join(os.getcwd(), DOWNLOADS_PATH, CSGUIDE_PDF_EN_C
 PDF_PATH_MY = os.path.join(os.getcwd(), DOWNLOADS_PATH, CSGUIDE_PDF_MY)
 PDF_PATH_MY_CROPPED = os.path.join(os.getcwd(), DOWNLOADS_PATH, CSGUIDE_PDF_MY_CROPPED)
 
+
 DATA = {
     LANG_CODE_EN: {
         'lang_code': LANG_CODE_EN,
@@ -54,9 +55,9 @@ DATA = {
             'pdf_path_cropped': PDF_PATH_EN_CROPPED,
             'pdf_split_path': PDF_SPLIT_PATH_EN,
             'page_ranges': [
-                {'title': 'Front Matter', 'page_start': 0, 'page_end': 13},
-                {'title': 'Section 1 - Setting a Vision for Your 21st Century Learning Classroom', 'page_start': 13, 'page_end': 21},
-                {'title': 'Section 2 - 21st Century Mindsets and Practices', 'page_start': 21, 'page_end': 61,
+                {'title': 'Introduction', 'page_start': 0, 'page_end': 13},
+                {'title': 'Section 1: Setting a Vision for Your 21st Century Learning Classroom', 'page_start': 13, 'page_end': 21},
+                {'title': 'Section 2: 21st Century Mindsets and Practices', 'page_start': 21, 'page_end': 61,
                 'children': [
                     {'title': 'Mindset #1: Mindfulness', 'page_start': 23, 'page_end': 31},
                     {'title': 'Mindset #2: Curiousity', 'page_start': 31, 'page_end': 37},
@@ -67,10 +68,10 @@ DATA = {
                     {'title': 'Mindset #7: Systems Thinking', 'page_start': 57, 'page_end': 61}
                 ]
                 },
-                {'title': 'Section 3 - 21st Century Skills', 'page_start': 61, 'page_end': 69},
-                {'title': 'Section 4 - Self-Discovery', 'page_start': 69, 'page_end': 95},
-                {'title': 'Section 5 - 21st Century Skills Building For Teachers', 'page_start': 95, 'page_end': 109},
-                {'title': 'Section 6 - Integrating 21st Century Skills Into Your Classroom', 'page_start': 109, 'page_end': 135},
+                {'title': 'Section 3: 21st Century Skills', 'page_start': 61, 'page_end': 69},
+                {'title': 'Section 4: Self-Discovery', 'page_start': 69, 'page_end': 95},
+                {'title': 'Section 5: 21st Century Skills Building For Teachers', 'page_start': 95, 'page_end': 109},
+                {'title': 'Section 6: Integrating 21st Century Skills Into Your Classroom', 'page_start': 109, 'page_end': 135},
                 {'title': 'Thanks To Our Teachers', 'page_start': 135, 'page_end': 137},
             ]
 
@@ -149,25 +150,23 @@ def download_pdfs():
         return False
 
 
-def split_chapters():
+def split_chapters(lang_code):
     """
     Splits the chapters for the PDFs.
     """
-    for i, lang_code in enumerate(DATA):
-        pdf = DATA[lang_code]['pdf_info']
-        page_ranges = pdf['page_ranges']
-        pdf_path_cropped = pdf['pdf_path_cropped']
-        pdf_split_path = pdf['pdf_split_path']
+    pdf = DATA[lang_code]['pdf_info']
+    page_ranges = pdf['page_ranges']
+    pdf_path_cropped = pdf['pdf_path_cropped']
+    pdf_split_path = pdf['pdf_split_path']
 
-        print('==> Splitting chapters for', pdf_path_cropped)
-        print('====> PDF_PATH_CROPPED', pdf_path_cropped, 'PDF_SPLIT_PATH', pdf_split_path)
-        with PDFParser(pdf_path_cropped, directory=pdf_split_path) as pdfparser:
-            chapters = pdfparser.split_subchapters(jsondata=page_ranges)
-            # for chapter in chapters:
-            #     print(chapter)
-        print('==> DONE splitting chapters for PDF.')
-
-    return True
+    print('==> Splitting chapters for', pdf_path_cropped)
+    print('====> PDF_PATH_CROPPED', pdf_path_cropped, 'PDF_SPLIT_PATH', pdf_split_path)
+    with PDFParser(pdf_path_cropped, directory=pdf_split_path) as pdfparser:
+        chapters = pdfparser.split_subchapters(jsondata=page_ranges)
+        # for chapter in chapters:
+        #     print(chapter)
+    print('==> DONE splitting chapters for {} PDF.'.format(lang_code))
+    return chapters
 
 
 def get_dimensions(pdfin1):
@@ -465,549 +464,63 @@ def build_burmese_video_topics(topic):
     return topic
 
 
-def build_english_pdf_topics(main_topic):
-
-    frontmatter_file = "0-Front-Matter.pdf"
-    section_1_file = "1-Section-1---Setting-a-Vision-for-Your-21st-Century-Learning-Classroom.pdf"
-    section_2_file = "2-Section-2---21st-Century-Mindsets-and-Practices.pdf"
-    section_2_0_file = "2-0-Mindset-1-Mindfulness.pdf"
-    section_2_1_file = "2-1-Mindset-2-Curiousity.pdf"
-    section_2_2_file = "2-2-Mindset-3-Growth.pdf"
-    section_2_3_file = "2-3-Mindset-4-Empathy.pdf"
-    section_2_4_file = "2-4-Mindset-5-Appreciation.pdf"
-    section_2_5_file = "2-5-Mindset-6-Experimentation.pdf"
-    section_2_6_file = "2-6-Mindset-7-Systems-Thinking.pdf"
-    section_3_file = "3-Section-3---21st-Century-Skills.pdf"
-    section_4_file = "4-Section-4---Self-Discovery.pdf"
-    section_5_file = "5-Section-5---21st-Century-Skills-Building-For-Teachers.pdf"
-    section_6_file = "6-Section-6---Integrating-21st-Century-Skills-Into-Your-Classroom.pdf"
-    section_7_file = "7-Thanks-To-Our-Teachers.pdf"
-
-    # Introduction
-    front_doc_node = DocumentNode(
-        title="Introduction",
-        description="Introduction",
-        source_id=frontmatter_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, frontmatter_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(front_doc_node)
-
-    # Section 1
-    section_1_doc_node = DocumentNode(
-        title="Section 1: Setting a Vision for Your 21st Century Learning Classroom",
-        description="Section 1: Setting a Vision for Your 21st Century Learning Classroom",
-        source_id=section_1_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_1_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(section_1_doc_node)
-
-    # Section 2
-    section_2_topic = TopicNode(
-        title="21st Century Mindsets & Practices",
-        source_id="pointb_section_2")
-
-    section_2_doc_node = DocumentNode(
-        title="21st Century Mindsets and Practices",
-        description="21st Century Mindsets and Practices",
-        source_id=section_2_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_doc_node)
-
-    section_2_0_doc_node = DocumentNode(
-        title="Mindset #1: Mindfulness",
-        description="Mindset #1: Mindfulness",
-        source_id=section_2_0_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_0_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_0_doc_node)
-
-    section_2_1_doc_node = DocumentNode(
-        title="Mindset #2: Curiousity",
-        description="Mindset #2: Curiousity",
-        source_id=section_2_1_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_1_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_1_doc_node)
-
-    section_2_2_doc_node = DocumentNode(
-        title="Mindset #3: Growth",
-        description="Mindset #3: Growth",
-        source_id=section_2_2_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_2_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_2_doc_node)
-
-    section_2_3_doc_node = DocumentNode(
-        title="Mindset #4: Empathy",
-        description="Mindset #4: Empathy",
-        source_id=section_2_3_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_3_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_3_doc_node)
-
-    section_2_4_doc_node = DocumentNode(
-        title="Mindset #5: Appreciation",
-        description="Mindset #5: Appreciation",
-        source_id=section_2_4_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_4_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_4_doc_node)
-
-    section_2_5_doc_node = DocumentNode(
-        title="Mindset #6: Experimentation",
-        description="Mindset #6: Experimentation",
-        source_id=section_2_5_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_5_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_5_doc_node)
-
-    section_2_6_doc_node = DocumentNode(
-        title="Mindset #7: Systems Thinking",
-        description="Mindset #7: Systems Thinking",
-        source_id=section_2_6_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_2_6_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    section_2_topic.add_child(section_2_6_doc_node)
-    main_topic.add_child(section_2_topic)
-
-    # Section 3
-    section_3_doc_node = DocumentNode(
-        title="Section 3: 21st Century Skills",
-        description="Section 3: 21st Century Skills",
-        source_id=section_3_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_3_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(section_3_doc_node)
-
-    # Section 4
-    section_4_doc_node = DocumentNode(
-        title="Section 4: Self Discovery",
-        description="Section 4: Self Discovery",
-        source_id=section_4_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_4_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(section_4_doc_node)
-
-    # Section 5
-    section_5_doc_node = DocumentNode(
-        title="Section 5: 21st Century Skills Building For Teachers",
-        description="Section 5: 21st Century Skills Building For Teachers",
-        source_id=section_5_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_5_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(section_5_doc_node)
-
-    # Section 6
-    section_6_doc_node = DocumentNode(
-        title="Section 6: Integrating 21st Century Skills Into Your Classroom",
-        description="Section 6: Integrating 21st Century Skills Into Your Classroom",
-        source_id=section_6_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_6_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(section_6_doc_node)
-
-    # Section 7
-    section_7_doc_node = DocumentNode(
-        title="Section 7: Thanks To Our Teachers",
-        description="Section 7: Thanks To Our Teachers",
-        source_id=section_7_file,
-        license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-        language=LANG_CODE_EN,
-        files=[
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_EN, section_7_file),
-                language=LANG_CODE_EN
-            )
-        ])
-    main_topic.add_child(section_7_doc_node)
-    return main_topic
-
-
-def build_burmese_pdf_topics(topic):
-
-    frontmatter_file = "0-Front-Matter.pdf"
-    section_1_file = "1-Section-1---Setting-a-Vision-for-Your-21st-Century-Learning-Classroom.pdf"
-    section_2_file = "2-Section-2---21st-Century-Mindsets-and-Practices.pdf"
-    section_2_0_file = "2-0-Mindset-1-Mindfulness.pdf"
-    section_2_1_file = "2-1-Mindset-2-Curiousity.pdf"
-    section_2_2_file = "2-2-Mindset-3-Growth.pdf"
-    section_2_3_file = "2-3-Mindset-4-Empathy.pdf"
-    section_2_4_file = "2-4-Mindset-5-Appreciation.pdf"
-    section_2_5_file = "2-5-Mindset-6-Experimentation.pdf"
-    section_2_6_file = "2-6-Mindset-7-Systems-Thinking.pdf"
-    section_3_file = "3-Section-3---21st-Century-Skills.pdf"
-    section_4_file = "4-Section-4---Self-Discovery.pdf"
-    section_5_file = "5-Section-5---21st-Century-Skills-Building-For-Teachers.pdf"
-    section_6_file = "6-Section-6---Integrating-21st-Century-Skills-Into-Your-Classroom.pdf"
-    section_7_file = "7-Thanks-To-Our-Teachers.pdf"
-
+def build_pdf_topics(main_topic, sections, lang_code):
+    """
+    Adds the documents from the sections tree to the `main_topic`.
+     - CASE A = no children => add as DocumentNode
+     - CASE B = has children => add as TopicNode and add all children as DocumentNode
+    """
     LICENSE = get_license("CC BY-NC-SA", copyright_holder=POINTB)
 
-    # PDF_TOPICS[lang_code] = {
-    #     'front-matter': {
-    #         'title': 'Introduction', 
-    #         'description': 'Introduction',
-    #         'source_id': '%s-%s' % (frontmatter_file, lang_code,),
-    #         'pdf_file': os.path.join(pdf_split_path, frontmatter_file)
-    #     }
-    # }
-    lang_code = LANG_CODE_MY
+    for i, section in enumerate(sections):
 
-    # introduction
-    kwargs = {
-        'title': 'Introduction',
-        'description': 'Introduction',
-        'source_id': '%s-%s' % (frontmatter_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, frontmatter_file),
-                language=lang_code
+        # CASE A: All sections except Section 2
+        if 'children' not in section:
+            title = section['title']
+            abspath = section['path']
+            filename = os.path.basename(abspath)
+            doc_node = DocumentNode(
+                title=title,
+                description='',  # TODO: maybe say "Chapter from A GUIDE TO BECOMING A 21ST CENTURY TEACHER"
+                source_id='%s-%s' % (filename, lang_code),
+                license=LICENSE,
+                language=lang_code,
+                files=[
+                    DocumentFile(
+                        path=abspath,
+                        language=lang_code
+                    )
+                ])
+            main_topic.add_child(doc_node)
+        
+        # CASE B: Section 2
+        else:
+            section_topic = TopicNode(
+                title=section['title'],
+                source_id="pointb_section_" + str(i)
             )
-        ]
-    }
-    intro_doc_node = DocumentNode(**kwargs)
-    topic.add_child(intro_doc_node)
+            main_topic.add_child(section_topic)
+            
+            for subsection in section['children']:
+                title = subsection['title']
+                abspath = subsection['path']
+                filename = os.path.basename(abspath)
+                subsection_doc_node = DocumentNode(
+                    title=title,
+                    description='',
+                    source_id='%s-%s' % (filename, lang_code),
+                    license=LICENSE,
+                    language=lang_code,
+                    files=[
+                        DocumentFile(
+                            path=abspath,
+                            language=lang_code
+                        )
+                    ])
+                section_topic.add_child(subsection_doc_node)
 
-    # section 1
-    kwargs = {
-        'title': 'Section 1: Setting a Vision for Your 21st Century Learning Classroom',
-        'description': 'Section 1: Setting a Vision for Your 21st Century Learning Classroom',
-        'source_id': '%s-%s' % (section_1_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_1_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_1_doc_node = DocumentNode(**kwargs)
-    topic.add_child(section_1_doc_node)
+    return main_topic
 
-    # Section 2
-    section_2_topic = TopicNode(
-                                title="21st Century Mindsets & Practices",
-                                source_id="pointb_section_2")
-
-    kwargs = {
-        'title': '21st Century Mindsets and Practices',
-        'description': '21st Century Mindsets and Practices',
-        'source_id': '%s-%s' % (section_2_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #1: Mindfulness',
-        'description': 'Mindset #1: Mindfulness',
-        'source_id': '%s-%s' % (section_2_0_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_0_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_0_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_0_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #2: Curiousity',
-        'description': 'Mindset #2: Curiousity',
-        'source_id': '%s-%s' % (section_2_1_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_1_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_1_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_1_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #3: Growth',
-        'description': 'Mindset #3: Growth',
-        'source_id': '%s-%s' % (section_2_2_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_2_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_2_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_2_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #4: Empathy',
-        'description': 'Mindset #4: Empathy',
-        'source_id': '%s-%s' % (section_2_3_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_3_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_3_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_3_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #5: Appreciation',
-        'description': 'Mindset #5: Appreciation',
-        'source_id': '%s-%s' % (section_2_4_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_4_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_4_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_4_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #6: Experimentation',
-        'description': 'Mindset #6: Experimentation',
-        'source_id': '%s-%s' % (section_2_5_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_5_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_5_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_5_doc_node)
-
-    kwargs = {
-        'title': 'Mindset #7: Systems Thinking',
-        'description': 'Mindset #7: Systems Thinking',
-        'source_id': '%s-%s' % (section_2_6_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_2_6_file),
-                language=lang_code
-            )
-        ]
-    }
-    section_2_6_doc_node = DocumentNode(**kwargs)
-    section_2_topic.add_child(section_2_6_doc_node)
-    
-    topic.add_child(section_2_topic)
-
-    # section 3
-    kwargs = {
-        'title': 'Section 3: 21st Century Skills',
-        'description': 'Section 3: 21st Century Skills',
-        'source_id': '%s-%s' % (section_3_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_3_file),
-                language=lang_code
-            )
-        ]
-    }
-    doc_node = DocumentNode(**kwargs)
-    topic.add_child(doc_node)
-
-    # section 4
-    kwargs = {
-        'title': 'Section 4: Self Discovery',
-        'description': 'Section 4: Self Discovery',
-        'source_id': '%s-%s' % (section_4_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_4_file),
-                language=lang_code
-            )
-        ]
-    }
-    doc_node = DocumentNode(**kwargs)
-    topic.add_child(doc_node)
-
-    # section 5
-    kwargs = {
-        'title': 'Section 5: 21st Century Skills Building For Teachers',
-        'description': 'Section 5: 21st Century Skills Building For Teachers',
-        'source_id': '%s-%s' % (section_5_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_5_file),
-                language=lang_code
-            )
-        ]
-    }
-    doc_node = DocumentNode(**kwargs)
-    topic.add_child(doc_node)
-
-    # section 6
-    kwargs = {
-        'title': 'Section 6: Integrating 21st Century Skills Into Your Classroom',
-        'description': 'Section 6: Integrating 21st Century Skills Into Your Classroom',
-        'source_id': '%s-%s' % (section_6_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_6_file),
-                language=lang_code
-            )
-        ]
-    }
-    doc_node = DocumentNode(**kwargs)
-    topic.add_child(doc_node)
-
-    # section 7
-    kwargs = {
-        'title': 'Section 7: Thanks To Our Teachers',
-        'description': 'Section 7: Thanks To Our Teachers',
-        'source_id': '%s-%s' % (section_7_file, lang_code,),
-        'license': LICENSE,
-        'aggregator': LE,
-        'language': lang_code,
-        'files': [
-            DocumentFile(
-                path=os.path.join(PDF_SPLIT_PATH_MY, section_7_file),
-                language=lang_code
-            )
-        ]
-    }
-    doc_node = DocumentNode(**kwargs)
-    topic.add_child(doc_node)
-
-    return topic
 
 
 class PointBChef(SushiChef):
@@ -1015,7 +528,7 @@ class PointBChef(SushiChef):
         "CHANNEL_TITLE": "PointB 21CS Guide",
         # where you got the content (change me!!)
         "CHANNEL_SOURCE_DOMAIN": "pointb.is",
-        # channel's unique id (change me!!) # TODO(cpauya): remove 'test-'
+        # channel's unique id (change me!!) # TODO(cpauya): remove 'test-'     # NOTE when you remove test- the channel_id will change; make sure to update notion card
         "CHANNEL_SOURCE_ID": "test-21csguide",
         "CHANNEL_LANGUAGE": "mul",  # le_utils language code
         "CHANNEL_THUMBNAIL": None,  # TODO(cpauya): set thumbnail
@@ -1029,9 +542,15 @@ class PointBChef(SushiChef):
             print('==> Download of PDFS FAILED!')
             return False
 
-        if not split_chapters():
-            print('==> Split chapters for PDFs FAILED!')
+        chapters_en = split_chapters(LANG_CODE_EN)
+        if chapters_en is None:
+            print('==> Split chapters for en PDFs FAILED!')
             return False
+        chapters_my = split_chapters(LANG_CODE_MY)
+        if chapters_en is None:
+            print('==> Split chapters for my PDFs FAILED!')
+            return False
+
 
         channel = self.get_channel(**kwargs)
 
@@ -1052,9 +571,9 @@ class PointBChef(SushiChef):
         channel.add_child(main_topic)
         channel.add_child(main_topic_my)
 
-        main_topic = build_english_pdf_topics(topic_guide)
+        build_pdf_topics(topic_guide, chapters_en, lang_code=LANG_CODE_EN)
         # TODO(cpauya): Burmese .pdfs
-        main_topic = build_burmese_pdf_topics(topic_guide_my)
+        build_pdf_topics(topic_guide_my, chapters_my, lang_code=LANG_CODE_MY)
         # # TODO(cpauya): English videos
         topic = build_english_video_topics(topic_videos_en)
         # # TODO(cpauya): Burmese videos
