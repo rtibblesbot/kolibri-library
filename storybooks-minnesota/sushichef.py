@@ -10,11 +10,17 @@ from ricecooker.classes.nodes import TopicNode
 import index
 from foundry import foundry
 import foundry as F
+import lxml.html
 
 F.bits.BAD_TYPES = ["text/plain"]
 LOGGER = logging.getLogger()
 
 foundry.copyright_holder="Global African Storybooks Project"
+
+class MyFoundry(foundry.Foundry):
+    def title(self):
+        root = lxml.html.fromstring(self.centrifuged)
+        return root.xpath("//h1/span[@class='def']")[0].text_content().strip()
 
 def storybook_xpath(xpath):
     drop_list = [
@@ -22,12 +28,14 @@ def storybook_xpath(xpath):
             "//a[text()='Back to stories list']",
             "//select",
             "//div[text()='Download PDF']",
+            "//a[text()='Download PDF']",
             "//div[@id='colophon']/div[2]"
             ]
 
     icon_list = {
-            "arrow-down": "V",
-            "volume-up": ">)))",
+            "arrow-down": "\u21E9",
+            "arrow-up": "\u21E7",
+            "volume-up": "\U0001F50A",
             }
 
     for drop in drop_list:
@@ -42,7 +50,7 @@ def storybook_xpath(xpath):
     for icon, replacement in icon_list.items():
         tags = xpath.xpath(f"//i[@class='icon-{icon}']")
         for tag in tags:
-            tag.name="span"
+            tag.tag="span"
             print (dir(tag))
             tag.attrib['class'] = ""
             tag.text=replacement
@@ -69,7 +77,7 @@ class MathplanetChef(SushiChef):
                 lang_node.add_child(level_node)
                 urls = index.get_lang_level(lang_code, level)
                 for url in urls:
-                    f = foundry.Foundry(url, storybook_xpath, owndomain=False)
+                    f = MyFoundry(url, storybook_xpath, owndomain=False)
                     node = f.node()
                     node.language = lang_code
                     level_node.add_child(node)
