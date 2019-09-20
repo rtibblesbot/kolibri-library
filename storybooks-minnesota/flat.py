@@ -3,27 +3,28 @@ import detail
 class Page(object):
     def page(self, offset=0):
         return "0"+str(self.number+offset)
-    def __init__(self, i):
+    def __init__(self, i, text, audio, foreign, img):
         self.number = i
-        self.img = "url"
-        self.lang = ["en", "es", "eg"]
-        self.audio = "url"
+        self.img = img
+        self.lang = [text, text, foreign]  # TODO confirm correct behaviour
+        self.audio = audio
 
-page_objs = [Page(1), Page(2), Page(3)]
+def make_pages_from_book(book):
+    for i, raw_page in enumerate(zip(book.texts, book.audios, book.foreigns, book.imgs)):
+        yield Page(i+2, *raw_page)
 
 def effify(s):
     return eval(f'f"""{s}"""')
 
-page_list = []
+book = detail.MyFoundry(detail.url).book
 with open("html/page.template.html") as f:
     p_template = f.read()
-    for page in page_objs:
-        page_list.append(effify(p_template))
 
+page_list = []
+for page in make_pages_from_book(book):
+    page_list.append(effify(p_template))
 pages = "\n".join(page_list)
 
-book = detail.MyFoundry(detail.url).book
-print (book.foreigns)
 with open("html/index.template.html") as f:
     template = f.read()
     f_template = effify(template)

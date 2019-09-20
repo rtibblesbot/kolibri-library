@@ -7,9 +7,8 @@ from le_utils.constants import licenses
 import logging
 from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import TopicNode
-import index, detail
+import index
 from foundry import foundry
-import epub
 
 LOGGER = logging.getLogger()
 

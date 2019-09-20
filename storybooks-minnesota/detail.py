@@ -57,7 +57,6 @@ class Book(object):
 
     def svg_tagged(self):
         svg_tags = self.xpath("//img[@class='cover-icon']")
-        nice = {}
         for svg_tag in svg_tags:
             svg_name = svg_tag.xpath("./@src")[0].split("/")[-1].partition(".")[0]
             value = svg_tag.xpath(".//../..")[0].text_content().strip()
