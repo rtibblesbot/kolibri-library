@@ -9,10 +9,44 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes.nodes import TopicNode
 import index
 from foundry import foundry
+import foundry as F
 
+F.bits.BAD_TYPES = ["text/plain"]
 LOGGER = logging.getLogger()
 
 foundry.copyright_holder="Global African Storybooks Project"
+
+def storybook_xpath(xpath):
+    drop_list = [
+            "//header[@class='navbar']",
+            "//a[text()='Back to stories list']",
+            "//select",
+            "//div[text()='Download PDF']",
+            "//div[@id='colophon']/div[2]"
+            ]
+
+    icon_list = {
+            "arrow-down": "V",
+            "volume-up": ">)))",
+            }
+
+    for drop in drop_list:
+        try:
+            bads = xpath.xpath(drop)
+        except:
+            print (drop)
+            raise
+        for bad in bads:
+            bad.getparent().remove(bad)
+
+    for icon, replacement in icon_list.items():
+        tags = xpath.xpath(f"//i[@class='icon-{icon}']")
+        for tag in tags:
+            tag.name="span"
+            print (dir(tag))
+            tag.attrib['class'] = ""
+            tag.text=replacement
+    return xpath
 
 class MathplanetChef(SushiChef):
     channel_info = {
@@ -35,15 +69,11 @@ class MathplanetChef(SushiChef):
                 lang_node.add_child(level_node)
                 urls = index.get_lang_level(lang_code, level)
                 for url in urls:
-                    f = detail.MyFoundry(url)
-                    book = f.book
-                    epub_book = epub.make_book(book)
-                    print (book)
-
-                    raise RuntimeError()
+                    f = foundry.Foundry(url, storybook_xpath, owndomain=False)
                     node = f.node()
                     node.language = lang_code
                     level_node.add_child(node)
+                    return channel
         return channel
 
 
