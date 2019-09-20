@@ -36,6 +36,7 @@ def storybook_xpath(xpath):
             "arrow-down": "\u21E9",
             "arrow-up": "\u21E7",
             "volume-up": "\U0001F50A",
+            "pause": "\u23f8",
             }
 
     for drop in drop_list:
@@ -51,7 +52,6 @@ def storybook_xpath(xpath):
         tags = xpath.xpath(f"//i[@class='icon-{icon}']")
         for tag in tags:
             tag.tag="span"
-            print (dir(tag))
             tag.attrib['class'] = ""
             tag.text=replacement
     return xpath
@@ -81,7 +81,6 @@ class MathplanetChef(SushiChef):
                     node = f.node()
                     node.language = lang_code
                     level_node.add_child(node)
-                    return channel
         return channel
 
 
