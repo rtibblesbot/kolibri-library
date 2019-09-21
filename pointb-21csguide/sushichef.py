@@ -91,24 +91,24 @@ DATA = {
             'pdf_split_path': PDF_SPLIT_PATH_MY,
             'title': '၂၁ ရာစုခေတ်ကာလ၊ စွမ်းရည်ပြည့်ဝ ဆရာဒ ဆရာမ',  # 21st century guide for teachers (PDF title)
             'page_ranges': [
-                {'title': 'နိဒါန်းအဖွင့်', 'page_start': 0, 'page_end': 13},
-                {'title': '1 - သင်စ် ၂၁ ရာစု စာသင်ခန်းအတွက် မျှော်မှန်းချက်တစ်ခုထားရှိခြင်း', 'page_start': 13, 'page_end': 23},
-                {'title': '2 - ၂၁ ရာစု စိတ်နေသဘောထားများနှင့် အလေ့အကျင့်များ', 'page_start': 23, 'page_end': 61,
+                {'title': 'နိဒါန်းအဖွင့်', 'page_start': 0, 'page_end': 13},  # Introduction
+                {'title': '1 - သင်စ် ၂၁ ရာစု စာသင်ခန်းအတွက် မျှော်မှန်းချက်တစ်ခုထားရှိခြင်း', 'page_start': 13, 'page_end': 23},  # Section 1
+                {'title': '2 - ၂၁ ရာစု စိတ်နေသဘောထားများနှင့် အလေ့အကျင့်များ', 'page_start': 23, 'page_end': 61,  # Section 2
                 'children': [
-                    {'title': '#1: စိတ်တည်ငြိမ်မူ သတိအားကောင်းခြင်း', 'page_start': 25, 'page_end': 33},
-                    {'title': '#2: သိလိုစိတ်ပြင်းပြခြင်း', 'page_start': 33, 'page_end': 39},
-                    {'title': '#3: ရှင်သန်ကြီးထွားသောစိတ်', 'page_start': 39, 'page_end': 43},
-                    {'title': '#4: ကိုယ်ချင်းစာ  နားလည်စိတ်', 'page_start': 43, 'page_end': 49},
-                    {'title': '#5: တန်ဖိုးထား ဆက်ဆံခြင်း', 'page_start': 49, 'page_end': 53},
-                    {'title': '#6: လက်တွေ့စမ်းသပ်ဆောင်ရွက်တတ်အောင်', 'page_start': 53, 'page_end': 59},
-                    {'title': '#7: စနစ်တစ်ခုလုံးအား ခြုံငုံရဲ စဉ်းစားတွေးခေါ်တတ်အောင်', 'page_start': 59, 'page_end': 63}
+                    {'title': '#1: စိတ်တည်ငြိမ်မူ သတိအားကောင်းခြင်း', 'page_start': 25, 'page_end': 33},  # Mindfulness
+                    {'title': '#2: သိလိုစိတ်ပြင်းပြခြင်း', 'page_start': 33, 'page_end': 39},  # Curiousity
+                    {'title': '#3: ရှင်သန်ကြီးထွားသောစိတ်', 'page_start': 39, 'page_end': 43},  # Growth
+                    {'title': '#4: ကိုယ်ချင်းစာ  နားလည်စိတ်', 'page_start': 43, 'page_end': 49},  # Empathy
+                    {'title': '#5: တန်ဖိုးထား ဆက်ဆံခြင်း', 'page_start': 49, 'page_end': 53},  # Appreciation
+                    {'title': '#6: လက်တွေ့စမ်းသပ်ဆောင်ရွက်တတ်အောင်', 'page_start': 53, 'page_end': 59},  # Experimentation
+                    {'title': '#7: စနစ်တစ်ခုလုံးအား ခြုံငုံရဲ စဉ်းစားတွေးခေါ်တတ်အောင်', 'page_start': 59, 'page_end': 63}  # Systems Thinking
                 ]
                 },
-                {'title': '3 - စွမ်းဆောင်ရည်မြှင်ရာစုသစ် 21', 'page_start': 63, 'page_end': 75},
-                {'title': '4 - ကိုယ်တိုင်စ် အစွမ်းအစများကို ပြန်လည်ရှာဖွေအကဲဖြတ်ခြင်း', 'page_start': 75, 'page_end': 101},
-                {'title': '5 - ဆရာ/ဆရာမများအတွက် စွမ်းရည်များ/ကျွမ်းကျင်မှုများ တည်ဆောက်ပေးခြင်း', 'page_start': 101, 'page_end': 117},
-                {'title': '6 - ၂၁ ရာစုခေတ်စွမ်းရည်များကို သင်စ် စာသင်ခန်း ထည့်သွင်းလေ့ကျင့်အသုံးချခြင်း', 'page_start': 117, 'page_end': 143},
-                {'title': 'ကျေးဇူးတင်စကား', 'page_start': 143, 'page_end': 145},
+                {'title': '3 - စွမ်းဆောင်ရည်မြှင်ရာစုသစ် 21', 'page_start': 63, 'page_end': 75},  # Section 3
+                {'title': '4 - ကိုယ်တိုင်စ် အစွမ်းအစများကို ပြန်လည်ရှာဖွေအကဲဖြတ်ခြင်း', 'page_start': 75, 'page_end': 101},  # Section 4
+                {'title': '5 - ဆရာ/ဆရာမများအတွက် စွမ်းရည်များ/ကျွမ်းကျင်မှုများ တည်ဆောက်ပေးခြင်း', 'page_start': 101, 'page_end': 117},  # Section 5
+                {'title': '6 - ၂၁ ရာစုခေတ်စွမ်းရည်များကို သင်စ် စာသင်ခန်း ထည့်သွင်းလေ့ကျင့်အသုံးချခြင်း', 'page_start': 117, 'page_end': 143},  # Section 6
+                {'title': 'ကျေးဇူးတင်စကား', 'page_start': 143, 'page_end': 145},  # Thanks to our teachers
             ]
         },
         'video_info':  {
@@ -362,7 +362,7 @@ def download_videos(lang_code):
             progress = '%d/%d' % (i+1, len(video_data),)
             progress = '==> %s: Downloading video from %s ...' % (progress, video.url,)
             print(progress)
-            if video.download(download_dir=download_path):
+            if video.download(download_dir=download_path, video_data=DATA):
                 # TODO(cpauya): Create VideoTopic then add to channel.
                 pass
     except Exception as e:
@@ -378,7 +378,7 @@ def download_videos(lang_code):
 def local_construct_videos():
     """
     """
-    video_data = download_videos()
+    video_data = download_videos(LANG_CODE_MY)
     if not video_data:
         print('==> Download of Videos FAILED!')
         return False
@@ -560,7 +560,6 @@ class PointBChef(SushiChef):
             print('==> Split chapters for my PDFs FAILED!')
             return False
 
-
         channel = self.get_channel(**kwargs)
 
         # English topics
@@ -580,12 +579,13 @@ class PointBChef(SushiChef):
         channel.add_child(main_topic)
         channel.add_child(main_topic_my)
 
+        # English topics
         build_pdf_topics(topic_guide, chapters_en, lang_code=LANG_CODE_EN)
-        # TODO(cpauya): Burmese .pdfs
+        # Burmese topics
         build_pdf_topics(topic_guide_my, chapters_my, lang_code=LANG_CODE_MY)
-        # # TODO(cpauya): English videos
+        # English videos
         topic = build_english_video_topics(topic_videos_en)
-        # # TODO(cpauya): Burmese videos
+        # Burmese videos
         topic = build_burmese_video_topics(topic_videos_my)
 
         return channel

@@ -51,7 +51,7 @@ class PointBVideo():
 
         return self.filepath
 
-    def download(self, download_dir="./"):
+    def download(self, download_dir="./", video_data=None):
         print('====> download()', self.get_filename(download_dir))
         ydl_options = {
             'outtmpl': self.get_filename(download_dir),
@@ -71,7 +71,17 @@ class PointBVideo():
                 # Save the remaining "temporary scraped values" of attributes with actual values
                 # from the video metadata.
                 self.uid = vinfo.get('id', '')
-                self.title = vinfo.get('title', '')
+
+                if self.lang_code == 'my' and video_data is not None:
+                    # TODO(cpauya): If Burmese, get the translated title from the
+                    # list of translated videos.
+                    self.title = video_data[self.lang_code]['video_titles'][self.uid]
+                    print('====> VIDEO TITLE', self.title)
+                else:
+                    self.title = vinfo.get('title', '')                
+
+                # TODO(cpauya): If Burmese, use the translated video description.
+
                 # Set the filepath and thumbnail attributes of the video object.
                 self.set_filepath_and_thumbnail(vinfo, download_dir=download_dir)
                 # pp.pprint(self)
