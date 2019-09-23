@@ -77,6 +77,7 @@ class MathplanetChef(SushiChef):
                 lang_node.add_child(level_node)
                 urls = index.get_lang_level(lang_code, level)
                 for url in urls:
+                    print(url)
                     f = MyFoundry(url, storybook_xpath, owndomain=False)
                     node = f.node()
                     node.language = lang_code
