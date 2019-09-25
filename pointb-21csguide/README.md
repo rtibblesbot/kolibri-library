@@ -21,6 +21,8 @@ Sushi Chef script for importing pointb-21csguide content from [https://www.point
          * **Checkpoint**: Try running `which python` and confirm the Python in
            is use the one from the virtual env (e.g. `venv/bin/python`) and not
            the system Python. Check also `which pip` is the one from the virtualenv.
+         * You may encounter this error `SSL: CERTIFICATE_VERIFY_FAILED`. to fix it, 
+           at the terminal run the command `sudo /Applications/Python (your Python version)/Install Certificates.command`
       * For Windows systems:
          * Create a virtual env called `venv` in the current directory using the
            following command: `virtualenv venv`.
