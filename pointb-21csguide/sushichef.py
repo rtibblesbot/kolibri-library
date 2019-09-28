@@ -81,6 +81,14 @@ DATA = {
             'filename_prefix': 'pointb-video-%s-' % LANG_CODE_EN,
             'download_path': os.path.join(os.getcwd(), DOWNLOADS_VIDEOS_PATH, LANG_CODE_EN, ''),
         },
+        'video_titles': {  # vimeo id --> title
+            '262755467': '',  # 'visual tools
+            '262570817': '',  # think pair share
+            '262755072': '', # Jigsaw
+            '262755673': '', # Daily review
+            '267661918': '', # Experiential Learning Cycle
+            '262572490': '' # Brainstorming
+        },
     },
     LANG_CODE_MY: {
         'lang_code': LANG_CODE_MY,
@@ -253,37 +261,6 @@ def print_pdf_info(pdf_path):
         #     pp.pprint(page)
 
 
-# TODO(cpauya): for testing, remove when done
-def local_construct_pdfs():
-    if not download_pdfs():
-        print('==> Download of PDFS FAILED!')
-        return False
-
-    if not split_chapters():
-        print('==> Split chapters for PDF FAILED!')
-        return False
-
-    # main_topic = TopicNode(title="English", source_id="pointb_en_main")
-
-    # frontmatter_file = "0-Front-Matter.pdf"
-
-    # # Introduction
-    # front_doc_node = DocumentNode(
-    #     title="Introduction",
-    #     description="Introduction",
-    #     source_id=frontmatter_file,
-    #     license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-    #     language=LANG_CODE_EN,
-    #     files=[
-    #         DocumentFile(
-    #             path=os.path.join(PDF_SPLIT_PATH_EN, frontmatter_file),
-    #             language=LANG_CODE_EN
-    #         )
-    #     ])
-    # main_topic.add_child(front_doc_node)
-    return False
-
-
 def scrape_video_data(url, lang_code, filename_prefix):
     """
     Scrapes videos based on the URL passed and returns a list of PointBVideo objects.
@@ -334,10 +311,6 @@ def scrape_video_data(url, lang_code, filename_prefix):
                             lang_code=lang_code,
                             filename_prefix=filename_prefix)
                 video_data.append(video)
-
-                # # TODO(cpauya): delete when done debugging
-                # if len(video_data) > 0:
-                #     break
     except Exception as e:
         print('==> Error scraping video URL', lang_code)
         pp.pprint(e)
@@ -362,9 +335,7 @@ def download_videos(lang_code):
             progress = '%d/%d' % (i+1, len(video_data),)
             progress = '==> %s: Downloading video from %s ...' % (progress, video.url,)
             print(progress)
-            if video.download(download_dir=download_path, video_data=DATA):
-                # TODO(cpauya): Create VideoTopic then add to channel.
-                pass
+            video.download(download_dir=download_path, video_data=DATA)
     except Exception as e:
         print('Error downloading videos:')
         pp = pprint.PrettyPrinter()
@@ -372,41 +343,6 @@ def download_videos(lang_code):
         raise e
     print('==> DONE downloading videos for', vinfo)
     return video_data
-
-
-# TODO(cpauya): for testing, remove when done
-def local_construct_videos():
-    """
-    """
-    video_data = download_videos(LANG_CODE_MY)
-    if not video_data:
-        print('==> Download of Videos FAILED!')
-        return False
-
-    main_topic = TopicNode(title="English", source_id="pointb_en_main")
-
-    # TODO(cpauya: VideoNode constructor has no argument for language code?
-    for i, video in enumerate(video_data):
-        # # TODO(cpauya): Remove when done testing
-        # if i > 0:
-        #     break
-        filepath = os.path.join(DOWNLOADS_VIDEOS_PATH, video.filepath)
-        video_node = VideoNode(
-                source_id=video.uid, 
-                title=video.title, 
-                description=video.description,
-                thumbnail=video.thumbnail,
-                license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
-                files=[
-                    VideoFile(
-                        path=filepath,
-                        language=LANG_CODE_EN
-                    )
-                ])
-        main_topic.add_child(video_node)
-        print('====> VIDEO INFO', video.thumbnail, video.filepath)
-
-    return main_topic
 
 
 def build_english_video_topics(topic):
@@ -417,12 +353,8 @@ def build_english_video_topics(topic):
         print('==> Download of Videos FAILED!')
         return False
 
-    # TODO(cpauya: VideoNode constructor has no argument for language code?
+    # NOTE(cpauya: VideoNode constructor has no argument for language code?
     for i, video in enumerate(video_data):
-        # TODO(cpauya): Remove when done testing
-        # if i > 0:
-        #     break
-        # print('==> video', video)
         filepath = video.filepath
         video_node = VideoNode(
                 source_id=video.uid, 
@@ -451,10 +383,6 @@ def build_burmese_video_topics(topic):
         return False
 
     for i, video in enumerate(video_data):
-        # TODO(cpauya): Remove when done testing
-        # if i > 0:
-        #     break
-        # print('==> video', video)
         filepath = video.filepath
         video_node = VideoNode(
                 source_id=video.uid, 
@@ -490,9 +418,10 @@ def build_pdf_topics(main_topic, sections, lang_code):
             filename = os.path.basename(abspath)
             doc_node = DocumentNode(
                 title=title,
-                description='',  # TODO: maybe say "Chapter from A GUIDE TO BECOMING A 21ST CENTURY TEACHER"
+                description='Chapter from A GUIDE TO BECOMING A 21ST CENTURY TEACHER',
                 source_id='%s-%s' % (filename, lang_code),
                 license=LICENSE,
+                aggregator=LE,
                 language=lang_code,
                 files=[
                     DocumentFile(
@@ -519,6 +448,7 @@ def build_pdf_topics(main_topic, sections, lang_code):
                     description='',
                     source_id='%s-%s' % (filename, lang_code),
                     license=LICENSE,
+                    aggregator=LE,
                     language=lang_code,
                     files=[
                         DocumentFile(
@@ -535,10 +465,8 @@ def build_pdf_topics(main_topic, sections, lang_code):
 class PointBChef(SushiChef):
     channel_info = {
         "CHANNEL_TITLE": "PointB 21CS Guide",
-        # where you got the content (change me!!)
         "CHANNEL_SOURCE_DOMAIN": "pointb.is",
-        # channel's unique id (change me!!) # TODO(cpauya): remove 'test-'     # NOTE when you remove test- the channel_id will change; make sure to update notion card
-        "CHANNEL_SOURCE_ID": "test-21csguide",
+        "CHANNEL_SOURCE_ID": "pointb-21csguide",
         "CHANNEL_LANGUAGE": "mul",  # le_utils language code
         "CHANNEL_THUMBNAIL": 'chefdata/channel_thumbnail.png',
         # (optional)

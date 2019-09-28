@@ -73,7 +73,7 @@ class PointBVideo():
                 self.uid = vinfo.get('id', '')
 
                 if self.lang_code == 'my' and video_data is not None:
-                    # TODO(cpauya): If Burmese, get the translated title from the
+                    # MUST: If Burmese, get the translated title from the
                     # list of translated videos.
                     self.title = video_data[self.lang_code]['video_titles'][self.uid]
                     print('====> VIDEO TITLE', self.title)
