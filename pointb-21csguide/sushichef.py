@@ -7,6 +7,7 @@ import requests
 
 from bs4 import BeautifulSoup
 from copy import copy
+from le_utils.constants import roles
 from PyPDF2 import PdfFileReader, PdfFileWriter
 
 from ricecooker.chefs import SushiChef
@@ -356,13 +357,15 @@ def build_english_video_topics(topic):
     # NOTE(cpauya: VideoNode constructor has no argument for language code?
     for i, video in enumerate(video_data):
         filepath = video.filepath
+        title=video.title.replace('(English Language)', '').strip()
         video_node = VideoNode(
                 source_id=video.uid, 
-                title=video.title, 
+                title=title, 
                 description=video.description,
                 aggregator=LE,
                 thumbnail=video.thumbnail,
                 license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
+                role=roles.COACH,
                 files=[
                     VideoFile(
                         path=filepath,
@@ -391,6 +394,7 @@ def build_burmese_video_topics(topic):
                 aggregator=LE,
                 thumbnail=video.thumbnail,
                 license=get_license("CC BY-NC-SA", copyright_holder=POINTB),
+                role=roles.COACH,
                 files=[
                     VideoFile(
                         path=filepath,
@@ -423,6 +427,7 @@ def build_pdf_topics(main_topic, sections, lang_code):
                 license=LICENSE,
                 aggregator=LE,
                 language=lang_code,
+                role=roles.COACH,
                 files=[
                     DocumentFile(
                         path=abspath,
@@ -450,6 +455,7 @@ def build_pdf_topics(main_topic, sections, lang_code):
                     license=LICENSE,
                     aggregator=LE,
                     language=lang_code,
+                    role=roles.COACH,
                     files=[
                         DocumentFile(
                             path=abspath,
