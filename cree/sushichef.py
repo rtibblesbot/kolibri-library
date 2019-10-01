@@ -8,11 +8,13 @@ from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
+from config import DOWNLOAD_DIRECTORY
+from pdf_splitter import PDFParser
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "CREE"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-cree-es"    # Channel's unique id
+CHANNEL_NAME = "CREE Channel PDF Test"              # Name of channel
+CHANNEL_SOURCE_ID = "sushi-chef-cree-es-test"    # Channel's unique id
 CHANNEL_DOMAIN = "Local Drive - Honduras"          # Who is providing the content
 CHANNEL_LANGUAGE = "es"      # Language of channel
 CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
@@ -20,7 +22,8 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 
 # Additional constants
 ################################################################################
-
+COPYRIGHT_HOLDER = "Copyright holder"
+LICENSE = "CC BY-NC-ND"
 
 
 # The chef subclass
@@ -62,14 +65,103 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
+        walk_directory('tests', channel)
         # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
+        # raise NotImplementedError("constuct_channel method not implemented yet...")
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
 
+def walk_directory(directory, topic):
+    for subdirectory, folders, files in os.walk(directory):
+        for folder in folders:
+            walk_directory(os.path.sep.join([subdirectory, folder]))
+        for file in files:
+            if os.path.splitext(file)[-1] == '.pdf':
+                with PDFParser(os.path.sep.join([subdirectory, file])) as parser:
+                    chapters = parser.get_data_file()
+                    generate_pdf_nodes(chapters, topic, source=os.path.basename(file))
+        break;
 
+def generate_pdf_nodes(data, topic, source=""):
+    """
+        Generates nodes related to pdfs
+        Args:
+            - data (dict) data on pdf details (split pdfs, file paths, exercises, etc.)
+            - topic (TopicNode) node to add sub nodes to
+            - source (str) unique string associated with this pdf
+        Returns None
+    """
+
+    # Iterate through chapter data
+    for chapter in data:
+        # Create topics if we're dealing with a section
+        if chapter.get('header'):
+            source_id = "{}-{}".format(source, chapter['header'])
+            subtopic = nodes.TopicNode(title=chapter['header'], source_id=source_id)
+            topic.add_child(subtopic)
+            generate_pdf_nodes(chapter['chapters'], subtopic, source=source_id)
+
+        # Create a document node and its related exercise nodes if it's a document
+        elif chapter.get("chapter"):
+            # Create doucment node
+            source_id = "{}-{}".format(source, chapter['chapter'])
+            topic.add_child(nodes.DocumentNode(
+                title=chapter['chapter'],
+                source_id=source_id,
+                copyright_holder=COPYRIGHT_HOLDER,
+                license=LICENSE,
+                files=[files.DocumentFile(chapter['path'])]
+            ))
+
+            # Create exercise nodes
+            for index, exercise in enumerate(chapter.get("exercises") or []):
+                exercise_id = "{} Exercise {}".format(source_id, index)
+                exercise_node = nodes.ExerciseNode(
+                    title=chapter['chapter'],
+                    source_id=exercise_id,
+                    description=exercise.get('description'),
+                    copyright_holder=COPYRIGHT_HOLDER,
+                    license=LICENSE,
+                )
+                topic.add_child(exercise_node)
+                create_exercise_questions(exercise_node, exercise.get('questions') or [])
+
+def create_exercise_questions(exercise_node, exercise_data):
+    """
+        Generates exercise questions based on data
+        Args:
+            - exercise_node (ExerciseNode) node to add questions to
+            - exercise_data (dict) data regarding exercises to create
+        Returns None
+    """
+    # Iterate through exercise question data
+    for question_index, question in enumerate(exercise_data):
+        # Generate a unique assessment_id for each question
+        assessment_id = "{}- {}".format(exercise_node.source_id, question_index)
+
+        # Filter list of answers to be added to the questions
+        correct_answers = [answer for answer, correct in question['answers'].items() if correct]
+        all_answers = [answer for answer, _ in question['answers'].items()]
+
+        # Create a multiple selection question if specified
+        if question["type"] == exercises.MULTIPLE_SELECTION:
+            exercise_node.add_question(questions.MultipleSelectQuestion(
+                id=assessment_id,
+                question=question['question'],
+                correct_answers=correct_answers,
+                all_answers=all_answers,
+            ))
+
+        # Create a single selection question if specified
+        elif question["type"] == exercises.SINGLE_SELECTION:
+            exercise_node.add_question(questions.SingleSelectQuestion(
+                id=assessment_id,
+                question=question['question'],
+                correct_answer=correct_answers[0],
+                all_answers=all_answers
+            ))
 
 # CLI
 ################################################################################
@@ -77,3 +169,4 @@ if __name__ == '__main__':
     # This code runs when sushichef.py is called from the command line
     chef = MyChef()
     chef.main()
+
