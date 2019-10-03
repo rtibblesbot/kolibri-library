@@ -53,6 +53,9 @@ def get_all_items(start_url):
     current_url = start_url
     while True:
         resp = requests.get(current_url)
+        if not resp.ok:
+            print('Response not OK', resp.status_code, 'when accessing', current_url)
+            break
         data = resp.json()
         items = data['items']
         all_items.extend(items)
@@ -62,8 +65,11 @@ def get_all_items(start_url):
         else:
             # print('Reached end of results')
             break
-    print('Found', len(all_items), 'items')
-    return all_items
+    if all_items: # > 0
+        print('Found', len(all_items), 'items')
+        return all_items
+    else:
+        raise RuntimeError('Kamkalima API not accessible or 0 items returned.')
 
 
 # TRANSFORM FUNCTIONS
