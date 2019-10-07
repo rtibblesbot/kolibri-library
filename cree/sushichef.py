@@ -8,13 +8,11 @@ from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
-from config import DOWNLOAD_DIRECTORY
-from pdf_splitter import PDFParser
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "CREE Channel PDF Test"              # Name of channel
-CHANNEL_SOURCE_ID = "sushi-chef-cree-es-test"    # Channel's unique id
+CHANNEL_NAME = "CREE"              # Name of channel
+CHANNEL_SOURCE_ID = "sushi-chef-cree-es"    # Channel's unique id
 CHANNEL_DOMAIN = "Local Drive - Honduras"          # Who is providing the content
 CHANNEL_LANGUAGE = "es"      # Language of channel
 CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
@@ -22,8 +20,7 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 
 # Additional constants
 ################################################################################
-COPYRIGHT_HOLDER = "Copyright holder"
-LICENSE = "CC BY-NC-ND"
+
 
 
 # The chef subclass
@@ -65,24 +62,36 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        walk_directory('tests', channel)
-        # TODO: Replace next line with chef code
-        # raise NotImplementedError("constuct_channel method not implemented yet...")
+        scrape_directory(channel,'D:\\Kolibri CREE\\CREE')
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
         return channel
 
-def walk_directory(directory, topic):
-    for subdirectory, folders, files in os.walk(directory):
+def scrape_directory(topic, directory, indent=1):
+    for directory, folders, myfiles in os.walk(directory):
+
+        # Go through all of the folders under directory
         for folder in folders:
-            walk_directory(os.path.sep.join([subdirectory, folder]))
-        for file in files:
-            if os.path.splitext(file)[-1] == '.pdf':
+            print('{}{}'.format('    ' * indent, folder))
+            subtopic = nodes.TopicNode(source_id=folder, title=folder)
+            topic.add_child(subtopic)
+
+            # Go through folders under directory
+            scrape_directory(subtopic, os.sep.join([directory,folder]),indent=indent+1)
+        for file in myfiles:
+            name,ext=os.path.splitext(file)
+            if ext=='.mp4':
+                video=nodes.VideoNode(source_id=directory+file,title=name, license="CC BY-NC-SA", copyright_holder='Este contenido ha sido publicado por el Licenciado Edelberto Andino para ser utilizado con fines educativos únicamente, no debe ser utilizado con fines lucrativos de ninguna índole.')
+                videofile=files.VideoFile(os.sep.join([directory,file]))
+                video.add_file(videofile)
+                topic.add_child(video)
+            elif ext == '.pdf':
                 with PDFParser(os.path.sep.join([subdirectory, file])) as parser:
                     chapters = parser.get_data_file()
                     generate_pdf_nodes(chapters, topic, source=os.path.basename(file))
         break;
+
 
 def generate_pdf_nodes(data, topic, source=""):
     """
