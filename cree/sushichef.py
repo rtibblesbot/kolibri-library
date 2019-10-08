@@ -8,6 +8,8 @@ from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
+from config import DOWNLOAD_DIRECTORY, FOLDER
+from pdf_splitter import PDFParser
 
 # Run constants
 ################################################################################
@@ -62,7 +64,7 @@ class MyChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        scrape_directory(channel,'D:\\Kolibri CREE\\CREE')
+        scrape_directory(channel, FOLDER)
 
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 

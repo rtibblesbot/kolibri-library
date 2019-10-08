@@ -6,4 +6,4 @@ if not os.path.exists(DOWNLOAD_DIRECTORY):
     os.makedirs(DOWNLOAD_DIRECTORY)
 
 # Update with the directory with the pdfs you'd like to scrape
-FOLDER = 'tests'
+FOLDER = 'D:\\Kolibri CREE\\CREE'
