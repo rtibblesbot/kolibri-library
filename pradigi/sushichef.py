@@ -874,10 +874,9 @@ class PraDigiChef(JsonTreeChef):
             # TODO: check for empty sub-folders too
             age_groups_subtree['children'] = nonempty_subject_subtrees
 
-            # Flatten the '3-6 years' agre group to contain contents of KhelBadi
-            # if age_groups_subtree['title'] == '3-6 years' and len(age_groups_subtree['children']) == 1:
-            #     khelbadi_subtree = age_groups_subtree['children'][0]
-            #     age_groups_subtree['children'] = khelbadi_subtree['children']
+            # Special handling for '3-6 years' children:
+            # Replace the contents of the first child (KhelBadi) with its children
+            # then append the any remaining nodes in this age group
             if age_groups_subtree['title'] == '3-6 years' and age_groups_subtree['children']:
                 new_children = []
                 khelbadi_subtree = age_groups_subtree['children'][0]
@@ -885,11 +884,6 @@ class PraDigiChef(JsonTreeChef):
                 other_subtrees = age_groups_subtree['children'][1:]
                 new_children.extend(other_subtrees)
                 age_groups_subtree['children'] = new_children
-                # flat_subfolders = []
-                # for folder in age_groups_subtree['children']:
-                #     for subfolder in folder['children']:
-                #         flat_subfolders.append(subfolder)
-                # age_groups_subtree['children'] = flat_subfolders
 
         return lang_subtree
 
