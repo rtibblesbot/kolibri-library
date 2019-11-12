@@ -22,8 +22,8 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 
 # Additional constants
 ################################################################################
-
-
+COPYRIGHT_HOLDER = 'Este contenido ha sido publicado por el Licenciado Edelberto Andino para ser utilizado con fines educativos únicamente, no debe ser utilizado con fines lucrativos de ninguna índole.'
+LICENSE = "CC BY-NC-SA"
 
 # The chef subclass
 ################################################################################
@@ -71,7 +71,7 @@ class MyChef(SushiChef):
         return channel
 
 def scrape_directory(topic, directory, indent=1):
-    for directory, folders, myfiles in os.walk(directory):
+    for subdirectory, folders, myfiles in os.walk(directory):
 
         # Go through all of the folders under directory
         for folder in folders:
@@ -80,12 +80,12 @@ def scrape_directory(topic, directory, indent=1):
             topic.add_child(subtopic)
 
             # Go through folders under directory
-            scrape_directory(subtopic, os.sep.join([directory,folder]),indent=indent+1)
+            scrape_directory(subtopic, os.sep.join([subdirectory,folder]),indent=indent+1)
         for file in myfiles:
             name,ext=os.path.splitext(file)
             if ext=='.mp4':
-                video=nodes.VideoNode(source_id=directory+file,title=name, license="CC BY-NC-SA", copyright_holder='Este contenido ha sido publicado por el Licenciado Edelberto Andino para ser utilizado con fines educativos únicamente, no debe ser utilizado con fines lucrativos de ninguna índole.')
-                videofile=files.VideoFile(os.sep.join([directory,file]))
+                video=nodes.VideoNode(source_id=subdirectory+file,title=name, license=LICENSE, copyright_holder=COPYRIGHT_HOLDER)
+                videofile=files.VideoFile(os.sep.join([subdirectory,file]))
                 video.add_file(videofile)
                 topic.add_child(video)
             elif ext == '.pdf':

@@ -74,7 +74,7 @@ FOLDER = "C://Users/username/mypdfs"
 #### Running the command
 You will need to generate an index for the pdf splitting code. To do this, run
 ```
-python manage.py scripts/generateindex.py
+python scripts/generateindex.py
 ```
 
 This will parse the directory (see previous step to set this) and generate a `<pdf filename>-index.json` file for every pdf file found under that directory. For instance,  a directory might look like this after running this script:
@@ -110,7 +110,7 @@ _Here, Chapter 1 says it starts on page 5 according to the pdf's index page. How
 #### Running the command
 Now that the index files are available, you can now generate the smaller pdfs and the associated exercise data by running:
 ```
-python manage.py scripts/generatedata.py
+python scripts/generatedata.py
 ```
 
 This command will read the `-index.json` files from the previous script and split the pdfs based on the page numbers listed there. It will also read the pdfs and attempt to find any questions from the text. All of this data will be written to a `<pdf filename>-data.json` file. The directory will now look like this:
