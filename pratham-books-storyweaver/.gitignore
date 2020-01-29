@@ -3,3 +3,6 @@
 restore/
 storage/
 thumbnail.png
+node_modules/*
+ghostdriver.log
+package-lock.json
