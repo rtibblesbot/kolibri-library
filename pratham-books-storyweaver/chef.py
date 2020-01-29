@@ -353,6 +353,7 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
             title="Pratham Books' StoryWeaver",
             description="",
             language="en",
+            thumbnail="thumbnail.png",
         )
         return channel
 
