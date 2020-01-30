@@ -262,7 +262,8 @@ def add_node_document(booklist, level_topic, as_booklist):
         # we will download the zip file and extract the pdf file from it
         with tempfile.NamedTemporaryFile(suffix=".zip") as tempf:
             try:
-                resp = downloader.DOWNLOAD_SESSION.get(item["link"])
+                resp = downloader.make_request(
+                    item["link"], clear_cookies=False)
                 resp.raise_for_status()
                 tempf.write(resp.content)
             except Exception as e:
