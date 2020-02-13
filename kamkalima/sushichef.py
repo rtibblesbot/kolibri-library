@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 from collections import defaultdict
 from jinja2 import Template
+import json
 import os
 import requests
 
 from le_utils.constants import content_kinds, exercises, file_types, licenses
 from le_utils.constants.languages import getlang
 from ricecooker.chefs import JsonTreeChef
+from ricecooker.config import LOGGER
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.html_writer import HTMLWriter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
 
-from ricecooker.config import LOGGER
-import logging
 
-LOGGER.setLevel(logging.INFO)
 
 
 # KAMKALIMA CONSTANTS
@@ -27,53 +26,69 @@ KAMKALIMA_LICENSE = get_license(
 
 # KAMKALIMA API
 ################################################################################
-API_AUDIOS_ENDPOINT = KAMKALIMA_DOMAIN + "/api/v0/audios"
-API_TEXTS_ENDPOINT = KAMKALIMA_DOMAIN + "/api/v0/texts"
+AUTHORIZATION_ENDPOINT = KAMKALIMA_DOMAIN + "/oauth/token"
+API_AUDIOS_ENDPOINT = KAMKALIMA_DOMAIN + "/api/v1/content/audios"
+API_TEXTS_ENDPOINT = KAMKALIMA_DOMAIN + "/api/v1/content/texts"
 
-TOKEN_PATH = "credentials/api_token.txt"
-KAMKALIMA_API_TOKEN = None
-if os.path.exists("credentials/api_token.txt"):
-    with open(TOKEN_PATH, "r") as api_token_file:
-        KAMKALIMA_API_TOKEN = api_token_file.read().strip()
-else:
-    raise ValueError("Could not find API Token in " + TOKEN_PATH)
-
-
-def append_token(api_endpoint):
-    return api_endpoint + "?api_token=" + KAMKALIMA_API_TOKEN
+CLIENT_CREDENTIALS_PATH = "credentials/client_credentials.json"
 
 
 HTML5APP_ZIPS_LOCAL_DIR = "chefdata/zipfiles"
 HTML5APP_TEMPLATE = "chefdata/html5app_template"
 
 
+# AUTHENTICATION API
+################################################################################
+
+def get_authentication_token():
+    """
+    Call `/oauth/token` to obtain `access_token` for use with the content API.
+    """
+    client_credentials = json.load(open(CLIENT_CREDENTIALS_PATH))
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": client_credentials["client_id"],
+        "client_secret": client_credentials["client_secret"],
+    }
+    response = requests.post(AUTHORIZATION_ENDPOINT, data=data)
+    if response.ok:
+        access_token = response.json()['access_token']
+        LOGGER.info('Successfully obtained authorization token')
+        return access_token
+    else:
+        raise ConnectionError('Get auth token failed ' + AUTHORIZATION_ENDPOINT)
+
+
+
 # API EXTRACT FUNCTIONS
 ################################################################################
 
-
-def get_all_items(start_url):
+def get_all_items(start_url, access_token):
     """
     Get items from all pages through the API (texts or audios).
     """
     all_items = []
     current_url = start_url
     while True:
-        resp = requests.get(current_url)
+        headers = {
+            'Authorization': 'Bearer ' + access_token
+        }
+        LOGGER.debug('GET ' + current_url)
+        resp = requests.get(current_url, headers=headers)
         if not resp.ok:
             print("Response not OK", resp.status_code, "when accessing", current_url)
             break
         data = resp.json()
         items = data["items"]
         all_items.extend(items)
-        # key exists             |     | not null          |     | looks like a valid URL                |
         if (
             "next_page_url" in data
             and data["next_page_url"]
             and KAMKALIMA_DOMAIN in data["next_page_url"]
-        ):
+        ):  # key exists, is not null, and looks like a valid URL
             current_url = data["next_page_url"]
         else:
-            # print('Reached end of results')
+            LOGGER.debug('Reached end of API results')
             break
     if all_items:  # > 0
         print("Found", len(all_items), "items")
@@ -127,9 +142,12 @@ def exercise_from_kamkalima_questions_list(item_id, category, exercise_questions
         # Add answers to question
         for answer in exercise_question["answers"]:
             answer_text = answer["title"]
-            question_dict["all_answers"].append(answer_text)
-            if answer["is_correct"]:
-                question_dict["correct_answer"] = answer_text
+            if answer_text not in question_dict["all_answers"]:
+                question_dict["all_answers"].append(answer_text)
+                if answer["is_correct"]:
+                    question_dict["correct_answer"] = answer_text
+            else:
+                print("Duplicate answer in id=" + question_dict["id"])
         questions.append(question_dict)
     exercise_dict["questions"] = questions
     # Update m in case less than 3 quesitons in the exercise
@@ -151,6 +169,9 @@ def group_by_theme(items):
 
 
 def audio_node_from_kamkalima_audio_item(audio_item):
+    if not audio_item["audio"]:
+        print('No audio URL for audio id=' + str(audio_item['id']) + '  with title=' + audio_item['title'])
+        return None
     audio_node = dict(
         kind=content_kinds.AUDIO,
         source_id=str(audio_item["id"]),
@@ -158,7 +179,7 @@ def audio_node_from_kamkalima_audio_item(audio_item):
         description=audio_item["excerpt"],
         language=getlang("ar").code,
         license=KAMKALIMA_LICENSE,
-        author=audio_item["author"],
+        author=audio_item["author"]["name"],
         # aggregator
         # provider
         thumbnail=audio_item["image"],
@@ -177,7 +198,11 @@ def make_html5zip_from_text_item(text_item):
     id_str = str(text_item["id"])
     zip_path = os.path.join(HTML5APP_ZIPS_LOCAL_DIR, id_str + ".zip")
     if os.path.exists(zip_path):
+        LOGGER.debug("Found existing zip at " + zip_path)
         return zip_path
+    else:
+        LOGGER.debug("Creating zip from text_item id=" + str(text_item['id']))
+
 
     # load template
     template_path = os.path.join(HTML5APP_TEMPLATE, "index.template.html")
@@ -187,7 +212,7 @@ def make_html5zip_from_text_item(text_item):
     # extract properties
     title = text_item["title"]
     content = text_item["body"]
-    author = text_item["author"]
+    author=text_item["author"]["name"],
     description = text_item["excerpt"]
     if "image" in text_item:
         splash_image_url = text_item["image"]
@@ -230,7 +255,7 @@ def html5_node_from_kamkalima_text_item(text_item):
         description=text_item["excerpt"],
         language=getlang("ar").code,
         license=KAMKALIMA_LICENSE,
-        author=text_item["author"],
+        author=text_item["author"]["name"],
         # aggregator
         # provider
         thumbnail=text_item["image"],
@@ -263,10 +288,12 @@ def topic_node_from_item(item_type, item):
     # Add content node
     if item_type == "audio":
         audio_node = audio_node_from_kamkalima_audio_item(item)
-        topic_node["children"].append(audio_node)
+        if audio_node:
+            topic_node["children"].append(audio_node)
     elif item_type == "text":
         html5_node = html5_node_from_kamkalima_text_item(item)
-        topic_node["children"].append(html5_node)
+        if html5_node:
+            topic_node["children"].append(html5_node)
     else:
         raise ValueError("unrecognized item_type " + item_type)
 
@@ -327,14 +354,15 @@ class KamkalimaChef(JsonTreeChef):
         """
         LOGGER.info("Creating channel content nodes...")
 
-        texts_url = append_token(API_TEXTS_ENDPOINT)
+        LOGGER.info("  Calling Kamkalima API to get authorization token.")
+        access_token = get_authentication_token()
+
         LOGGER.info("  Calling Kamkalima API to get texts items:")
-        all_texts_items = get_all_items(texts_url)
+        all_texts_items = get_all_items(API_TEXTS_ENDPOINT, access_token)
         texts_by_theme = group_by_theme(all_texts_items)
 
-        audios_url = append_token(API_AUDIOS_ENDPOINT)
         LOGGER.info("  Calling Kamkalima API to get aidios items:")
-        all_audios_items = get_all_items(audios_url)
+        all_audios_items = get_all_items(API_AUDIOS_ENDPOINT, access_token)
         audios_by_theme = group_by_theme(all_audios_items)
 
         all_themes = set(texts_by_theme.keys()).union(audios_by_theme.keys())
