@@ -6,9 +6,11 @@ restore
 .ricecookerfilecache
 storage
 
+
 # specific for this chef
 content
 cache.sqlite
+
 
 
 # Byte-compiled / optimized / DLL files
@@ -115,3 +117,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# PyCharm project
+.idea
