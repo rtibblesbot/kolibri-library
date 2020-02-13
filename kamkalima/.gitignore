@@ -10,6 +10,7 @@ storage
 # specific for this chef
 content
 cache.sqlite
+chefdata/trees/kamkalima_ricecooker_json_tree.json
 
 
 
