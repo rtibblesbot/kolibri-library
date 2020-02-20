@@ -49,7 +49,7 @@ def storybook_xpath(xpath):
             bad.getparent().remove(bad)
 
     for icon, replacement in icon_list.items():
-        tags = xpath.xpath(f"//i[@class='icon-{icon}']")
+        tags = xpath.xpath("//i[@class='icon-"+icon+"']")
         for tag in tags:
             tag.tag="span"
             tag.attrib['class'] = ""
