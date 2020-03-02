@@ -76,7 +76,7 @@ def get_all_items(start_url, access_token):
         LOGGER.debug('GET ' + current_url)
         resp = requests.get(current_url, headers=headers)
         if not resp.ok:
-            print("Response not OK", resp.status_code, "when accessing", current_url)
+            LOGGER.error("Response " + str(resp.status_code) + " on " + current_url)
             break
         data = resp.json()
         items = data["items"]
@@ -91,7 +91,7 @@ def get_all_items(start_url, access_token):
             LOGGER.debug('Reached end of API results')
             break
     if all_items:  # > 0
-        print("Found", len(all_items), "items")
+        LOGGER.info("  Found %s items" % len(all_items) )
         return all_items
     else:
         raise RuntimeError("Kamkalima API not accessible or 0 items returned.")
@@ -147,7 +147,7 @@ def exercise_from_kamkalima_questions_list(item_id, category, exercise_questions
                 if answer["is_correct"]:
                     question_dict["correct_answer"] = answer_text
             else:
-                print("Duplicate answer in id=" + question_dict["id"])
+                LOGGER.warning("Duplicate answer in id=" + question_dict["id"])
         questions.append(question_dict)
     exercise_dict["questions"] = questions
     # Update m in case less than 3 quesitons in the exercise
@@ -160,8 +160,6 @@ def group_by_theme(items):
     items_by_theme = defaultdict(list)
     for item in items:
         themes = item["themes"]
-        # if len(themes) > 1:
-        #     print('found multiple themes for', item['title'], len(themes))
         for theme in themes:
             theme_name = theme["name"]
             items_by_theme[theme_name].append(item)
@@ -170,7 +168,7 @@ def group_by_theme(items):
 
 def audio_node_from_kamkalima_audio_item(audio_item):
     if not audio_item["audio"]:
-        print('No audio URL for audio id=' + str(audio_item['id']) + '  with title=' + audio_item['title'])
+        LOGGER.error('No audio URL for audio id=' + str(audio_item['id']) + '  with title=' + audio_item['title'])
         return None
     audio_node = dict(
         kind=content_kinds.AUDIO,
@@ -241,7 +239,7 @@ def make_html5zip_from_text_item(text_item):
             resp = requests.get(splash_image_url)
             zipper.write_contents("splash.jpg", resp.content, directory="img/")
         else:
-            print("zip with id", id_str, "has no splash image")
+            LOGGER.warning("zip with id " + id_str + " has no splash image")
 
     return zip_path
 
@@ -361,12 +359,13 @@ class KamkalimaChef(JsonTreeChef):
         all_texts_items = get_all_items(API_TEXTS_ENDPOINT, access_token)
         texts_by_theme = group_by_theme(all_texts_items)
 
-        LOGGER.info("  Calling Kamkalima API to get aidios items:")
+        LOGGER.info("  Calling Kamkalima API to get audios items:")
         all_audios_items = get_all_items(API_AUDIOS_ENDPOINT, access_token)
         audios_by_theme = group_by_theme(all_audios_items)
 
         all_themes = set(texts_by_theme.keys()).union(audios_by_theme.keys())
 
+        LOGGER.info("Organizing content items by theme:")
         for theme in all_themes:
             LOGGER.info("  Processing theme " + theme)
             theme_topic_node = dict(
