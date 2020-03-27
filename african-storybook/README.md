@@ -1,4 +1,7 @@
 # African Storybook Sushi Chef
+This integration script creates a Kolibri channel from all the books from the
+https://www.africanstorybook.org/ website.
+
 
 ### Step 0: Installation
 
@@ -12,7 +15,7 @@
   and activate it using `source venv/bin/activate`
 * Run `pip install -r requirements.txt`
 
-### Step 1: Obtaining an Authorization Token ###
+### Step 1: Obtaining an Authorization Token
 You will need an authorization token to create a channel on Kolibri Studio. In order to obtain one:
 
 1. Create an account on [Kolibri Studio](https://studio.learningequality.org/).
@@ -20,7 +23,7 @@ You will need an authorization token to create a channel on Kolibri Studio. In o
 3. Copy the given authorization token (you will need this for later).
 
 
-### Step 2: Running the chef ###
+### Step 2: Running the chef
 
 1. Download phantomjs
 
@@ -36,3 +39,19 @@ You will need an authorization token to create a channel on Kolibri Studio. In o
 
     ./chef.py -v --reset --thumbnails --token=<token> --stage
 
+
+
+
+## Dev notes
+
+During development, you can run the chef against the develop server by setting the
+environment variable as follows:
+
+    export STUDIO_URL="https://develop.studio.learningequality.org"
+
+Note: if you don't have an account Studio Develop, you'll need to register and get
+an API token, since it is a completely separate system from the main Studio server.
+
+Use the command line argument `--sample=10` to do a special chef run that only
+scrapes 10 links from the website. This is a good strategy to iterate on fixes
+around HTML5 assets and iframe sandboxing issues.

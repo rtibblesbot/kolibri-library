@@ -3,8 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# tmp files for this chef
+chefdata/tmp/
+
 node_modules
 notebooks
+phantomjs-2.1.1*/
 
 # C extensions
 *.so
@@ -93,6 +97,9 @@ ENV/
 # Spyder project settings
 .spyderproject
 .spyproject
+
+# VSCode
+.vscode
 
 # Rope project settings
 .ropeproject

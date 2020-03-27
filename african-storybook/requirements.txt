@@ -1,2 +1,3 @@
-le-utils==0.1.14
-ricecooker>=0.6.24
+# bcs --sample option not released yet
+git+https://github.com/learningequality/ricecooker#egg=ricecooker
+future  # tmp workaround for le-pycaption missing dep

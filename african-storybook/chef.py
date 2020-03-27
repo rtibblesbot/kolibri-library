@@ -8,6 +8,7 @@ We make an HTML5 app out of each interactive reader.
 from collections import defaultdict
 import html
 import os
+import random
 import re
 import requests
 import tempfile
@@ -25,6 +26,15 @@ from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheCont
 from ricecooker.utils.browser import preview_in_browser
 from ricecooker.utils.html import download_file, WebDriver
 from ricecooker.utils.zip import create_predictable_zip
+
+
+NETWORK_ERRORS = (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout)
+
+
+CHEF_TMPDIR = 'chefdata/tmp/'  # use local tmp dir for saving HTML5 Apps content
+os.environ['TMPDIR'] = CHEF_TMPDIR
+if not os.path.exists(CHEF_TMPDIR):
+    os.makedirs(CHEF_TMPDIR, exist_ok=True)
 
 
 sess = requests.Session()
@@ -46,7 +56,8 @@ def get_lang_by_name_with_fallback(language_name):
     lang_obj = getlang_by_name(language_name)
     if lang_obj is None:
         lang_obj = getlang_by_native_name(language_name)
-        if lang_obj is None:  # Nov 28: temprarily tag all non-supported language codes with Undereminded
+        if lang_obj is None:
+            # currently non-supported language codes are tagged as Undereminded
             lang_obj = getlang_by_name('Undetermined')
     return lang_obj
 
@@ -60,9 +71,9 @@ class AfricanStorybookChef(SushiChef):
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
         'CHANNEL_SOURCE_ID': "african-storybook",
-        'CHANNEL_TITLE': "African Storybook",
+        'CHANNEL_TITLE': "African Storybook Library (multiple languages)",
         'CHANNEL_THUMBNAIL': "thumbnail.png",
-        'CHANNEL_DESCRIPTION': "Open access to picture storybooks in the languages of Africa. For children's literacy, enjoyment and imagination.",
+        'CHANNEL_DESCRIPTION': "Library of picture storybooks in all the languages of African countries, designed to promote basic literacy and reading for learners of young ages and varying literacy levels.",
     }
 
     def construct_channel(self, **kwargs):
@@ -77,13 +88,13 @@ class AfricanStorybookChef(SushiChef):
             title = channel_info['CHANNEL_TITLE'],
             thumbnail = channel_info.get('CHANNEL_THUMBNAIL'),
             description = channel_info.get('CHANNEL_DESCRIPTION'),
-            language= "en",
+            language= "mul",
         )
 
         #download_book("http://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", "en")
 
         # Download the books into a dict {language: [list of books]}
-        channel_tree = download_all()
+        channel_tree = download_all(kwargs)
 
         # ... now add them to the ricecooker channel tree!
         for language, levels in sorted(channel_tree.items(), key=lambda t: t[0]):
@@ -113,11 +124,15 @@ class AfricanStorybookChef(SushiChef):
         return channel
 
 
-def download_all():
+def download_all(kwargs):
     scraped_ids = set()
 
     with WebDriver("http://www.africanstorybook.org/", delay=20000) as driver:
         books = driver.execute_script("return bookItems;")
+        if 'sample' in kwargs:
+            random.seed(42)
+            sample_size = int(kwargs['sample'])
+            books = random.sample(books, sample_size)
         total_books = len(books)
 
         # Build a dict of {African Storybook language ID: language name}
@@ -324,11 +339,15 @@ def download_static_assets(doc, destination):
 
 
 def pre_flight_image(url):
-    response = sess.get(url)
-    if response.status_code != 200:
+    try:
+        response = sess.get(url)
+        if response.status_code != 200:
+            return None
+        else:
+            return url
+    except NETWORK_ERRORS as e:
+        print('Error in pre_flight_image for URL', url)
         return None
-    else:
-        return url
 
 
 def add_page_flipper_buttons(doc, left_png, right_png):
@@ -388,7 +407,7 @@ def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
         try:
             response = sess.get(url, headers=headers, timeout=timeout, *args, **kwargs)
             break
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
+        except NETWORK_ERRORS as e:
             retry_count += 1
             print("Error with connection ('{msg}'); about to perform retry {count} of {trymax}."
                   .format(msg=str(e), count=retry_count, trymax=max_retries))
@@ -398,8 +417,6 @@ def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
 
     if response.status_code != 200:
         print("NOT FOUND:", url)
-    elif not response.from_cache:
-        print("NOT CACHED:", url)
 
     return response
 
