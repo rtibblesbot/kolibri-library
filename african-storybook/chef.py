@@ -13,17 +13,14 @@ import re
 import requests
 import tempfile
 import time
-from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
 
-import le_utils.constants
 from le_utils.constants.languages import getlang_by_name, getlang_by_native_name
-
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
-from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter, InvalidatingCacheControlAdapter
-from ricecooker.utils.browser import preview_in_browser
+from ricecooker.config import LOGGER
+from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.html import download_file, WebDriver
 from ricecooker.utils.zip import create_predictable_zip
 
@@ -102,11 +99,11 @@ class AfricanStorybookChef(SushiChef):
             # from the ASB website itself. There's two books here, though, but
             # I can't tell in which language those two books are.
             if language == "0":
-                print('skipping language 0')
+                LOGGER.info('skipping language 0')
                 continue
                 
             lang_obj = get_lang_by_name_with_fallback(language)
-            print('lang_obj', language, lang_obj)
+            LOGGER.debug('lang_obj=' + str(lang_obj) + ' language=' + language)
 
             language_node = nodes.TopicNode(source_id=language, title=language, language=lang_obj.code)
             channel.add_child(language_node)
@@ -118,7 +115,7 @@ class AfricanStorybookChef(SushiChef):
                 language_node.add_child(level_node)
 
                 for book in books:
-                    # print('      ', book['book_id'], book['language']) 
+                    LOGGER.debug('      book_id=' + str(book['book_id']) + ' language=' + book['language']) 
                     level_node.add_child(book)
 
         return channel
@@ -149,7 +146,7 @@ def download_all(kwargs):
             scraped_ids.add(book_id)
 
             book_url = "http://www.africanstorybook.org/reader.php?id=%s" % book_id
-            print("Downloading book %s of %s with url %s" % (i + 1, total_books, book_url))
+            LOGGER.info("Downloading book %s of %s from url %s" % (i + 1, total_books, book_url))
 
             level = book["level"]
             language_ids = book["lang"].split(",")
@@ -159,17 +156,16 @@ def download_all(kwargs):
             description = html.unescape(book["summary"])
 
             for language in languages:
-                # print('language=', language)
                 book = download_book(book_url, book_id, title, author, description, language)
                 # book = {'book_url':book_url,
                 #         'book_id': book_id,
                 #         'title': title,
                 #         'language': language}
                 if book:
-                    print("... downloaded a Level %s %s book titled %s" % (level, language, title))
+                    LOGGER.info("... downloaded a Level %s %s book titled %s" % (level, language, title))
                     channel_tree[language][level].append(book)
                 else:
-                    print("... WARNING: book not found")
+                    LOGGER.warning("... WARNING: book %s not found in %s" % (book_id, language))
 
     # import json
     # with open('channel_tree.json', 'w') as jsonf:
@@ -193,7 +189,7 @@ def download_book(book_url, book_id, title, author, description, language):
     if back_cover:
         copyright_holder = str(back_cover.contents[0]).strip(" ©")
     else:
-        print("WARNING: failed to find backcover_copyright for url:", book_url)
+        LOGGER.warning("WARNING: failed to find backcover_copyright for url:" + book_url)
         copyright_holder = 'African Storybook Initiative'
 
 
@@ -325,7 +321,7 @@ def download_static_assets(doc, destination):
         url = make_fully_qualified_url(match.group(1))
         image_url = pre_flight_image(url)
         if image_url is None:
-            print('WARNING: Could not get image from url=', url)
+            LOGGER.warning('WARNING: Could not get image from url=' + url)
             continue
 
         filename = "%s_%s" % (i, os.path.basename(url))
@@ -402,6 +398,13 @@ def replace_br_with_newlines(element):
     return re.sub(" +", " ", text.strip())
 
 
+class Dummy404ResponseObject(requests.Response):
+    def __init__(self, url):
+        super(Dummy404ResponseObject, self).__init__()
+        self._content = b""
+        self.status_code = 404
+        self.url = url
+
 def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
     if clear_cookies:
         sess.cookies.clear()
@@ -414,14 +417,14 @@ def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
             break
         except NETWORK_ERRORS as e:
             retry_count += 1
-            print("Error with connection ('{msg}'); about to perform retry {count} of {trymax}."
+            LOGGER.error("Error with connection ('{msg}'); about to perform retry {count} of {trymax}."
                   .format(msg=str(e), count=retry_count, trymax=max_retries))
             time.sleep(retry_count * 1)
             if retry_count >= max_retries:
                 return Dummy404ResponseObject(url=url)
 
     if response.status_code != 200:
-        print("NOT FOUND:", url)
+        LOGGER.error("HTTP CODE " + str(response.status_code) + ' for ' + url)
 
     return response
 
@@ -439,6 +442,7 @@ def make_fully_qualified_url(url):
     if not url.startswith("http"):
         return "http://www.africanstorybook.org/" + url
     return url
+
 
 
 if __name__ == '__main__':
