@@ -325,7 +325,7 @@ def download_static_assets(doc, destination):
         url = make_fully_qualified_url(match.group(1))
         image_url = pre_flight_image(url)
         if image_url is None:
-            print('WARNING: Could not thumbnail image from url=', url)
+            print('WARNING: Could not get image from url=', url)
             continue
 
         filename = "%s_%s" % (i, os.path.basename(url))
@@ -339,15 +339,20 @@ def download_static_assets(doc, destination):
 
 
 def pre_flight_image(url):
-    try:
-        response = sess.get(url)
-        if response.status_code != 200:
-            return None
-        else:
-            return url
-    except NETWORK_ERRORS as e:
-        print('Error in pre_flight_image for URL', url)
-        return None
+    retry_count = 0
+    max_retries = 5
+    while True:
+        try:
+            response = sess.get(url)
+            if not response.ok:
+                return None
+            else:
+                return url
+        except NETWORK_ERRORS as e:
+            retry_count += 1
+            time.sleep(retry_count * 1)
+            if retry_count >= max_retries:
+                return None
 
 
 def add_page_flipper_buttons(doc, left_png, right_png):
