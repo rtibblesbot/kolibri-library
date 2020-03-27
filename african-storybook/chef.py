@@ -126,7 +126,7 @@ def download_all(kwargs):
 
     with WebDriver("http://www.africanstorybook.org/", delay=20000) as driver:
         books = driver.execute_script("return bookItems;")
-        if 'sample' in kwargs:
+        if 'sample' in kwargs and kwargs['sample']:
             random.seed(42)
             sample_size = int(kwargs['sample'])
             books = random.sample(books, sample_size)
