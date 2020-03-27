@@ -94,6 +94,7 @@ class AfricanStorybookChef(SushiChef):
         channel_tree = download_all(kwargs)
 
         # ... now add them to the ricecooker channel tree!
+        LOGGER.debug('STARTING TO CREATE THE RICECOOKER CHANNEL TREE')
         for language, levels in sorted(channel_tree.items(), key=lambda t: t[0]):
             # Skip creating topic node with the language called "0" -- a bug
             # from the ASB website itself. There's two books here, though, but
@@ -103,19 +104,20 @@ class AfricanStorybookChef(SushiChef):
                 continue
                 
             lang_obj = get_lang_by_name_with_fallback(language)
-            LOGGER.debug('lang_obj=' + str(lang_obj) + ' language=' + language)
+            LOGGER.debug('LANGUAGE ' + language + '   lang_obj=' + str(lang_obj))
 
             language_node = nodes.TopicNode(source_id=language, title=language, language=lang_obj.code)
             channel.add_child(language_node)
 
             for level, books in sorted(levels.items(), key=lambda t: t[0]):
+                LOGGER.debug('   LEVEL %s' % level) 
                 # TODO(davidhu): Translate this topic title "Level #" into the
                 # topic's language.
                 level_node = nodes.TopicNode(source_id=level, title="Level %s" % level)
                 language_node.add_child(level_node)
 
                 for book in books:
-                    LOGGER.debug('      book_id=' + str(book['book_id']) + ' language=' + book['language']) 
+                    LOGGER.debug('      BOOK source_id=' + book.source_id) 
                     level_node.add_child(book)
 
         return channel
