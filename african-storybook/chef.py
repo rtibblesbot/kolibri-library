@@ -152,7 +152,7 @@ def download_all(kwargs):
 
             level = book["level"]
             language_ids = book["lang"].split(",")
-            languages = [language_id_map[code.strip()] for code in language_ids if code]
+            languages = [language_id_map[code.strip()] for code in language_ids if code.strip()]
             author = "%s; Others: %s" % (book["author"], book["people"])
             title = strip_level_from_title(html.unescape(book["title"]))
             description = html.unescape(book["summary"])
