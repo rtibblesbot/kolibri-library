@@ -39,6 +39,7 @@ cache = FileCache('.webcache')
 forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
 sess.mount('http://www.africanstorybook.org/', forever_adapter)
+sess.mount('https://www.africanstorybook.org/', forever_adapter)
 sess.mount('https://fonts.googleapis.com/', forever_adapter)
 
 
@@ -88,7 +89,7 @@ class AfricanStorybookChef(SushiChef):
             language= "mul",
         )
 
-        #download_book("http://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", "en")
+        #download_book("https://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", "en")
 
         # Download the books into a dict {language: [list of books]}
         channel_tree = download_all(kwargs)
@@ -126,7 +127,7 @@ class AfricanStorybookChef(SushiChef):
 def download_all(kwargs):
     scraped_ids = set()
 
-    with WebDriver("http://www.africanstorybook.org/", delay=20000) as driver:
+    with WebDriver("https://www.africanstorybook.org/", delay=20000) as driver:
         books = driver.execute_script("return bookItems;")
         if 'sample' in kwargs and kwargs['sample']:
             random.seed(42)
