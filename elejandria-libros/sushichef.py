@@ -1,14 +1,16 @@
 #!/usr/bin/env python
+import cgi
 import logging
 import os
+import requests
 import scrapy
-import sys
+import shutil
+
 from twisted.internet import reactor
 from scrapy.crawler import CrawlerRunner
 
-from scrapy.crawler import CrawlerProcess
+from le_utils.constants.licenses import PUBLIC_DOMAIN
 
-from ricecooker.utils import downloader, html_writer
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, questions, licenses
 from ricecooker.config import setup_logging
@@ -32,6 +34,8 @@ START_URL = "https://www.elejandria.com/colecciones"
 
 DEBUG = True
 
+DOWNLOADED_FILES_DIR = "downloads/"
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,45 @@ setup_logging(
 # The node tree that will finally be appended to the ChannelNode
 NODE_TREE = []
 
+# Maps nodes to URLs that should be downloaded and added after crawling
+NODE_DOWNLOAD_MAP = {}
+
+
+def download_file(location, destdir=DOWNLOADED_FILES_DIR):
+    """
+    Copied from another chef.
+    
+    TODO: Add caching to avoid re-downloads?
+    """
+    response = requests.get(location, stream=True)
+
+    filename_base = location.split("/")[-1]
+
+    if response.status_code == 200:
+        
+        # TODO: Can this be shortened?
+        _, params = cgi.parse_header(response.headers["Content-Disposition"])
+        original_filename = params["filename"]
+        filename_ext = original_filename.split(".")[-1]
+        destination_filename = ".".join((filename_base, filename_ext))
+        
+        logger.debug("Fetching {} and storing as {}")
+        
+        out_path = os.path.join(destdir, destination_filename)
+
+        if DEBUG and os.path.exists(out_path):
+            logger.debug("Skipping {}, already downloaded".format(out_path))
+        else:
+            with open(out_path, "wb") as outf:
+                shutil.copyfileobj(response.raw, outf)
+            file_size_mb = os.path.getsize(out_path) / 1024.0 / 1024.0,
+            logger.info("Saved file {} of size {} MB".format(out_path, file_size_mb))
+        return out_path
+
+    else:
+        logger.warning("HTTP status {}, downloading: {}".format(response.status_code, location))
+        return None
+
 
 class ElejandriaLibrosSpider(scrapy.Spider):
 
@@ -52,7 +95,6 @@ class ElejandriaLibrosSpider(scrapy.Spider):
 
     def __init__(self):
         super().__init__()
-        self.node_tree = []
 
     def parse(self, response):
         """
@@ -62,34 +104,110 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         * Create a TopicNode and append to Ricecooker tree
         * Spawn parsing for each collection 
         """
-        # logger.debug("Parsing collection base page: {}".format(response.url))
-        for collection_link in response.css(".book-description h2 a").getall():
-            print(collection_link)
-            # logger.debug("Found collection with title: {}".format(collection_link.css("::text").get()))
-            #ricecooker_node = nodes.TopicNode(
-            #    title="lala",
-            #    source_id=collection_link.attrib("href"),
-            #)
-            self.node_tree.append(
-                ""
+        logger.debug("Parsing collection base page: {}".format(response.url))
+        for collection_link in response.css(".book-description h2 a"):
+            title = collection_link.css("::text").get()
+            url = collection_link.attrib["href"]
+            logger.debug("Found collection with title: {}".format(title))
+            ricecooker_node = nodes.TopicNode(
+                title=title,
+                source_id=url,
+            )
+            NODE_TREE.append(
+                ricecooker_node
             )
             request = scrapy.Request(
-                collection_link["href"],
+                collection_link.attrib["href"],
                 callback=self.parse_collection,
-                cb_kwargs={'node': ""}
+                cb_kwargs={'node': ricecooker_node}
             )
             yield request
 
     def parse_collection(self, response, node):
-        # logger.debug("Parsing collection \"{}\": {}".format(node.title, response.url))
-        for book_link in response.css(".book a").getall():
-            logger.debug("Found book")
-            # logger.debug("Found book with title: {}".format(book_link.text()))
+        """
+        Example:
+        https://www.elejandria.com/coleccion/descargar-gratis-20-libros-clasicos-para-sobrellevar-la-cuarentena
+        """
+        logger.debug("Parsing collection \"{}\": {}".format(node.title, response.url))
+        for book_link in response.css(".book div p a.primary-text-color"):
+            url = book_link.attrib["href"]
+            title = book_link.css("::text").get()
+            logger.debug("Found book link: {} - ".format(title))
+            request = scrapy.Request(
+                url,
+                callback=self.parse_book,
+                cb_kwargs={'node': node}
+            )
+            yield request
+            
+    def parse_book(self, response, node):
+        """
+        Example:
+        https://www.elejandria.com/libro/alicia-en-el-pais-de-las-maravillas/carroll-lewis/94
+        """
+        logger.debug("Parsing book page: {}".format(node.title, response.url))
+
+        book_title = response.css("h1.bordered-heading::text").get()
+        author = response.css("h2 a.secondary-text-color::text").get()
+        thumbnail = response.css("img.img-book-cover::attr(src)").get()
+        
+        # Fetch a description based on all the text in P containers
+        # There aren't really any semantic tags around this, so it's
+        # probably going to break some day...
+        description = "\n\n".join(
+            response.css("div.col-lg-8 div.row div.offset-top div.text-justify p::text").getall()
+        )
+        
+        document_node = nodes.DocumentNode(
+            source_id=response.url,
+            title=book_title,
+            license=licenses.get_license(PUBLIC_DOMAIN),
+            author=author,
+            provider=CHANNEL_NAME,
+            description=description,
+            thumbnail=thumbnail,
+            derive_thumbnail=True,
+            files=[]
+        )
+        node.add_child(document_node)
+        
+        versions = {}
+        for download_button in response.css("a.download-link"):
+            button_text = download_button.css("::text").get() or ""
+            url = download_button.attrib["href"]
+            if "ePub" in button_text:
+                versions['ePub'] = url
+            elif "PDF" in button_text:
+                versions['PDF'] = url
+        
+        # Prefer ePub, fall back to PDF
+        if "ePub" in versions:
+            url = versions['ePub']
+        elif "PDF" in versions:
+            url = versions['PDF']
+        else:
+            logger.error("No PDF or ePub version found: {}".format(response.url))
+            return
+
+        request = scrapy.Request(
+            url,
+            callback=self.parse_download,
+            cb_kwargs={'node': document_node}
+        )
+        yield request
+
+    def parse_download(self, response, node):
+        logger.debug("Downloading ePub: {}".format(node.title, response.url))
+        url = response.css(".book-description a.download-link::attr(href)").get()
+        if not url:
+            logger.error("Could not find download link: {}".format(url))
+        else:
+            NODE_DOWNLOAD_MAP[node] = url
 
 
 # The chef subclass
 ################################################################################
-class ElejandriaLibrosCheffos(SushiChef):
+class ElejandriaLibrosChef(SushiChef):
 
     RICECOOKER_JSON_TREE = "ricecooker_json_tree.json"
 
@@ -125,6 +243,13 @@ class ElejandriaLibrosCheffos(SushiChef):
         d = runner.crawl(ElejandriaLibrosSpider)
         d.addBoth(lambda _: reactor.stop())
         reactor.run()
+
+        for node, url in NODE_DOWNLOAD_MAP.items():
+            downloaded_path = download_file(url)
+            if downloaded_path:
+                node.add_file(
+                    downloaded_path
+                )
 
     def transform(self, args, options):
         pass
@@ -166,5 +291,5 @@ class ElejandriaLibrosCheffos(SushiChef):
 ################################################################################
 if __name__ == '__main__':
     # This code runs when sushichef.py is called from the command line
-    chef = ElejandriaLibrosCheffos()
+    chef = ElejandriaLibrosChef()
     chef.main()
