@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import cgi
 import logging
 import os
 import requests
@@ -12,18 +11,17 @@ from scrapy.crawler import CrawlerRunner
 from le_utils.constants.licenses import PUBLIC_DOMAIN
 
 from ricecooker.chefs import SushiChef
-from ricecooker.classes import nodes, files, questions, licenses
+from ricecooker.classes import nodes, files, licenses
 from ricecooker.config import setup_logging
 from ricecooker.exceptions import raise_for_invalid_channel
-from scrapy.utils.log import configure_logging
 
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "Elejandria Libros"  # Name of channel
-CHANNEL_SOURCE_ID = "elejandria-libros"  # Channel's unique id
-CHANNEL_DOMAIN = "elejandria.com"  # Who is providing the content
-CHANNEL_LANGUAGE = "es"  # Language of channel
+CHANNEL_NAME = "Elejandria Libros"
+CHANNEL_SOURCE_ID = "elejandria-libros"
+CHANNEL_DOMAIN = "elejandria.com"
+CHANNEL_LANGUAGE = "es"
 CHANNEL_DESCRIPTION = "Elejandria es un sitio web que ofrece libros gratis de dominio público o publicados bajo licencias abiertas. La mayoría de los autores son clásicos de la literatura unviersal, pero también podrás descargar gratis libros de dominio público actuales con licencias de libre distribución."
 CHANNEL_THUMBNAIL = (
     "channel_thumbnail.png"  # Local path or url to image file (optional)
@@ -47,7 +45,7 @@ setup_logging(
     add_loggers=["scrapy"],
 )
 
-# The node tree that will finally be appended to the ChannelNode
+# The top-level node tree that will be appended to the ChannelNode
 NODE_TREE = []
 
 # Maps nodes to URLs that should be downloaded and added after crawling
@@ -67,32 +65,25 @@ class DownloadJob:
 
     def download(self):
         logger.debug("Now downloading {}".format(self.url))
-        save_path = download_file(self.url)
+        filename_base = self.url.strip("/").split("/")[-1]
+        file_extension = self.file_cls.allowed_formats[0]
+        destination_file = filename_base + "." + file_extension
+        save_path = download_file(self.url, destination_file)
         instance = self.file_cls(save_path)
         self.node.add_file(instance)
 
 
-def download_file(location, destdir=DOWNLOADED_FILES_DIR):
+def download_file(location, dest, destdir=DOWNLOADED_FILES_DIR):
     """
-    Copied from another chef.
+    Download a file and save if response code is 200
     
-    TODO: Add caching to avoid re-downloads?
+    Skips re-downloading in DEBUG mode 
     """
     response = requests.get(location, stream=True)
 
-    filename_base = location.split("/")[-1]
-
     if response.status_code == 200:
 
-        # TODO: Can this be shortened?
-        _, params = cgi.parse_header(response.headers["Content-Disposition"])
-        original_filename = params["filename"]
-        filename_ext = original_filename.split(".")[-1]
-        destination_filename = ".".join((filename_base, filename_ext))
-
-        logger.debug("Fetching {} and storing as {}")
-
-        out_path = os.path.join(destdir, destination_filename)
+        out_path = os.path.join(destdir, dest)
 
         if DEBUG and os.path.exists(out_path):
             logger.debug("Skipping {}, already downloaded".format(out_path))
@@ -269,10 +260,6 @@ class ElejandriaLibrosChef(SushiChef):
         pass
 
     def pre_run(self, args, options):
-        # data_dirs = [TREES_DATA_DIR, DOWNLOADED_FILES_DIR, TRANSFORMED_FILES_DIR]
-        # for dir in data_dirs:
-        #     if not os.path.exists(dir):
-        #         os.makedirs(dir, exist_ok=True)
         self.crawl(args, options)
         self.scrape(args, options)
         self.transform(args, options)
@@ -289,17 +276,14 @@ class ElejandriaLibrosChef(SushiChef):
         """
         channel = self.get_channel(
             *args, **kwargs
-        )  # Create ChannelNode from data in self.channel_info
+        )
 
         for node in NODE_TREE:
             channel.add_child(node)
 
-        # TODO: Replace next line with chef code
-        # raise NotImplementedError("constuct_channel method not implemented yet...")
-
         raise_for_invalid_channel(channel)  # Check for errors in channel construction
 
-        # return channel
+        return channel
 
 
 # CLI
