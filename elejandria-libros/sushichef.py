@@ -177,7 +177,6 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             derive_thumbnail=True,
             files=[],
         )
-        node.add_child(document_node)
 
         versions = {}
         for download_button in response.css("a.download-link"):
@@ -200,6 +199,9 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         else:
             logger.error("No PDF or ePub version found: {}".format(response.url))
             return
+
+        # Add the node now that we know a PDF or ePub exists
+        node.add_child(document_node)
 
         request = scrapy.Request(
             url,
