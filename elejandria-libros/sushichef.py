@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 import logging
-import os
-import requests
 import scrapy
-import shutil
+import signal
+import sys
 
 from twisted.internet import reactor
 from scrapy.crawler import CrawlerRunner
@@ -30,12 +29,7 @@ CHANNEL_THUMBNAIL = (
 # Additional constants
 ################################################################################
 
-START_URL = "https://www.elejandria.com/colecciones"
-
 DEBUG = True
-
-DOWNLOADED_FILES_DIR = "downloads/"
-
 
 logger = logging.getLogger(__name__)
 
@@ -48,86 +42,111 @@ setup_logging(
 # The top-level node tree that will be appended to the ChannelNode
 NODE_TREE = []
 
-# Maps nodes to URLs that should be downloaded and added after crawling
-DOWNLOAD_JOBS = []
-
-
-class DownloadJob:
-    def __init__(self, node, file_cls, url):
-        """
-        node: the DocumentNode to create File object on
-        file_cls: a class, either DocumentFile or EPubFile
-        url: where to get the file from
-        """
-        self.file_cls = file_cls
-        self.url = url
-        self.node = node
-
-    def download(self):
-        logger.debug("Now downloading {}".format(self.url))
-        filename_base = self.url.strip("/").split("/")[-1]
-        file_extension = self.file_cls.allowed_formats[0]
-        destination_file = filename_base + "." + file_extension
-        save_path = download_file(self.url, destination_file)
-        instance = self.file_cls(save_path)
-        self.node.add_file(instance)
-
-
-def download_file(location, dest, destdir=DOWNLOADED_FILES_DIR):
-    """
-    Download a file and save if response code is 200
-    
-    Skips re-downloading in DEBUG mode 
-    """
-    response = requests.get(location, stream=True)
-
-    if response.status_code == 200:
-
-        out_path = os.path.join(destdir, dest)
-
-        if DEBUG and os.path.exists(out_path):
-            logger.debug("Skipping {}, already downloaded".format(out_path))
-        else:
-            with open(out_path, "wb") as outf:
-                shutil.copyfileobj(response.raw, outf)
-            file_size_mb = os.path.getsize(out_path) / 1024.0 / 1024.0
-            logger.info("Saved file {} of size {} MB".format(out_path, file_size_mb))
-        return out_path
-
-    else:
-        logger.warning(
-            "HTTP status {}, downloading: {}".format(response.status_code, location)
-        )
-        return None
+# Scraped book URLs are stored here. Don't worry about concurrency,
+# Scrapy is single-threaded for parsing, only network requests are
+# concurrent.
+BOOKS = {}
 
 
 class ElejandriaLibrosSpider(scrapy.Spider):
+    """
+    Crawls collections and categories, creates a topic for each
+    collection and category.
+    
+    Books (leaf nodes) are duplicated, hence stored in a local key-value.
+    """
 
-    name = "elejandria-base-collections-spider"
-    start_urls = [START_URL]
+    name = "elejandria-spider"
 
     def __init__(self):
         super().__init__()
 
-    def parse(self, response):
+    def start_requests(self):
         """
-        Parses collections on the main page.
-        For each collection:
+        This is where the spider begins: Create the top-level nodes in
+        the channel tree and start crawling collections and categories.
+        """
+        collections_node = nodes.TopicNode(title="Libros organizados por colección", source_id="colecciones",)
+        categories_node = nodes.TopicNode(title="Libros organizados por categoria", source_id="categorias",)
+        NODE_TREE.append(collections_node)
+        NODE_TREE.append(categories_node)
+        return [
+            scrapy.Request(
+                "https://www.elejandria.com/categorias",
+                callback=self.parse_categories,
+                cb_kwargs={"node": categories_node, "top_level": True}
+            ),
+            scrapy.Request(
+                "https://www.elejandria.com/colecciones",
+                callback=self.parse_collections,
+                cb_kwargs={"node": collections_node}
+            ),
+        ]
+
+    def parse_categories(self, response, node, top_level=False):
+        """
+        Parse a category index (list of categories). This can be the
+        top-level page:
+        https://www.elejandria.com/categorias
         
-        * Create a TopicNode and append to Ricecooker tree
-        * Spawn parsing for each collection 
+        Or a sub-category:
+        https://www.elejandria.com/categorias/literatura-y-ficcion/13
+        """
+        for category_link in response.css("h3.book-description a"):
+            title = category_link.css("::text").get()
+            url = category_link.attrib["href"]
+            category_node = nodes.TopicNode(title=title, source_id=url,)
+            node.add_child(category_node)
+            if top_level:
+                request = scrapy.Request(
+                    url,
+                    callback=self.parse_categories,
+                    cb_kwargs={"node": category_node},
+                )
+            else:
+                request = scrapy.Request(
+                    url,
+                    callback=self.parse_category,
+                    cb_kwargs={"node": category_node},
+                )
+            yield request            
+
+    def parse_category(self, response, node):
+        """
+        Example:
+        https://www.elejandria.com/coleccion/descargar-gratis-20-libros-clasicos-para-sobrellevar-la-cuarentena
+        """
+        logger.debug('Parsing collection "{}": {}'.format(node.title, response.url))
+        for book_link in response.css(".book div p a.primary-text-color"):
+            url = book_link.attrib["href"]
+            title = book_link.css("::text").get()
+            logger.debug("Found book link: {}".format(title))
+            request = scrapy.Request(
+                url, callback=self.parse_book, cb_kwargs={"node": node}
+            )
+            yield request
+
+    def parse_collections(self, response, node):
+        """
+        Parses collections on the main page. For each collection:
+        
+        * Create a :class:`ricecooker.classes.nodes.TopicNode` and
+          append to Ricecooker tree
+        * Spawn parsing for each collection
         """
         logger.debug("Parsing collection base page: {}".format(response.url))
         for collection_link in response.css(".book-description h2 a"):
             title = collection_link.css("::text").get()
             url = collection_link.attrib["href"]
             logger.debug("Found collection with title: {}".format(title))
-            ricecooker_node = nodes.TopicNode(title=title, source_id=url,)
-            NODE_TREE.append(ricecooker_node)
+            collection_node = nodes.TopicNode(title=title, source_id=url,)
+            node.add_child(
+                collection_node
+            )
             request = scrapy.Request(
                 collection_link.attrib["href"],
                 callback=self.parse_collection,
-                cb_kwargs={"node": ricecooker_node},
+                cb_kwargs={"node": collection_node},
             )
             yield request
 
@@ -153,6 +172,12 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         """
         logger.debug("Parsing book page: {}".format(node.title, response.url))
 
+        if response.url in BOOKS:
+            book = BOOKS[response.url]
+            logger.debug("Already visited book page, adding {} to {}".format(book.title, node.title))
+            node.add_child(book)
+            return
+
         book_title = response.css("h1.bordered-heading::text").get()
         author = response.css("h2 a.secondary-text-color::text").get()
         thumbnail = response.css("img.img-book-cover::attr(src)").get()
@@ -176,6 +201,9 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             thumbnail=thumbnail,
             files=[],
         )
+
+        # Save in key-value store if we re-visit this page
+        BOOKS[response.url] = document_node
 
         versions = {}
         for download_button in response.css("a.download-link"):
@@ -215,14 +243,20 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         if not url:
             logger.error("Could not find download link: {}".format(url))
         else:
-            DOWNLOAD_JOBS.append(DownloadJob(node, file_cls, url))
+            node.add_file(file_cls(url))
+
+
+def stop_crawling():
+    logger.error("Stopping engine")
+    # def customHandler(signum, stackframe):
+    #     reactor.callFromThread(reactor.stop) # to stop twisted code when in the reactor loop
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    sys.exit(1)
 
 
 # The chef subclass
 ################################################################################
 class ElejandriaLibrosChef(SushiChef):
-
-    RICECOOKER_JSON_TREE = "ricecooker_json_tree.json"
 
     """
     This class uploads the Elejandria Libros channel to Kolibri Studio.
@@ -235,27 +269,30 @@ class ElejandriaLibrosChef(SushiChef):
         to build the contentnode tree.
     For more info, see https://github.com/learningequality/ricecooker/tree/master/docs
     """
-    channel_info = {  # Channel Metadata
-        "CHANNEL_SOURCE_DOMAIN": CHANNEL_DOMAIN,  # Who is providing the content
-        "CHANNEL_SOURCE_ID": CHANNEL_SOURCE_ID,  # Channel's unique id
-        "CHANNEL_TITLE": CHANNEL_NAME,  # Name of channel
-        "CHANNEL_LANGUAGE": CHANNEL_LANGUAGE,  # Language of channel
-        "CHANNEL_THUMBNAIL": CHANNEL_THUMBNAIL,  # Local path or url to image file (optional)
-        "CHANNEL_DESCRIPTION": CHANNEL_DESCRIPTION,  # Description of the channel (optional)
+    channel_info = {
+        "CHANNEL_SOURCE_DOMAIN": CHANNEL_DOMAIN,
+        "CHANNEL_SOURCE_ID": CHANNEL_SOURCE_ID,
+        "CHANNEL_TITLE": CHANNEL_NAME,
+        "CHANNEL_LANGUAGE": CHANNEL_LANGUAGE,
+        "CHANNEL_THUMBNAIL": CHANNEL_THUMBNAIL,
+        "CHANNEL_DESCRIPTION": CHANNEL_DESCRIPTION,
     }
 
     def crawl(self, args, options):
-        # Invoke Scrapy this way -- it's the only way to avoid it from
-        # calling its own configure_logging, which messes up logging
-        # outputs from our own configuration
+        """
+        Start Scrapy with CrawlerRunner -- it's the only way to keep it
+        from calling its own configure_logging, which messes up logging
+        outputs from our own configuration
+        """
         runner = CrawlerRunner()
+        
         d = runner.crawl(ElejandriaLibrosSpider)
+        # d.addBoth(stop_crawling)
         d.addBoth(lambda _: reactor.stop())
         reactor.run()
 
     def scrape(self, args, options):
-        for job in DOWNLOAD_JOBS:
-            job.download()
+        pass
 
     def transform(self, args, options):
         pass
@@ -290,6 +327,7 @@ class ElejandriaLibrosChef(SushiChef):
 # CLI
 ################################################################################
 if __name__ == "__main__":
+    
     # This code runs when sushichef.py is called from the command line
     chef = ElejandriaLibrosChef()
     chef.main()
