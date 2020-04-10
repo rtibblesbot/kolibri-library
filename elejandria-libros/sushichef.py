@@ -174,7 +174,6 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             provider=CHANNEL_NAME,
             description=description,
             thumbnail=thumbnail,
-            derive_thumbnail=True,
             files=[],
         )
 
