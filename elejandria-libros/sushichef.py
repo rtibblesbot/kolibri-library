@@ -2,7 +2,6 @@
 import logging
 import scrapy
 import signal
-import sys
 
 from twisted.internet import reactor
 from scrapy.crawler import CrawlerRunner
@@ -42,10 +41,10 @@ setup_logging(
 # The top-level node tree that will be appended to the ChannelNode
 NODE_TREE = []
 
-# Scraped book URLs are stored here. Don't worry about concurrency,
-# Scrapy is single-threaded for parsing, only network requests are
-# concurrent.
-BOOKS = {}
+# For every book, add a counter when we meet it. Sanity check later.
+# Some books are contained in a lot of collections. Example:
+# https://www.elejandria.com/libro/orgullo-y-prejuicio/jane-austen/20
+NODE_COUNTERS = {}
 
 
 class ElejandriaLibrosSpider(scrapy.Spider):
@@ -60,6 +59,11 @@ class ElejandriaLibrosSpider(scrapy.Spider):
 
     def __init__(self):
         super().__init__()
+
+
+    def spider_closed(self, spider):
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        logger.info('Spider closed: %s', spider.name)
 
     def start_requests(self):
         """
@@ -92,7 +96,11 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         Or a sub-category:
         https://www.elejandria.com/categorias/literatura-y-ficcion/13
         """
+        logger.debug("Parsing categories: {}".format(response.url))
         for category_link in response.css("h3.book-description a"):
+            # There are two sibling <a> links, we are skipping the second one
+            if "btn" in category_link.attrib.get("class", ""):
+                continue
             title = category_link.css("::text").get()
             url = category_link.attrib["href"]
             category_node = nodes.TopicNode(title=title, source_id=url,)
@@ -122,7 +130,10 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             title = book_link.css("::text").get()
             logger.debug("Found book link: {}".format(title))
             request = scrapy.Request(
-                url, callback=self.parse_book, cb_kwargs={"node": node}
+                url,
+                callback=self.parse_book,
+                dont_filter=True,
+                cb_kwargs={"node": node, "source_prefix": "category"}
             )
             yield request
 
@@ -161,24 +172,24 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             title = book_link.css("::text").get()
             logger.debug("Found book link: {} - ".format(title))
             request = scrapy.Request(
-                url, callback=self.parse_book, cb_kwargs={"node": node}
+                url,
+                callback=self.parse_book,
+                dont_filter=True,
+                cb_kwargs={"node": node, "source_prefix": "collection"}
             )
             yield request
 
-    def parse_book(self, response, node):
+    def parse_book(self, response, node, source_prefix=""):
         """
         Example:
         https://www.elejandria.com/libro/alicia-en-el-pais-de-las-maravillas/carroll-lewis/94
+        
+        :param source_prefix: Prefix a DocumentNode's source_id because the same books are added in different subtrees
         """
-        logger.debug("Parsing book page: {}".format(node.title, response.url))
+        logger.debug("Visiting from category '{}' - parsing book page: {}".format(node.title, response.url))
 
-        if response.url in BOOKS:
-            book = BOOKS[response.url]
-            logger.debug("Already visited book page, adding {} to {}".format(book.title, node.title))
-            node.add_child(book)
-            return
-
-        book_title = response.css("h1.bordered-heading::text").get()
+        # Book titles prefixed "Libro <Book Title>"
+        book_title = response.css("h1.bordered-heading::text").get().replace("Libro ", "", 1)
         author = response.css("h2 a.secondary-text-color::text").get()
         thumbnail = response.css("img.img-book-cover::attr(src)").get()
 
@@ -191,8 +202,13 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             ).getall()
         )
 
+        if book_title not in NODE_COUNTERS:
+            NODE_COUNTERS[book_title] = 1
+        else:
+            NODE_COUNTERS[book_title] += 1
+
         document_node = nodes.DocumentNode(
-            source_id=response.url,
+            source_id="{}-{}-{}".format(source_prefix, NODE_COUNTERS[book_title], response.url),
             title=book_title,
             license=licenses.get_license(PUBLIC_DOMAIN),
             author=author,
@@ -201,9 +217,6 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             thumbnail=thumbnail,
             files=[],
         )
-
-        # Save in key-value store if we re-visit this page
-        BOOKS[response.url] = document_node
 
         versions = {}
         for download_button in response.css("a.download-link"):
@@ -227,31 +240,24 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             logger.error("No PDF or ePub version found: {}".format(response.url))
             return
 
-        # Add the node now that we know a PDF or ePub exists
-        node.add_child(document_node)
-
         request = scrapy.Request(
             url,
             callback=self.parse_download,
-            cb_kwargs={"node": document_node, "file_cls": file_cls},
+            dont_filter=True,
+            cb_kwargs={"document_node": document_node, "file_cls": file_cls, "parent_node": node},
         )
         yield request
 
-    def parse_download(self, response, node, file_cls):
-        logger.debug("Downloading ePub: {}".format(node.title, response.url))
+    def parse_download(self, response, document_node, parent_node, file_cls):
+        logger.debug("Downloading ePub: {}".format(document_node.title, response.url))
         url = response.css(".book-description a.download-link::attr(href)").get()
         if not url:
             logger.error("Could not find download link: {}".format(url))
         else:
-            node.add_file(file_cls(url))
+            document_node.add_file(file_cls(url))
 
-
-def stop_crawling():
-    logger.error("Stopping engine")
-    # def customHandler(signum, stackframe):
-    #     reactor.callFromThread(reactor.stop) # to stop twisted code when in the reactor loop
-    signal.signal(signal.SIGINT, signal.default_int_handler)
-    sys.exit(1)
+        # Add the node now that we know a PDF or ePub exists
+        parent_node.add_child(document_node)
 
 
 # The chef subclass
@@ -284,23 +290,59 @@ class ElejandriaLibrosChef(SushiChef):
         from calling its own configure_logging, which messes up logging
         outputs from our own configuration
         """
-        runner = CrawlerRunner()
         
+        # Settings add HttpCacheMiddleware, read more here:
+        # https://scrapy.readthedocs.io/en/latest/topics/downloader-middleware.html
+        
+        if DEBUG:
+            logger.info("Using Scrapy's cache to store HTTP responses in .scrapy/")
+        
+        runner = CrawlerRunner(
+            settings={
+                'HTTPCACHE_ENABLED': DEBUG,
+                'HTTPCACHE_ALWAYS_STORE': DEBUG,
+                'DOWNLOADER_MIDDLEWARES': {
+                    # Non-defaults:
+                    'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 99,
+                    # Defaults:
+                    'scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware': 100,
+                    'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware': 300,
+                    'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware': 350,
+                    'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 400,
+                    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 500,
+                    'scrapy.downloadermiddlewares.retry.RetryMiddleware': 550,
+                    'scrapy.downloadermiddlewares.ajaxcrawl.AjaxCrawlMiddleware': 560,
+                    'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware': 580,
+                    'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 590,
+                    'scrapy.downloadermiddlewares.redirect.RedirectMiddleware': 600,
+                    'scrapy.downloadermiddlewares.cookies.CookiesMiddleware': 700,
+                    'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 750,
+                    'scrapy.downloadermiddlewares.stats.DownloaderStats': 850,
+                    'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 900,
+                }
+            }
+        )
         d = runner.crawl(ElejandriaLibrosSpider)
         # d.addBoth(stop_crawling)
         d.addBoth(lambda _: reactor.stop())
         reactor.run()
+        signal.signal(signal.SIGINT, signal.default_int_handler)
 
-    def scrape(self, args, options):
-        pass
+    def consistency(self):
+        for book, count in NODE_COUNTERS.items():
+            # Most books apper twice: Once in a collection and once in
+            # a category.
+            if count > 2:
+                logger.warning("{} appears {} times".format(book, count))
+            if count > 8:
+                raise AssertionError("Found the same book too many times")
 
     def transform(self, args, options):
         pass
 
     def pre_run(self, args, options):
         self.crawl(args, options)
-        self.scrape(args, options)
-        self.transform(args, options)
+        self.consistency()
 
     def construct_channel(self, *args, **kwargs):
         """

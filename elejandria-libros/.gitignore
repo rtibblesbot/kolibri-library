@@ -1,3 +1,6 @@
+# Scrapy HTTP cache
+.scrapy
+
 # Ricecooker generated files
 storage/*
 .ricecookerfilecache/*
