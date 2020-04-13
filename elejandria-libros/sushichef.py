@@ -2,6 +2,7 @@
 import logging
 import scrapy
 import signal
+import sys
 
 from twisted.internet import reactor
 from scrapy.crawler import CrawlerRunner
@@ -46,6 +47,11 @@ NODE_TREE = []
 # https://www.elejandria.com/libro/orgullo-y-prejuicio/jane-austen/20
 NODE_COUNTERS = {}
 
+# Set when the ElejandriaLibrosSpider instance finishes from its own
+# thread. Used by the main thread to know that it finished and wasn't
+# stopped by a signal or exception.
+SPIDER_FINISHED = False
+
 
 class ElejandriaLibrosSpider(scrapy.Spider):
     """
@@ -60,30 +66,35 @@ class ElejandriaLibrosSpider(scrapy.Spider):
     def __init__(self):
         super().__init__()
 
-
     def spider_closed(self, spider):
+        global SPIDER_FINISHED
+        SPIDER_FINISHED = True
         signal.signal(signal.SIGINT, signal.default_int_handler)
-        logger.info('Spider closed: %s', spider.name)
+        logger.info("Spider closed: %s", spider.name)
 
     def start_requests(self):
         """
         This is where the spider begins: Create the top-level nodes in
         the channel tree and start crawling collections and categories.
         """
-        collections_node = nodes.TopicNode(title="Libros organizados por colección", source_id="colecciones",)
-        categories_node = nodes.TopicNode(title="Libros organizados por categoria", source_id="categorias",)
+        collections_node = nodes.TopicNode(
+            title="Libros organizados por colección", source_id="colecciones",
+        )
+        categories_node = nodes.TopicNode(
+            title="Libros organizados por categoria", source_id="categorias",
+        )
         NODE_TREE.append(collections_node)
         NODE_TREE.append(categories_node)
         return [
             scrapy.Request(
                 "https://www.elejandria.com/categorias",
                 callback=self.parse_categories,
-                cb_kwargs={"node": categories_node, "top_level": True}
+                cb_kwargs={"node": categories_node, "top_level": True},
             ),
             scrapy.Request(
                 "https://www.elejandria.com/colecciones",
                 callback=self.parse_collections,
-                cb_kwargs={"node": collections_node}
+                cb_kwargs={"node": collections_node},
             ),
         ]
 
@@ -117,7 +128,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
                     callback=self.parse_category,
                     cb_kwargs={"node": category_node},
                 )
-            yield request            
+            yield request
 
     def parse_category(self, response, node):
         """
@@ -133,7 +144,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
                 url,
                 callback=self.parse_book,
                 dont_filter=True,
-                cb_kwargs={"node": node, "source_prefix": "category"}
+                cb_kwargs={"node": node, "source_prefix": "category"},
             )
             yield request
 
@@ -151,9 +162,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             url = collection_link.attrib["href"]
             logger.debug("Found collection with title: {}".format(title))
             collection_node = nodes.TopicNode(title=title, source_id=url,)
-            node.add_child(
-                collection_node
-            )
+            node.add_child(collection_node)
             request = scrapy.Request(
                 collection_link.attrib["href"],
                 callback=self.parse_collection,
@@ -175,7 +184,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
                 url,
                 callback=self.parse_book,
                 dont_filter=True,
-                cb_kwargs={"node": node, "source_prefix": "collection"}
+                cb_kwargs={"node": node, "source_prefix": "collection"},
             )
             yield request
 
@@ -186,10 +195,16 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         
         :param source_prefix: Prefix a DocumentNode's source_id because the same books are added in different subtrees
         """
-        logger.debug("Visiting from category '{}' - parsing book page: {}".format(node.title, response.url))
+        logger.debug(
+            "Visiting from category '{}' - parsing book page: {}".format(
+                node.title, response.url
+            )
+        )
 
         # Book titles prefixed "Libro <Book Title>"
-        book_title = response.css("h1.bordered-heading::text").get().replace("Libro ", "", 1)
+        book_title = (
+            response.css("h1.bordered-heading::text").get().replace("Libro ", "", 1)
+        )
         author = response.css("h2 a.secondary-text-color::text").get()
         thumbnail = response.css("img.img-book-cover::attr(src)").get()
 
@@ -208,7 +223,9 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             NODE_COUNTERS[book_title] += 1
 
         document_node = nodes.DocumentNode(
-            source_id="{}-{}-{}".format(source_prefix, NODE_COUNTERS[book_title], response.url),
+            source_id="{}-{}-{}".format(
+                source_prefix, NODE_COUNTERS[book_title], response.url
+            ),
             title=book_title,
             license=licenses.get_license(PUBLIC_DOMAIN),
             author=author,
@@ -244,7 +261,11 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             url,
             callback=self.parse_download,
             dont_filter=True,
-            cb_kwargs={"document_node": document_node, "file_cls": file_cls, "parent_node": node},
+            cb_kwargs={
+                "document_node": document_node,
+                "file_cls": file_cls,
+                "parent_node": node,
+            },
         )
         yield request
 
@@ -275,6 +296,7 @@ class ElejandriaLibrosChef(SushiChef):
         to build the contentnode tree.
     For more info, see https://github.com/learningequality/ricecooker/tree/master/docs
     """
+
     channel_info = {
         "CHANNEL_SOURCE_DOMAIN": CHANNEL_DOMAIN,
         "CHANNEL_SOURCE_ID": CHANNEL_SOURCE_ID,
@@ -284,51 +306,56 @@ class ElejandriaLibrosChef(SushiChef):
         "CHANNEL_DESCRIPTION": CHANNEL_DESCRIPTION,
     }
 
-    def crawl(self, args, options):
+    def crawl(self):
         """
         Start Scrapy with CrawlerRunner -- it's the only way to keep it
         from calling its own configure_logging, which messes up logging
         outputs from our own configuration
         """
-        
+
         # Settings add HttpCacheMiddleware, read more here:
         # https://scrapy.readthedocs.io/en/latest/topics/downloader-middleware.html
-        
+
         if DEBUG:
             logger.info("Using Scrapy's cache to store HTTP responses in .scrapy/")
-        
+
         runner = CrawlerRunner(
             settings={
-                'HTTPCACHE_ENABLED': DEBUG,
-                'HTTPCACHE_ALWAYS_STORE': DEBUG,
-                'DOWNLOADER_MIDDLEWARES': {
+                "HTTPCACHE_ENABLED": DEBUG,
+                "HTTPCACHE_ALWAYS_STORE": DEBUG,
+                "DOWNLOADER_MIDDLEWARES": {
                     # Non-defaults:
-                    'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 99,
+                    "scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware": 99,
                     # Defaults:
-                    'scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware': 100,
-                    'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware': 300,
-                    'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware': 350,
-                    'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 400,
-                    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 500,
-                    'scrapy.downloadermiddlewares.retry.RetryMiddleware': 550,
-                    'scrapy.downloadermiddlewares.ajaxcrawl.AjaxCrawlMiddleware': 560,
-                    'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware': 580,
-                    'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 590,
-                    'scrapy.downloadermiddlewares.redirect.RedirectMiddleware': 600,
-                    'scrapy.downloadermiddlewares.cookies.CookiesMiddleware': 700,
-                    'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 750,
-                    'scrapy.downloadermiddlewares.stats.DownloaderStats': 850,
-                    'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 900,
-                }
+                    "scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware": 100,
+                    "scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware": 300,
+                    "scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware": 350,
+                    "scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware": 400,
+                    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": 500,
+                    "scrapy.downloadermiddlewares.retry.RetryMiddleware": 550,
+                    "scrapy.downloadermiddlewares.ajaxcrawl.AjaxCrawlMiddleware": 560,
+                    "scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware": 580,
+                    "scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware": 590,
+                    "scrapy.downloadermiddlewares.redirect.RedirectMiddleware": 600,
+                    "scrapy.downloadermiddlewares.cookies.CookiesMiddleware": 700,
+                    "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": 750,
+                    "scrapy.downloadermiddlewares.stats.DownloaderStats": 850,
+                    "scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware": 900,
+                },
             }
         )
         d = runner.crawl(ElejandriaLibrosSpider)
         # d.addBoth(stop_crawling)
         d.addBoth(lambda _: reactor.stop())
         reactor.run()
+        
+        if not SPIDER_FINISHED:
+            logger.error("Spider did not finish crawling")
+            sys.exit(1)
+        
         signal.signal(signal.SIGINT, signal.default_int_handler)
 
-    def consistency(self):
+    def check_consistency(self):
         for book, count in NODE_COUNTERS.items():
             # Most books apper twice: Once in a collection and once in
             # a category.
@@ -337,12 +364,9 @@ class ElejandriaLibrosChef(SushiChef):
             if count > 8:
                 raise AssertionError("Found the same book too many times")
 
-    def transform(self, args, options):
-        pass
-
-    def pre_run(self, args, options):
-        self.crawl(args, options)
-        self.consistency()
+    def pre_run(self, *args, **kwargs):
+        self.crawl()
+        self.check_consistency()
 
     def construct_channel(self, *args, **kwargs):
         """
@@ -354,9 +378,7 @@ class ElejandriaLibrosChef(SushiChef):
             "fr" will be passed along to `construct_channel` as kwargs['lang'].
         Returns: ChannelNode
         """
-        channel = self.get_channel(
-            *args, **kwargs
-        )
+        channel = self.get_channel(*args, **kwargs)
 
         for node in NODE_TREE:
             channel.add_child(node)
@@ -366,10 +388,19 @@ class ElejandriaLibrosChef(SushiChef):
         return channel
 
 
+def stop_on_sigint(signum, stackframe):
+    """
+    Necessary to stop Twisted reactor from CTRL+C or sigint
+    """
+    reactor.callFromThread(reactor.stop)
+
+
 # CLI
 ################################################################################
 if __name__ == "__main__":
-    
+
+    signal.signal(signal.SIGINT, stop_on_sigint)
+
     # This code runs when sushichef.py is called from the command line
     chef = ElejandriaLibrosChef()
     chef.main()
