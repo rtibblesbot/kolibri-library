@@ -112,26 +112,27 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             # There are two sibling <a> links, we are skipping the second one
             if "btn" in category_link.attrib.get("class", ""):
                 continue
+            
+            # Create a TopicNode for this category and add it to tree
             title = category_link.css("::text").get()
             url = category_link.attrib["href"]
             category_node = nodes.TopicNode(title=title, source_id=url,)
             node.add_child(category_node)
+            
+            # Where to go next
             if top_level:
-                request = scrapy.Request(
-                    url,
-                    callback=self.parse_categories,
-                    cb_kwargs={"node": category_node},
-                )
+                callback=self.parse_categories
             else:
-                request = scrapy.Request(
-                    url,
-                    callback=self.parse_category,
-                    cb_kwargs={"node": category_node},
-                )
-            yield request
+                callback=self.parse_category
+            yield scrapy.Request(
+                url,
+                callback=callback,
+                cb_kwargs={"node": category_node},
+            )
 
     def parse_category(self, response, node):
         """
+        Get all the books in a category listing and visit the book page.
         Example:
         https://www.elejandria.com/coleccion/descargar-gratis-20-libros-clasicos-para-sobrellevar-la-cuarentena
         """
@@ -140,35 +141,33 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             url = book_link.attrib["href"]
             title = book_link.css("::text").get()
             logger.debug("Found book link: {}".format(title))
-            request = scrapy.Request(
+
+            yield scrapy.Request(
                 url,
                 callback=self.parse_book,
                 dont_filter=True,
                 cb_kwargs={"node": node, "source_prefix": "category"},
             )
-            yield request
 
     def parse_collections(self, response, node):
         """
-        Parses collections on the main page. For each collection:
-        
-        * Create a :class:`ricecooker.classes.nodes.TopicNode` and
-          append to Ricecooker tree
-        * Spawn parsing for each collection
+        Parses collections and create a TopicNode for each collection
         """
         logger.debug("Parsing collection base page: {}".format(response.url))
         for collection_link in response.css(".book-description h2 a"):
+            
+            # Create a TopicNode for each collection
             title = collection_link.css("::text").get()
             url = collection_link.attrib["href"]
             logger.debug("Found collection with title: {}".format(title))
             collection_node = nodes.TopicNode(title=title, source_id=url,)
             node.add_child(collection_node)
-            request = scrapy.Request(
+
+            yield scrapy.Request(
                 collection_link.attrib["href"],
                 callback=self.parse_collection,
                 cb_kwargs={"node": collection_node},
             )
-            yield request
 
     def parse_collection(self, response, node):
         """
@@ -180,16 +179,20 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             url = book_link.attrib["href"]
             title = book_link.css("::text").get()
             logger.debug("Found book link: {} - ".format(title))
-            request = scrapy.Request(
+
+            yield scrapy.Request(
                 url,
                 callback=self.parse_book,
                 dont_filter=True,
                 cb_kwargs={"node": node, "source_prefix": "collection"},
             )
-            yield request
 
     def parse_book(self, response, node, source_prefix=""):
         """
+        Parse a book page, creating the DocumentNode. This node is not
+        appended to the node tree until the download page has been
+        visited and a PDF/ePub has been found.
+        
         Example:
         https://www.elejandria.com/libro/alicia-en-el-pais-de-las-maravillas/carroll-lewis/94
         
@@ -201,7 +204,8 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             )
         )
 
-        # Book titles prefixed "Libro <Book Title>"
+        # Book titles are prefixed "Libro <Book Title>", so we remove
+        # this part.
         book_title = (
             response.css("h1.bordered-heading::text").get().replace("Libro ", "", 1)
         )
@@ -217,6 +221,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             ).getall()
         )
 
+        # Count book titles for later sanity checks.
         if book_title not in NODE_COUNTERS:
             NODE_COUNTERS[book_title] = 1
         else:
@@ -235,6 +240,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             files=[],
         )
 
+        # Find ePub and PDF download buttons
         versions = {}
         for download_button in response.css("a.download-link"):
             button_text = download_button.css("::text").get() or ""
@@ -257,7 +263,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             logger.error("No PDF or ePub version found: {}".format(response.url))
             return
 
-        request = scrapy.Request(
+        yield scrapy.Request(
             url,
             callback=self.parse_download,
             dont_filter=True,
@@ -267,7 +273,6 @@ class ElejandriaLibrosSpider(scrapy.Spider):
                 "parent_node": node,
             },
         )
-        yield request
 
     def parse_download(self, response, document_node, parent_node, file_cls):
         logger.debug("Downloading ePub: {}".format(document_node.title, response.url))
