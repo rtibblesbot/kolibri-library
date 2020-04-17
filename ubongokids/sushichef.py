@@ -13,15 +13,17 @@ from le_utils.constants import content_kinds, licenses
 from ricecooker.chefs import JsonTreeChef
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
+from ricecooker.config import setup_logging
 
 
-def create_logger():
-    logging.getLogger("cachecontrol.controller").setLevel(logging.WARNING)
-    logging.getLogger("requests.packages").setLevel(logging.WARNING)
-    from ricecooker.config import LOGGER
+DEBUG = True
 
-    LOGGER.setLevel(logging.DEBUG)
-    return LOGGER
+logger = logging.getLogger(__name__)
+
+setup_logging(
+    level=logging.DEBUG if DEBUG else logging.INFO,
+    add_loggers=["requests.packages", "cachecontrol.controller"]
+)
 
 
 class UbongoKidsChef(JsonTreeChef):
@@ -41,9 +43,8 @@ class UbongoKidsChef(JsonTreeChef):
         "UC0TLvo891eEEM6HGC5ON7ug",
     ]
 
-    def __init__(self, logger, youtube_client_builder_func):
+    def __init__(self, youtube_client_builder_func):
         super(UbongoKidsChef, self).__init__()
-        self.logger = logger
         self.youtube_client_factory_func = youtube_client_builder_func
         self.youtube_client_dispose_func = None
         self.youtube = None
@@ -79,7 +80,7 @@ class UbongoKidsChef(JsonTreeChef):
             "w",
         ) as f:
             json.dump(web_resource_tree, f, indent=2)
-            self.logger.info("Crawling results stored")
+            logger.info("Crawling results stored")
         return web_resource_tree
 
     def crawl_youtube_channel(self, channel_id):
@@ -213,5 +214,5 @@ if __name__ == "__main__":
             return CachingClient(yt, cache), lambda: cache.__exit__()
         return yt, None
 
-    with UbongoKidsChef(create_logger(), build_youtube_client) as chef:
+    with UbongoKidsChef(build_youtube_client) as chef:
         chef.main()
