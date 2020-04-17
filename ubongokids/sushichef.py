@@ -16,13 +16,14 @@ from ricecooker.utils.jsontrees import write_tree_to_json_tree
 from ricecooker.config import setup_logging
 
 
+# Switches on caching and debug log level
 DEBUG = True
 
 logger = logging.getLogger(__name__)
 
 setup_logging(
     level=logging.DEBUG if DEBUG else logging.INFO,
-    add_loggers=["requests.packages", "cachecontrol.controller"]
+    add_loggers=["requests.packages", "cachecontrol.controller", "ubongo_youtubedl"]
 )
 
 
@@ -43,24 +44,21 @@ class UbongoKidsChef(JsonTreeChef):
         "UC0TLvo891eEEM6HGC5ON7ug",  # Akili and Me
     ]
 
-    def __init__(self, youtube_client_builder_func):
-        super(UbongoKidsChef, self).__init__()
-        self.youtube_client_factory_func = youtube_client_builder_func
-        self.youtube_client_dispose_func = None
-        self.youtube = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.youtube_client_dispose_func:
-            self.youtube_client_dispose_func()
-
     def pre_run(self, args, options):
-        (
-            self.youtube,
-            self.youtube_client_dispose_func,
-        ) = self.youtube_client_factory_func(options.get("caching", False))
+        self.youtube = Client(
+            youtube_dl.YoutubeDL(
+                dict(
+                    verbose=True,
+                    no_warnings=True,
+                    writesubtitles=True,
+                    allsubtitles=True,
+                    logger=logging.getLogger("ubongo_youtubedl"),
+                )
+            )
+        )
+        if DEBUG:
+            cache = Db(os.path.join(os.getcwd(), ".cache"), "ubongokids")
+            self.youtube = CachingClient(self.youtube, cache)
         self.crawl(args, options)
         self.scrape(args, options)
 
@@ -194,21 +192,4 @@ class UbongoKidsChef(JsonTreeChef):
 
 if __name__ == "__main__":
 
-    def build_youtube_client(use_caching):
-        yt = Client(
-            youtube_dl.YoutubeDL(
-                dict(
-                    verbose=True,
-                    no_warnings=True,
-                    writesubtitles=True,
-                    allsubtitles=True,
-                )
-            )
-        )
-        if use_caching:
-            cache = Db(os.path.join(os.getcwd(), ".cache"), "ubongokids").__enter__()
-            return CachingClient(yt, cache), lambda: cache.__exit__()
-        return yt, None
-
-    with UbongoKidsChef(build_youtube_client) as chef:
-        chef.main()
+    UbongoKidsChef().main()
