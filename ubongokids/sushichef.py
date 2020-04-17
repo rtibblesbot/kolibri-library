@@ -37,10 +37,10 @@ class UbongoKidsChef(JsonTreeChef):
         licenses.CC_BY_NC_ND, copyright_holder="Ubongo Media"
     ).as_dict()
     YOUTUBE_CHANNEL_IDS = [
-        "UCwYh0qBAF8HyKt0KUMp1rNg",
-        "UCjsrL7gPn-S5SJJcKp-OYUA",
-        "UCcJywQx_THCEr5-1mJbGL9w",
-        "UC0TLvo891eEEM6HGC5ON7ug",
+        "UCwYh0qBAF8HyKt0KUMp1rNg",  # Ubongo Kids Kiswahili
+        "UCjsrL7gPn-S5SJJcKp-OYUA",  # Ubongo Kids English
+        "UCcJywQx_THCEr5-1mJbGL9w",  # Akili and Me - Kiswahili
+        "UC0TLvo891eEEM6HGC5ON7ug",  # Akili and Me
     ]
 
     def __init__(self, youtube_client_builder_func):
@@ -143,7 +143,6 @@ class UbongoKidsChef(JsonTreeChef):
                 self.scrape_youtube_channel(child)
                 for child in web_resource_tree["children"]
             ],
-            # TODO:
             license=UbongoKidsChef.LICENSE,
         )
         write_tree_to_json_tree(
@@ -165,7 +164,6 @@ class UbongoKidsChef(JsonTreeChef):
                 for playlist in channel["children"]
             ],
             language=channel["language"],
-            # TODO
             license=UbongoKidsChef.LICENSE,
         )
 
@@ -178,7 +176,6 @@ class UbongoKidsChef(JsonTreeChef):
                 self.scrape_youtube_video(video) for video in playlist["children"]
             ],
             language=playlist["language"],
-            # TODO
             license=UbongoKidsChef.LICENSE,
         )
 
@@ -191,7 +188,6 @@ class UbongoKidsChef(JsonTreeChef):
             description=video["description"],
             files=[dict(file_type=content_kinds.VIDEO, youtube_id=video["id"])],
             language=video["language"],
-            # TODO
             license=UbongoKidsChef.LICENSE,
         )
 
