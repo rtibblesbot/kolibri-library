@@ -1,4 +1,2 @@
-youtube_dl >= 2017.11.15
-le-utils>=0.1.3
-ricecooker>=0.6.6
+ricecooker>=0.6.42
 shelve2 >= 1.0
