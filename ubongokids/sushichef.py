@@ -186,7 +186,7 @@ class UbongoKidsChef(JsonTreeChef):
             title=video["title"],
             thumbnail=video["thumbnail"],
             description=video["description"],
-            files=[dict(file_type=content_kinds.VIDEO, youtube_id=video["id"])],
+            files=[dict(file_type=content_kinds.VIDEO, youtube_id=video["id"], high_resolution=False)],
             language=video["language"],
             license=UbongoKidsChef.LICENSE,
         )
