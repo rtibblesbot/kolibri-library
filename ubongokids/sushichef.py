@@ -26,6 +26,9 @@ setup_logging(
     add_loggers=["requests.packages", "cachecontrol.controller", "ubongo_youtubedl"]
 )
 
+# Some playlists have duplicate videos, so skip them
+VIDEOS_USED_SOURCE_IDS = []
+
 
 class UbongoKidsChef(JsonTreeChef):
     HOSTNAME = "ubongokids.com"
@@ -57,7 +60,7 @@ class UbongoKidsChef(JsonTreeChef):
             )
         )
         if DEBUG:
-            cache = Db(os.path.join(os.getcwd(), ".cache"), "ubongokids")
+            cache = Db(os.path.join(os.getcwd(), ".cache"), "ubongokids.pickle")
             self.youtube = CachingClient(self.youtube, cache)
         self.crawl(args, options)
         self.scrape(args, options)
@@ -166,21 +169,25 @@ class UbongoKidsChef(JsonTreeChef):
         )
 
     def scrape_youtube_playlist(self, playlist):
+        children = [self.scrape_youtube_video(video, playlist["id"]) for video in playlist["children"]]
+        children = list(filter(lambda x: x is not None, children))
         return dict(
             kind=content_kinds.TOPIC,
             source_id=playlist["id"],
             title=playlist["title"],
-            children=[
-                self.scrape_youtube_video(video) for video in playlist["children"]
-            ],
+            children=children,
             language=playlist["language"],
             license=UbongoKidsChef.LICENSE,
         )
 
-    def scrape_youtube_video(self, video):
+    def scrape_youtube_video(self, video, playlist_id):
+        source_id = "playlist:{}-{}".format(playlist_id, video["id"])
+        if source_id in VIDEOS_USED_SOURCE_IDS:
+            return None
+        VIDEOS_USED_SOURCE_IDS.append(source_id)
         return dict(
             kind=content_kinds.VIDEO,
-            source_id=video["id"],
+            source_id=source_id,
             title=video["title"],
             thumbnail=video["thumbnail"],
             description=video["description"],
