@@ -1,2 +1,1 @@
 ricecooker>=0.6.42
-shelve2 >= 1.0
