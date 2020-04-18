@@ -5,7 +5,7 @@ chefdata/pdfs
 chefdata/translations-cache
 token.txt
 restore
-.ricecookerfilecache/
+.ricecookerfilecache
 .ricecookerfilecache/*
 .webcache
 storage
