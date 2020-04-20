@@ -56,6 +56,7 @@ class UbongoKidsChef(JsonTreeChef):
                     writesubtitles=True,
                     allsubtitles=True,
                     logger=logging.getLogger("ubongo_youtubedl"),
+                    extract_flat=True,  # This is necessary for playlists to not request info for each video and hit API limits
                 )
             )
         )
