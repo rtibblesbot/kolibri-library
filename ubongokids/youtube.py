@@ -3,6 +3,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from pressurecooker.youtube import YouTubeResource
+
 
 class CachingClient:
     def __init__(self, client, cache):
@@ -70,9 +72,11 @@ class Client:
             raise
 
     def get_video_data(self, id):
-        video = self._get("https://www.youtube.com/watch?v={}".format(id))
-        result = dict(url=video["webpage_url"])
-        result.update(video)
+        video_url = "https://www.youtube.com/watch?v={}".format(id)
+        ytres = YouTubeResource(video_url)
+        video_info = ytres.get_resource_info()
+        result = dict(url=video_url)
+        result.update(video_info)
         return result
 
     def get_playlist_data(self, id):
