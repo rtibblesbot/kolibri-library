@@ -22,9 +22,7 @@ CHANNEL_SOURCE_ID = "elejandria-libros"
 CHANNEL_DOMAIN = "elejandria.com"
 CHANNEL_LANGUAGE = "es"
 CHANNEL_DESCRIPTION = "Elejandria es un sitio web que ofrece libros gratis de dominio público o publicados bajo licencias abiertas. La mayoría de los autores son clásicos de la literatura unviersal, pero también podrás descargar gratis libros de dominio público actuales con licencias de libre distribución."
-CHANNEL_THUMBNAIL = (
-    "channel_thumbnail.png"  # Local path or url to image file (optional)
-)
+CHANNEL_THUMBNAIL = "channel_thumbnail.png"
 
 # Additional constants
 ################################################################################
@@ -47,7 +45,7 @@ NODE_TREE = []
 # https://www.elejandria.com/libro/orgullo-y-prejuicio/jane-austen/20
 NODE_COUNTERS = {}
 
-# Set when the ElejandriaLibrosSpider instance finishes from its own
+# True when the ElejandriaLibrosSpider instance finishes from its own
 # thread. Used by the main thread to know that it finished and wasn't
 # stopped by a signal or exception.
 SPIDER_FINISHED = False
