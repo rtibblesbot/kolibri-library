@@ -202,12 +202,14 @@ class ElejandriaLibrosSpider(scrapy.Spider):
             )
         )
 
-        # Book titles are prefixed "Libro <Book Title>", so we remove
-        # this part.
-        book_title = (
-            response.css("h1.bordered-heading::text").get().replace("Libro ", "", 1)
-        )
+        # Titles are prefixed "Libro <Book Title>", so we remove this
+        book_title = response.css("h1.bordered-heading::text").get()
+        if book_title.startswith("Libro "):
+            book_title = book_title.replace("Libro ", "", 1)
+        # Names are prefixed "de <Author Name>", so we remove this
         author = response.css("h2 a.secondary-text-color::text").get()
+        if author.startswith("de "):
+            author = author.replace("de ", "", 1)
         thumbnail = response.css("img.img-book-cover::attr(src)").get()
 
         # Fetch a description based on all the text in P containers
