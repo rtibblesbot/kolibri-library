@@ -21,7 +21,7 @@ CHANNEL_NAME = "Elejandria Libros"
 CHANNEL_SOURCE_ID = "elejandria-libros"
 CHANNEL_DOMAIN = "elejandria.com"
 CHANNEL_LANGUAGE = "es"
-CHANNEL_DESCRIPTION = "Elejandria es un sitio web que ofrece libros gratis de dominio público o publicados bajo licencias abiertas. La mayoría de los autores son clásicos de la literatura unviersal, pero también podrás descargar gratis libros de dominio público actuales con licencias de libre distribución."
+CHANNEL_DESCRIPTION = "La biblioteca Elejandria contiene libros conocidos organizados por tema, organizados en colecciones para ayudar a los estudiantes de todas las edades a descubrir algo de su nivel de leer. Los lectores pueden encontrar cuentos de hadas, clásicos, novelas de suspenso, non-ficción y más para todos los grupos de edad."
 CHANNEL_THUMBNAIL = "channel_thumbnail.png"
 
 # Additional constants
