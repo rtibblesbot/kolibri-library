@@ -215,11 +215,26 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         # Fetch a description based on all the text in P containers
         # There aren't really any semantic tags around this, so it's
         # probably going to break some day...
-        description = "\n\n".join(
-            response.css(
-                "div.col-lg-8 div.row div.offset-top div.text-justify p::text"
-            ).getall()
+        description_paragraphs = response.css(
+            "div.col-lg-8 div.row div.offset-top div.text-justify p"
         )
+        
+        # The last paragraph should be ignored, it's a kind of breadcrumb
+        # <p><a>category</a> > <a>subcategory</a></p>
+        description = ""
+        for element in description_paragraphs[:-1]:
+            description += "\n\n" + element.css("*::text").get()
+
+        # Some book descriptions end with a list <ul><li>
+        description_list = response.css(
+            "div.col-lg-8 div.row div.offset-top div.text-justify ul li::text"
+        ).getall()
+        
+        for sentence in description_list:
+            description += "\n\n * {}".format(sentence)
+
+        if "828" in response.url:
+            logger.error(description)
 
         # Count book titles for later sanity checks.
         if book_title not in NODE_COUNTERS:
