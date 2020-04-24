@@ -75,6 +75,8 @@ class Client:
         video_url = "https://www.youtube.com/watch?v={}".format(id)
         ytres = YouTubeResource(video_url)
         video_info = ytres.get_resource_info()
+        if not video_info:
+            return None
         result = dict(url=video_url)
         result.update(video_info)
         return result

@@ -103,19 +103,24 @@ class UbongoKidsChef(JsonTreeChef):
     def crawl_youtube_playlist(self, playlist_id):
         playlist = self.youtube.get_playlist_data(playlist_id)
         title = playlist["name"]
+        children = [
+            self.crawl_youtube_video(video_id) for video_id in playlist["videos"]
+        ]
+        # Remove all the None-types
+        children = filter(bool, children)
         return dict(
             kind="UbongoKidsYoutubePlaylist",
             id=playlist["id"],
             title=title,
             url=playlist["url"],
-            children=[
-                self.crawl_youtube_video(video_id) for video_id in playlist["videos"]
-            ],
+            children=children,
             language=playlist.get("language", "en"),
         )
 
     def crawl_youtube_video(self, video_id):
         video = self.youtube.get_video_data(video_id)
+        if not video:
+            return None
         result = dict(
             kind="UbongoKidsYoutubeVideo", language=video.get("language", "en")
         )
