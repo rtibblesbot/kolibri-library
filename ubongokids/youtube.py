@@ -13,7 +13,7 @@ class CachingClient:
 
     def get_video_data(self, id):
         return self._get(
-            self._gen_video_cache_key, id, self.client.get_video_data, self._cache_video
+            self._gen_video_cache_key, id, self.client.get_video_data
         )
 
     def get_playlist_data(self, id):
@@ -21,7 +21,6 @@ class CachingClient:
             self._gen_playlist_cache_key,
             id,
             self.client.get_playlist_data,
-            None,
         )
 
     def get_channel_data(self, id):
@@ -29,22 +28,15 @@ class CachingClient:
             self._gen_channel_cache_key,
             id,
             self.client.get_channel_data,
-            None,
         )
 
-    def _get(self, cache_key_gen_func, id, get_func, further_caching_func):
+    def _get(self, cache_key_gen_func, id, get_func):
         key = cache_key_gen_func(id)
         found, data = self.cache.get(key)
         if not found:
             data = get_func(id)
             self.cache.add(key, data)
-            if further_caching_func:
-                further_caching_func(data)
         return data
-
-    def _cache_video(self, video):
-        self.cache.add(self._gen_video_cache_key(video["id"]), video)
-        return video
 
     def _gen_playlist_cache_key(self, x):
         return "playlist:{}".format(x)
@@ -73,7 +65,7 @@ class Client:
 
     def get_video_data(self, id):
         video_url = "https://www.youtube.com/watch?v={}".format(id)
-        ytres = YouTubeResource(video_url)
+        ytres = YouTubeResource(video_url, useproxy=True)
         video_info = ytres.get_resource_info()
         if not video_info:
             return None
