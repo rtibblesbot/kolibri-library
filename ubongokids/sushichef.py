@@ -107,7 +107,7 @@ class UbongoKidsChef(JsonTreeChef):
             self.crawl_youtube_video(video_id) for video_id in playlist["videos"]
         ]
         # Remove all the None-types
-        children = filter(bool, children)
+        children = list(filter(bool, children))
         return dict(
             kind="UbongoKidsYoutubePlaylist",
             id=playlist["id"],
