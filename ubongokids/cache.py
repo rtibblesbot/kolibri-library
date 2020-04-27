@@ -3,6 +3,7 @@ from os import makedirs
 from os.path import join
 from json import dump
 import shelve
+import atexit
 
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,9 @@ class Db:
         self.misses = 0
         makedirs(self.basedir, exist_ok=True)
         self.db = shelve.open(self.db_path)
+
+        # store cache stats
+        atexit.register(self.close)
 
     def add(self, key, data):
         self.db[key] = data
@@ -36,7 +40,7 @@ class Db:
     def stats(self):
         return dict(hits=self.hits, misses=self.misses)
 
-    def __del__(self):
+    def close(self):
         with open(self.db_path + ".cache_stats.json", "w") as f:
             dump(self.stats(), f)
         self.db.close()
