@@ -40,12 +40,26 @@ class UbongoKidsChef(JsonTreeChef):
     LICENSE = get_license(
         licenses.CC_BY_NC_ND, copyright_holder="Ubongo Media"
     ).as_dict()
-    YOUTUBE_CHANNEL_IDS = [
-        "UCwYh0qBAF8HyKt0KUMp1rNg",  # Ubongo Kids Kiswahili
-        "UCjsrL7gPn-S5SJJcKp-OYUA",  # Ubongo Kids English
-        "UCcJywQx_THCEr5-1mJbGL9w",  # Akili and Me - Kiswahili
-        "UC0TLvo891eEEM6HGC5ON7ug",  # Akili and Me
-    ]
+    
+    # List of Youtube channels and their language.
+    YOUTUBE_CHANNELS = {
+        "UCwYh0qBAF8HyKt0KUMp1rNg": {
+            "lang": "swa",
+            "name": "Ubongo Kids (Kiswahili)",
+        },
+        "UCjsrL7gPn-S5SJJcKp-OYUA": {
+            "lang": "en",
+            "name": "Ubongo Kids (English)",
+        },
+        "UCcJywQx_THCEr5-1mJbGL9w": {
+            "lang": "swa",
+            "name": "Akili and Me (Kiswahili)",
+        },
+        "UC0TLvo891eEEM6HGC5ON7ug": {
+            "lang": "en",
+            "name": "Akili and Me (English)"
+        },
+    }
 
     def pre_run(self, args, options):
         self.youtube = Client(
@@ -72,7 +86,7 @@ class UbongoKidsChef(JsonTreeChef):
             title="Ubongo Kids is a Tanzanian edutainment cartoon made by Ubongo Media.",
             children=[
                 self.crawl_youtube_channel(cid)
-                for cid in UbongoKidsChef.YOUTUBE_CHANNEL_IDS
+                for cid in UbongoKidsChef.YOUTUBE_CHANNELS.keys()
             ],
         )
         with open(
@@ -87,7 +101,10 @@ class UbongoKidsChef(JsonTreeChef):
 
     def crawl_youtube_channel(self, channel_id):
         youtube_channel = self.youtube.get_channel_data(channel_id)
-        title = youtube_channel["name"]
+        title = UbongoKidsChef.YOUTUBE_CHANNELS[channel_id]["name"]
+        # Alternative version is this, but the channels were not named after
+        # the same pattern
+        # title = youtube_channel["name"]
         return dict(
             kind="UbongoKidsYoutubeChannel",
             id=youtube_channel["id"],
@@ -97,7 +114,7 @@ class UbongoKidsChef(JsonTreeChef):
                 self.crawl_youtube_playlist(playlist_id)
                 for playlist_id in youtube_channel["playlists"]
             ],
-            language=youtube_channel.get("language", "en"),
+            language=UbongoKidsChef.YOUTUBE_CHANNELS[channel_id]["lang"],
         )
 
     def crawl_youtube_playlist(self, playlist_id):
@@ -114,7 +131,6 @@ class UbongoKidsChef(JsonTreeChef):
             title=title,
             url=playlist["url"],
             children=children,
-            language=playlist.get("language", "en"),
         )
 
     def crawl_youtube_video(self, video_id):
@@ -122,7 +138,7 @@ class UbongoKidsChef(JsonTreeChef):
         if not video:
             return None
         result = dict(
-            kind="UbongoKidsYoutubeVideo", language=video.get("language", "en")
+            kind="UbongoKidsYoutubeVideo",
         )
         result.update(video)
         return result
@@ -145,7 +161,9 @@ class UbongoKidsChef(JsonTreeChef):
                 :400
             ],
             thumbnail="http://www.ubongokids.com/wp-content/uploads/2016/06/logo_ubongo_kids-150x100.png",
-            language="en",
+            # Means multilingual
+            # https://ricecooker.readthedocs.io/en/latest/examples/languages.html
+            language="mul",
             children=[
                 self.scrape_youtube_channel(child)
                 for child in web_resource_tree["children"]
