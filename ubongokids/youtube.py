@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -65,12 +67,23 @@ class Client:
 
     def get_video_data(self, id):
         video_url = "https://www.youtube.com/watch?v={}".format(id)
-        ytres = YouTubeResource(video_url, useproxy=True)
+        # Undocumented hack to skip proxies in development
+        useproxy = os.environ.get("PROXY_LIST").strip() != "skip"
+        ytres = YouTubeResource(
+            video_url,
+            useproxy=useproxy,
+        )
         video_info = ytres.get_resource_info()
         if not video_info:
             return None
         result = dict(url=video_url)
         result.update(video_info)
+        
+        # Avoid hitting the rate limit when not proxying
+        # 4 seconds should work:
+        # https://github.com/ytdl-org/youtube-dl/issues/22382#issuecomment-546145713
+        if not useproxy:
+            time.sleep(4)
         return result
 
     def get_playlist_data(self, id):
