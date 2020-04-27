@@ -5,6 +5,7 @@ import signal
 import sys
 
 from twisted.internet import reactor
+from scrapy import signals
 from scrapy.crawler import CrawlerRunner
 
 from le_utils.constants.licenses import PUBLIC_DOMAIN
@@ -50,6 +51,23 @@ NODE_COUNTERS = {}
 # stopped by a signal or exception.
 SPIDER_FINISHED = False
 
+# This list is discussed elsewhere - will be finally made and approved by an
+# implementing educational partner.
+BOOKS_SKIPPED = [
+    "76",
+    "830",
+    "715",
+    "708",
+    "712",
+    "463",
+    "709",
+    "841",
+    "713",
+    "707",
+    "714",
+    "711",
+]
+
 
 class ElejandriaLibrosSpider(scrapy.Spider):
     """
@@ -61,8 +79,11 @@ class ElejandriaLibrosSpider(scrapy.Spider):
 
     name = "elejandria-spider"
 
-    def __init__(self):
-        super().__init__()
+    @classmethod
+    def from_crawler(cls, crawler, *args, **kwargs):
+        spider = super().from_crawler(crawler, *args, **kwargs)
+        crawler.signals.connect(spider.spider_closed, signal=signals.spider_closed)
+        return spider
 
     def spider_closed(self, spider):
         global SPIDER_FINISHED
@@ -137,6 +158,14 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         logger.debug('Parsing collection "{}": {}'.format(node.title, response.url))
         for book_link in response.css(".book div p a.primary-text-color"):
             url = book_link.attrib["href"]
+
+            to_skip = any(
+                url.endswith("/{}".format(book_id)) for book_id in BOOKS_SKIPPED
+            )
+            if to_skip:
+                logger.debug("Skipping {}".format(url))
+                continue
+
             title = book_link.css("::text").get()
             logger.debug("Found book link: {}".format(title))
 
@@ -175,6 +204,14 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         logger.debug('Parsing collection "{}": {}'.format(node.title, response.url))
         for book_link in response.css(".book div p a.primary-text-color"):
             url = book_link.attrib["href"]
+
+            to_skip = any(
+                url.endswith("/{}".format(book_id)) for book_id in BOOKS_SKIPPED
+            )
+            if to_skip:
+                logger.debug("Skipping {}".format(url))
+                continue
+            
             title = book_link.css("::text").get()
             logger.debug("Found book link: {} - ".format(title))
 
@@ -233,9 +270,6 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         for sentence in description_list:
             description += "\n\n * {}".format(sentence)
 
-        if "828" in response.url:
-            logger.error(description)
-
         # Count book titles for later sanity checks.
         if book_title not in NODE_COUNTERS:
             NODE_COUNTERS[book_title] = 1
@@ -290,7 +324,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         )
 
     def parse_download(self, response, document_node, parent_node, file_cls):
-        logger.debug("Downloading ePub: {}".format(document_node.title, response.url))
+        logger.debug("Visiting download page: {}".format(document_node.title, response.url))
         url = response.css(".book-description a.download-link::attr(href)").get()
         if not url:
             logger.error("Could not find download link: {}".format(url))
@@ -343,18 +377,24 @@ class ElejandriaLibrosChef(SushiChef):
             settings={
                 "HTTPCACHE_ENABLED": DEBUG,
                 "HTTPCACHE_ALWAYS_STORE": DEBUG,
+                # No error tolerance
+                # https://doc.scrapy.org/en/latest/topics/extensions.html#closespider-errorcount
+                "CLOSESPIDER_ERRORCOUNT": 1,
             }
         )
         d = runner.crawl(ElejandriaLibrosSpider)
         # d.addBoth(stop_crawling)
         d.addBoth(lambda _: reactor.stop())
+        signal.signal(signal.SIGINT, stop_on_sigint)
         reactor.run()
+
+        signal.signal(signal.SIGINT, signal.default_int_handler)
 
         if not SPIDER_FINISHED:
             logger.error("Spider did not finish crawling")
+            runner.stop()
+            # Necessary because Twisted handles signals still
             sys.exit(1)
-
-        signal.signal(signal.SIGINT, signal.default_int_handler)
 
     def check_consistency(self):
         for book, count in NODE_COUNTERS.items():
