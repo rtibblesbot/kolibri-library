@@ -156,8 +156,8 @@ class UbongoKidsChef(JsonTreeChef):
         ricecooker_json_tree = dict(
             source_domain=UbongoKidsChef.HOSTNAME,
             source_id="ubongokids",
-            title="UbongoKids",
-            description="""Ubongo is a Tanzanian social enterprise that creates fun, localized edutainment for learners in Africa. "Ubongo" means brain in Kiswahili, and we're all about finding fun ways to stimulate kids (and kids at heart) to use their brains. Our entertaining media help learners understand concepts, rather than memorizing them. And we use catchy songs and captivating imagery to make sure they never forget!"""[
+            title="Ubongo Kids",
+            description="""Interactive edu-cartoons that teach math and science through fun animated stories and catchy original songs, launched on TanzaniaTV in January 2014 and produced by Ubongo Media."""[
                 :400
             ],
             thumbnail="http://www.ubongokids.com/wp-content/uploads/2016/06/logo_ubongo_kids-150x100.png",
