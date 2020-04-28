@@ -188,7 +188,7 @@ class UbongoKidsChef(JsonTreeChef):
                 self.scrape_youtube_playlist(playlist)
                 for playlist in channel["children"]
             ],
-            language=channel["language"],
+            language=UbongoKidsChef.YOUTUBE_CHANNELS[channel["id"]]["lang"],
             license=UbongoKidsChef.LICENSE,
         )
 
@@ -200,7 +200,8 @@ class UbongoKidsChef(JsonTreeChef):
             source_id=playlist["id"],
             title=playlist["title"],
             children=children,
-            language=playlist["language"],
+            # This is disabled because language is incorrect from Youtube API
+            # language=playlist["language"],
             license=UbongoKidsChef.LICENSE,
         )
 
@@ -214,9 +215,10 @@ class UbongoKidsChef(JsonTreeChef):
             source_id=source_id,
             title=video["title"],
             thumbnail=video["thumbnail"],
-            description="",  # video["description"],
+            description="",  # video["description"] does not provide adequate descriptions
             files=[dict(file_type=content_kinds.VIDEO, youtube_id=video["id"], high_resolution=False)],
-            language=video["language"],
+            # This is disabled because language is incorrect from Youtube API
+            # language=video["language"],
             license=UbongoKidsChef.LICENSE,
         )
 
