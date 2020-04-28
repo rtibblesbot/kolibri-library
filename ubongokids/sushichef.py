@@ -179,33 +179,33 @@ class UbongoKidsChef(JsonTreeChef):
         return ricecooker_json_tree
 
     def scrape_youtube_channel(self, channel):
+        language = UbongoKidsChef.YOUTUBE_CHANNELS[channel["id"]]["lang"]
         return dict(
             kind=content_kinds.TOPIC,
             source_id=channel["id"],
             title=channel["title"],
             description="",
             children=[
-                self.scrape_youtube_playlist(playlist)
+                self.scrape_youtube_playlist(playlist, language)
                 for playlist in channel["children"]
             ],
-            language=UbongoKidsChef.YOUTUBE_CHANNELS[channel["id"]]["lang"],
+            language=language,
             license=UbongoKidsChef.LICENSE,
         )
 
-    def scrape_youtube_playlist(self, playlist):
-        children = [self.scrape_youtube_video(video, playlist["id"]) for video in playlist["children"]]
+    def scrape_youtube_playlist(self, playlist, language):
+        children = [self.scrape_youtube_video(video, playlist["id"], language) for video in playlist["children"]]
         children = list(filter(lambda x: x is not None, children))
         return dict(
             kind=content_kinds.TOPIC,
             source_id=playlist["id"],
             title=playlist["title"],
             children=children,
-            # This is disabled because language is incorrect from Youtube API
-            # language=playlist["language"],
+            language=language,
             license=UbongoKidsChef.LICENSE,
         )
 
-    def scrape_youtube_video(self, video, playlist_id):
+    def scrape_youtube_video(self, video, playlist_id, language):
         source_id = "playlist:{}-{}".format(playlist_id, video["id"])
         if source_id in VIDEOS_USED_SOURCE_IDS:
             return None
@@ -217,8 +217,7 @@ class UbongoKidsChef(JsonTreeChef):
             thumbnail=video["thumbnail"],
             description="",  # video["description"] does not provide adequate descriptions
             files=[dict(file_type=content_kinds.VIDEO, youtube_id=video["id"], high_resolution=False)],
-            # This is disabled because language is incorrect from Youtube API
-            # language=video["language"],
+            language=language,
             license=UbongoKidsChef.LICENSE,
         )
 
