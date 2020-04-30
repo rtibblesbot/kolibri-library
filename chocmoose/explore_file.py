@@ -4,11 +4,15 @@ import pprint
 import re
 import le_utils
 import json
+import pathlib
 import pkgutil 
 import itertools
 from operator import itemgetter
 
-import pathlib
+from le_utils.constants.languages import getlang, _LANGLOOKUP, getlang_by_name
+
+
+
 
 if not os.path.exists('chocmoose_info.pickle'):
     print("error, missing chocmoose_info.pickle, please download and unzip in current dir.")
@@ -145,13 +149,15 @@ def section_from_title(title):
             return project['section'] 
 
 def lang_from_video(vid):
-    for k,v in langlist.items():  
-        name = v['name']
-        native_name = v['native_name']
-        if name in vid['title']:
-           return k 
-        if native_name and (native_name in vid['title']):
-           return k 
+    for k, v in langlist.items():  
+        names = v['name'].split(';')
+        for name in names:
+          if name in vid['title']:
+            return k 
+        native_names = v['native_name'].split(',')
+        for native_name in native_names:
+          if native_name and (native_name in vid['title']):
+            return k 
 
 def manual_lang_tag_from_video(vid):
     for language in LANGS_LOOKUP:
@@ -175,7 +181,7 @@ for vid in info['entries']:
         print(vid['webpage_url'])
         print(vid['title'],'\033[91m', vid['project_name'], '\033[0m')
 
-print("Remaining videos:", remaining)
+# print("Remaining videos:", remaining)
 
 # Assign language tag for video
 # If it can be assigned directly, it should be used "the manual way"
@@ -193,7 +199,7 @@ for vid in info['entries']:
         print(vid['webpage_url'])
         print(vid['title'],'\033[91m', vid['project_name'], '\033[0m')
 
-print("Remaining videos without language:", remaining)
+# print("Remaining videos without language:", remaining)
 
 def match_video(vid1, vid2):
     if vid1.lower() == vid2.lower():
@@ -267,6 +273,8 @@ for vid in info['entries']:
         projects[vid.get('project_name')][vid.get('lang_tag')]['number'] += 1
         projects[vid.get('project_name')][vid.get('lang_tag')]['videos'].append(vid) 
 
+
+# Print counts
 for project, values in projects.items():
     print(project)
     for lang, info in values.items(): 
@@ -274,26 +282,110 @@ for project, values in projects.items():
         #for vid in info['videos']:
         #   print("\t", vid.get('title'))
 
-def all_with_one_video(values):
-    for lang, info in values:
-        if not info['number'] == 1:
-            return False
-    return True
 
-def category_b(project, values):
-    pathlib.Path(os.path.join("ChocMoose",project)).mkdir(parents=True, exist_ok=True) 
-    for lang, info in values.items():
-      for vid in info['videos']:
-          open(os.path.join("ChocMoose", project,vid['title']), 'a').close()
+# Replaced with printing during Export as JSON
+# # Print tree
+# for project, values in projects.items():
+#     print('')
+#     print(project)
+#     for lang, info in values.items():
+#         print('   - ', lang, info['number'])
+#         for vid in info['videos']:
+#             print('        ', vid['title'], vid['webpage_url'])
 
-for project, values in projects.items():
-    print(project)
-    if len(values.keys()) == 1:
-        category_b(project, values)
-    elif all_with_one_video(values.items()):
-        category_b(project, values)
-    else:
-        print("Category A")
+
+
+
+# Language helper
+################################################################################
+lang_tag_to_lang_dict = {}
+
+for le_code, lang_obj in _LANGLOOKUP.items():
+    lang_tag_to_lang_dict[le_code] = dict(
+        lang_tag=le_code,
+        name=lang_obj.name.split(';')[0],
+        le_code=le_code,        
+    )
+
+
+for item in LANGS_LOOKUP:
+    lang_tag = item['lang']
+    name = repr(item['pattern']).replace("re.compile('.*", "").replace(".*')", "")
+    lang_obj = getlang(lang_tag)
+    if lang_obj is None:
+        lang_obj = getlang_by_name(name)
+
+    lang_tag_to_lang_dict[lang_tag] = dict(
+        lang_tag=lang_tag,
+        name=name,
+        le_code=lang_obj.code if lang_obj else None,        
+    )
+    
+
+
+# Export as JSON
+################################################################################
+
+projects_tree = {}
+
+for project_name, project_langs in projects.items():
+    print('building subtree for ', project_name)
+    project_dict = dict(
+        project_name=project_name,
+        children=[],
+    )
+    projects_tree[project_name] = project_dict
+    for lang_tag, langinfo in project_langs.items():
+        print('   - ', lang_tag, langinfo['number'])
+        lang_dict = lang_tag_to_lang_dict[lang_tag]
+        this_lang_dict = lang_dict.copy()
+        this_lang_dict['children'] = []
+        project_dict['children'].append(this_lang_dict)        
+        for vid in langinfo['videos']:
+            print('        ', vid['title'], vid['webpage_url'])
+            this_lang_dict['children'].append(vid)
+
+print('Created projects_tree')
+
+
+# Save tree as JSON
+class SetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return json.JSONEncoder.default(self, obj)
+
+with open('chocmoose_videos_data.json', 'w', encoding='utf8') as json_file:
+    json.dump(projects_tree, json_file, cls=SetEncoder, indent=4, ensure_ascii=False)
+
+
+print('Saved projects_tree to chocmoose_videos_data.json')
+
+
+
+
+
+
+
+# Category B project helpers --- single video available in multiple languages
+
+# def all_with_one_video(values):
+#     for lang, info in values:
+#         if not info['number'] == 1:
+#             return False
+#     return True
+
+# def category_b(project, values):
+#     pathlib.Path(os.path.join("ChocMoose",project)).mkdir(parents=True, exist_ok=True) 
+#     for lang, info in values.items():
+#       for vid in info['videos']:
+#           open(os.path.join("ChocMoose", project,vid['title']), 'a').close()
+    # if len(values.keys()) == 1:
+    #     category_b(project, values)
+    # elif all_with_one_video(values.items()):
+    #     category_b(project, values)
+    # else:
+    #     print("Category A")
 
 
 #sorted_by_language = sorted(info['entries'], key=itemgetter('lang_tag'))
