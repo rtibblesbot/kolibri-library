@@ -210,10 +210,26 @@ class UbongoKidsChef(JsonTreeChef):
         if source_id in VIDEOS_USED_SOURCE_IDS:
             return None
         VIDEOS_USED_SOURCE_IDS.append(source_id)
+        
+        # Many titles are of the form
+        # [unique title] | [playlist] | [generic descriptor]
+        # [unique title] - [playlist] - [generic descriptor]
+        title = video["title"]
+        
+        titles_dash = title.split(" - ")
+        titles_pipe = title.split(" | ")
+        
+        if len(titles_dash) == 3:
+            title = titles_dash[0]
+        elif len(titles_pipe) == 3:
+            title = titles_pipe[0]
+        
+        title = title.strip()
+        
         return dict(
             kind=content_kinds.VIDEO,
             source_id=source_id,
-            title=video["title"],
+            title=title,
             thumbnail=video["thumbnail"],
             description="",  # video["description"] does not provide adequate descriptions
             files=[dict(file_type=content_kinds.VIDEO, youtube_id=video["id"], high_resolution=False)],
