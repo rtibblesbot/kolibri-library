@@ -2,6 +2,7 @@
 
 import os
 import logging
+import re
 import json
 
 import youtube_dl
@@ -214,17 +215,43 @@ class UbongoKidsChef(JsonTreeChef):
         # Many titles are of the form
         # [unique title] | [playlist] | [generic descriptor]
         # [unique title] - [playlist] - [generic descriptor]
-        title = video["title"]
+        title = video["title"].strip()
+        before_title = title
         
+        # Simple check, if the result after cleaning up a title matches
+        # something in this list, skip it
+        skip_title_if_matches = [
+            re.compile(r"^Ubongo\sKids\sSing-Along$"),
+            re.compile(r"United\sNations\s\+\sUbongo\sKids"),
+            re.compile(r"^Geometry$"),
+            re.compile(r"^Math\sSong"),
+        ]
+
         titles_dash = title.split(" - ")
+        titles_dash = list(filter(lambda s: s != "", titles_dash))
+         
         titles_pipe = title.split(" | ")
+        titles_pipe = list(filter(lambda s: s != "", titles_pipe))
         
         if len(titles_dash) == 3:
             title = titles_dash[0]
         elif len(titles_pipe) == 3:
             title = titles_pipe[0]
+        elif len(titles_pipe) == 4:
+            # Join the first two components in this pattern
+            title = " - ".join(titles_pipe[0:2])
         
         title = title.strip()
+        
+        if any(p.match(title) for p in skip_title_if_matches):
+            logging.debug("Ignoring title change for: {}".format(title))
+            title = before_title
+        
+        # Consistent use of dash instead of pipe
+        title = title.replace(" | ", " - ")
+        
+        if title != before_title:
+            logger.debug("Title before/after:\n  {}\n  {}".format(before_title, title))
         
         return dict(
             kind=content_kinds.VIDEO,
