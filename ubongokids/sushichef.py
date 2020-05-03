@@ -250,9 +250,6 @@ class UbongoKidsChef(JsonTreeChef):
         # Consistent use of dash instead of pipe
         title = title.replace(" | ", " - ")
         
-        if title != before_title:
-            logger.debug("Title before/after:\n  {}\n  {}".format(before_title, title))
-        
         return dict(
             kind=content_kinds.VIDEO,
             source_id=source_id,
