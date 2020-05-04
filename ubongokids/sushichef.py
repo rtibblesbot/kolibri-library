@@ -27,8 +27,9 @@ setup_logging(
     add_loggers=["requests.packages", "cachecontrol.controller", "ubongo_youtubedl"]
 )
 
-# Some playlists have duplicate videos, so skip them
-VIDEOS_USED_SOURCE_IDS = []
+# Store a list of videos per playlist. Some playlists have duplicate videos, so
+# skip them.
+VIDEOS_USED_SOURCE_IDS = {}
 
 
 class UbongoKidsChef(JsonTreeChef):
@@ -187,30 +188,40 @@ class UbongoKidsChef(JsonTreeChef):
             title=channel["title"],
             description="",
             children=[
-                self.scrape_youtube_playlist(playlist, language)
+                self.scrape_youtube_playlist(playlist, language, channel["id"])
                 for playlist in channel["children"]
             ],
             language=language,
             license=UbongoKidsChef.LICENSE,
         )
 
-    def scrape_youtube_playlist(self, playlist, language):
-        children = [self.scrape_youtube_video(video, playlist["id"], language) for video in playlist["children"]]
+    def scrape_youtube_playlist(self, playlist, language, channel_id):
+        parent_source_id = "channel:{}-playlist:{}".format(channel_id, playlist["id"])
+        children = [self.scrape_youtube_video(video, parent_source_id, language) for video in playlist["children"]]
         children = list(filter(lambda x: x is not None, children))
         return dict(
             kind=content_kinds.TOPIC,
-            source_id=playlist["id"],
+            source_id="channel:{}-playlist:{}".format(channel_id, playlist["id"]),
             title=playlist["title"],
             children=children,
             language=language,
             license=UbongoKidsChef.LICENSE,
         )
 
-    def scrape_youtube_video(self, video, playlist_id, language):
-        source_id = "playlist:{}-{}".format(playlist_id, video["id"])
-        if source_id in VIDEOS_USED_SOURCE_IDS:
+    def scrape_youtube_video(self, video, parent_source_id, language):
+        """
+        :param parent_source_id: the source id of the parent is retained to
+        check that the same video isn't duplicated and to ensure uniqueness
+        
+        """
+        source_id = "video:{}".format(video["id"])
+        
+        if parent_source_id not in VIDEOS_USED_SOURCE_IDS:
+            VIDEOS_USED_SOURCE_IDS[parent_source_id] = []
+        if source_id in VIDEOS_USED_SOURCE_IDS[parent_source_id]:
+            logger.warning("Video appears twice in the same parent and is ignored: {} - parent: {}".format(video["url"], parent_source_id))
             return None
-        VIDEOS_USED_SOURCE_IDS.append(source_id)
+        VIDEOS_USED_SOURCE_IDS[parent_source_id].append(source_id)
         
         # Many titles are of the form
         # [unique title] | [playlist] | [generic descriptor]
