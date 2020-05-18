@@ -19,7 +19,7 @@ CHANNEL_THUMBNAIL = None                                    # Local path or url 
 
 # The chef subclass
 ################################################################################
-class ChocmooseChef(SushiChef):
+class ChocMooseChef(SushiChef):
     """
     This class converts content from the content source into the format required by Kolibri,
     then uploads the {channel_name} channel to Kolibri Studio.
@@ -68,5 +68,5 @@ class ChocmooseChef(SushiChef):
 ################################################################################
 if __name__ == '__main__':
     # This code runs when sushichef.py is called from the command line
-    chef = ChocmooseChef()
+    chef = ChocMooseChef()
     chef.main()
