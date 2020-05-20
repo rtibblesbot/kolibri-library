@@ -17,7 +17,6 @@ from ricecooker.classes.licenses import get_license
 from ricecooker.classes.nodes import VideoNode, TopicNode
 
 
-LE = 'Learning Equality'
 
 ARVIND = "Arvind Gupta Toys"
 
@@ -90,7 +89,8 @@ def include_video_topic(topic_node, video_data, lang_obj):
         files=[
             YouTubeVideoFile(
                 youtube_id=video_id,
-                language=video_data.language
+                language=video_data.language,
+                high_resolution=False,
             )
         ])
     topic_node.add_child(video_node)
@@ -134,7 +134,6 @@ def download_video_topics(data, topic, topic_node, lang_obj):
     """
     global CACHE_VIDEO_LIST
     pp = pprint.PrettyPrinter()
-
     for vinfo in data[topic]:
         try:
             video_url = vinfo['video_url']
@@ -326,14 +325,11 @@ def create_language_topic():
 class ArvindChef(SushiChef):
     channel_info = {
         "CHANNEL_TITLE": "Arvind Gupta Toys",
-        # where you got the content (change me!!)
         "CHANNEL_SOURCE_DOMAIN": "arvindguptatoys.com",
-        # channel's unique id (change me!!) # NOTE when you remove test- the channel_id will change; make sure to update notion card
-        "CHANNEL_SOURCE_ID": "arvind-gupta-toys-beta",
-        "CHANNEL_LANGUAGE": "mul",  # le_utils language code
+        "CHANNEL_SOURCE_ID": "toys-from-trash",
+        "CHANNEL_LANGUAGE": "mul",
         "CHANNEL_THUMBNAIL": 'chefdata/arvind_gupta_thumbnail.png',
-        # (optional)
-        "CHANNEL_DESCRIPTION": "Math and Science activities through low-cost " \
+        "CHANNEL_DESCRIPTION": "Math and science activities through low-cost " \
                 "materials all in the form of videos to provide various pathways for children to explore" \
                 " and deepen their understanding of concepts in low-resource contexts around the world." \
                 " Valuable resource library for teachers to incorporate in their lessons, for parents to" \
