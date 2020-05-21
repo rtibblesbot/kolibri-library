@@ -52,7 +52,6 @@ MULTI_LANGUAGE = "multi"
 
 def clean_video_title(title, lang_obj):
     # Remove redundant and misleading words in the video title
-    pp = pprint.PrettyPrinter()
     clean_title = title
     try:
 
@@ -132,8 +131,7 @@ def download_video_topics(data, topic, topic_node, lang_obj):
     """
     Scrape, collect, and download the videos and their thumbnails.
     """
-    global CACHE_VIDEO_LIST
-    pp = pprint.PrettyPrinter()
+    video_source_ids = []
     for vinfo in data[topic]:
         try:
             video_url = vinfo['video_url']
@@ -142,18 +140,15 @@ def download_video_topics(data, topic, topic_node, lang_obj):
                 title=vinfo['video_title'], 
                 language=lang_obj.code)
 
-            match = YOUTUBE_ID_REGEX.match(video_url)
-            if match:
-                youtube_id = match.group('youtube_id')
-                skip_videos = load_skip_videos()
-                if youtube_id in skip_videos:
-                    return
-                if video.download_info():
-                    if video.license_common:
+            if video.download_info():
+
+                if video.license_common:
+                    video_source_id = 'arvind-video-{0}'.format(video.uid)
+                    if video_source_id not in video_source_ids:
                         include_video_topic(topic_node, video, lang_obj)
+                        video_source_ids.append(video_source_id)
                     else:
-                        save_skip_videos(video, topic, lang_obj)
-                        CACHE_VIDEO_LIST.append(video.uid)
+                        print('Skipping duplicate video: ' + str(vinfo['video_url']))
                 else:
                     save_skip_videos(video, topic, lang_obj)
                     CACHE_VIDEO_LIST.append(video.uid)
@@ -164,7 +159,6 @@ def download_video_topics(data, topic, topic_node, lang_obj):
 
 def generate_child_topics(arvind_contents, main_topic, lang_obj, topic_type):
     # Create a topic for each languages
-    pp = pprint.PrettyPrinter()
     data = arvind_contents[lang_obj.name]
 
     for topic_index in data:
@@ -261,7 +255,6 @@ def get_language_details(lang_name):
 
 def create_language_topic():
     arvind_languages = scrape_arvind_page()
-    pp = pprint.PrettyPrinter()
     main_topic_list = []
 
     if os.path.exists(SKIP_VIDEOS_PATH):
@@ -317,8 +310,7 @@ def create_language_topic():
             print("===> error getting language topics: ", e)
         language_next_int += 4
         loop_couter += 1
-    cache_skip_videos()
-    # pp.pprint(data_contents)
+
     return main_topic_list
 
 
