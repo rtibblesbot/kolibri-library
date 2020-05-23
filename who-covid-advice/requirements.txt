@@ -1,1 +1,1 @@
-ricecooker>=0.6.43
+-e git+https://github.com/kollivier/ricecooker@site_archive#egg=ricecooker
