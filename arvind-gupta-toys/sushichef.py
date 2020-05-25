@@ -65,6 +65,8 @@ MULTI_LANGUAGE = "multi"
 
 YOUTUBE_DOMAINS = ["youtu.be", "youtube.com"]
 
+# Include this at script argv to delete CACHE_SKIP_VIDEOS_PATH
+CLEAR_SKIP_CACHE = "--clear-skip-cache"
 
 DEBUG_MODE = True  # Print extra debug info durig the chef run (disable in prod)
 
