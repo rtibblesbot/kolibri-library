@@ -3,8 +3,5 @@
 Get Started
 ---------------
 
-	export SUSHI_BAR_URL="sushibar.learningequality.org"
 	pip3 install -r requirements.txt
-	python3 chef.py --token=<your_token>
-
-> *Note*: If you would like to use your own StoryWeaver account to download stories, please use the arguments --login_email and --login_password. Otherwise, the sushi chef will be run with a default StoryWeaver account.
+	python3 chef.py --token=<your_token> --login_email=<your_storyweaver_account> --login_password=<your_storyweaver_account_password>

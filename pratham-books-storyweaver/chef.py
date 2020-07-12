@@ -23,13 +23,11 @@ BOOK_SEARCH_URL = "https://storyweaver.org.in/api/v1/books-search"
 DOWNLOAD_URL = "https://storyweaver.org.in/v0/stories/download-story/{}.pdf"
 
 
-"""
-Get a list of all books on the African Storybooks website to later compare
-with the books on the StoryWeaver website with African Storybooks publisher.
-"""
-
-
 def get_AS_booklist_dict():
+    """
+    Get a list of all books on the African Storybooks website to later compare
+    with the books on the StoryWeaver website with African Storybooks publisher.
+    """
     with WebDriver("http://www.africanstorybook.org/", delay=20000) as driver:
 
         js_code = """
@@ -62,13 +60,12 @@ def get_AS_booklist_dict():
         return dictionary
 
 
-"""
-Get detailed information about each book.
-* books - The list of books to get detailed information
-"""
-
-
 def get_books_from_results(books):
+    """
+    Get detailed information about each book.
+    Parameters:
+    * books - The list of books to get detailed information
+    """
     booklist = []
     # Loop through all the books for one page
     for i in range(len(books)):
@@ -84,9 +81,7 @@ def get_books_from_results(books):
             "link": DOWNLOAD_URL.format(books[i]["slug"]),
             "source_id": books[i]["id"],
             "title": books[i]["title"],
-            "author": ", ".join(
-                [item["name"] for item in books[i]["authors"]]
-            ),
+            "author": ", ".join([item["name"] for item in books[i]["authors"]]),
             "description": books[i]["description"],
             "thumbnail": thumbnail,
             "language": language,
@@ -98,13 +93,12 @@ def get_books_from_results(books):
     return booklist
 
 
-"""
-Get all the books for every category
-* category - The name of the category that is related to the books
-"""
-
-
 def books_for_each_category(category):
+    """
+    Get all the books for every category
+    Parameters:
+    * category - The name of the category that is related to the books
+    """
     LOGGER.info("\tCrawling books for {}......\n".format(category))
 
     # Get the json file of the page and parse it
@@ -133,25 +127,19 @@ def books_for_each_category(category):
         booklist += get_books_from_results(data["data"])
 
     LOGGER.info(
-        "\tFinished getting all the books for {}\n\t================\n".format(
-            category
-        )
+        "\tFinished getting all the books for {}\n\t================\n".format(category)
     )
     return booklist
 
 
-"""
-Parse the json returned by StoryWeaver API and generate a dictionary that
-contains all the information regarding category, publisher, language, level and
-book.
-"""
-
-
 def download_all():
+    """
+    Parse the json returned by StoryWeaver API and generate a dictionary that
+    contains all the information regarding category, publisher, language, level and
+    book.
+    """
     resp = downloader.make_request(FILTERS_URL, clear_cookies=False).json()
-    categories = [
-        item["name"] for item in resp["data"]["category"]["queryValues"]
-    ]
+    categories = [item["name"] for item in resp["data"]["category"]["queryValues"]]
 
     channel_tree = {}
     for category in categories:
@@ -166,13 +154,9 @@ def download_all():
             if publisher in channel_tree[category]:
                 if language in channel_tree[category][publisher]:
                     if level in channel_tree[category][publisher][language]:
-                        channel_tree[category][publisher][language][
-                            level
-                        ].append(book)
+                        channel_tree[category][publisher][language][level].append(book)
                     else:
-                        channel_tree[category][publisher][language][level] = [
-                            book
-                        ]
+                        channel_tree[category][publisher][language][level] = [book]
                 else:
                     channel_tree[category][publisher][language] = {}
                     channel_tree[category][publisher][language][level] = [book]
@@ -183,17 +167,15 @@ def download_all():
     return channel_tree
 
 
-"""
-Recursively parsing through the tree and adding TopicNodes and DocumentNodes.
-
-* tree - The tree that contains information about category, publisher, language,
-         level, and book and is going to be parsed
-* parent_topic - The parent node that will be attached with Nodes created later
-* as_booklist - the list of books from African Storybook
-"""
-
-
 def parse_through_tree(tree, parent_topic, as_booklist):
+    """
+    Recursively parsing through the tree and adding TopicNodes and DocumentNodes.
+    Parameters:
+    * tree - The tree that contains information about category, publisher, language,
+            level, and book and is going to be parsed
+    * parent_topic - The parent node that will be attached with Nodes created later
+    * as_booklist - the list of books from African Storybook
+    """
     for topic_name in sorted(tree):
         content = tree[topic_name]
         try:
@@ -217,15 +199,14 @@ def parse_through_tree(tree, parent_topic, as_booklist):
             parent_topic.add_child(current_topic)
 
 
-"""
-Check if the story in StoryWeaver is also in African Storybooks.
-* as_booklist - The list of books from African Storybooks
-* story_name - The book name from StoryWeaver to check if it exists on
-               African Storybooks website
-"""
-
-
 def check_if_story_in_AS(as_booklist, story_name):
+    """
+    Check if the story in StoryWeaver is also in African Storybooks.
+    Parameters:
+    * as_booklist - The list of books from African Storybooks
+    * story_name - The book name from StoryWeaver to check if it exists on
+                African Storybooks website
+    """
     result = as_booklist.get(story_name.lower().rstrip())
     if result and len(result) == 1:
         return True, result[0]["id"]
@@ -233,16 +214,15 @@ def check_if_story_in_AS(as_booklist, story_name):
         return False, None
 
 
-"""
-Add books as DocumentNode under a specific level of reading.
-* booklist - The list of books to be added as DocumentNodes
-* level_topic - The TopicNode regarding current level that the DocumentNodes
-                will be attached to
-* as_booklist - The list of books from African Storybooks
-"""
-
-
 def add_node_document(booklist, level_topic, as_booklist):
+    """
+    Add books as DocumentNode under a specific level of reading.
+    Parameters:
+    * booklist - The list of books to be added as DocumentNodes
+    * level_topic - The TopicNode regarding current level that the DocumentNodes
+                    will be attached to
+    * as_booklist - The list of books from African Storybooks
+    """
     for item in booklist:
         # Initialize the source domain and content_id
         domain = uuid.uuid5(uuid.NAMESPACE_DNS, "storyweaver.org.in")
@@ -253,24 +233,19 @@ def add_node_document(booklist, level_topic, as_booklist):
         if item["publisher"] == "African Storybook Initiative":
             check = check_if_story_in_AS(as_booklist, item["title"])
             if check[0]:
-                domain = uuid.uuid5(
-                    uuid.NAMESPACE_DNS, "www.africanstorybook.org"
-                )
+                domain = uuid.uuid5(uuid.NAMESPACE_DNS, "www.africanstorybook.org")
                 book_id = check[1]
 
         # Given that StoryWeaver provides the link to a zip file,
         # we will download the zip file and extract the pdf file from it
         with tempfile.NamedTemporaryFile(suffix=".zip") as tempf:
             try:
-                resp = downloader.make_request(
-                    item["link"], clear_cookies=False)
+                resp = downloader.make_request(item["link"], clear_cookies=False)
                 resp.raise_for_status()
                 tempf.write(resp.content)
             except Exception as e:
                 # Do not create the node if download fails
-                LOGGER.info(
-                    "Error: {} when downloading {}".format(e, item["link"])
-                )
+                LOGGER.info("Error: {} when downloading {}".format(e, item["link"]))
                 continue
 
             filename = ""
@@ -295,9 +270,7 @@ def add_node_document(booklist, level_topic, as_booklist):
             author=item["author"],
             provider=item["publisher"],
             files=[document_file],
-            license=get_license(
-                licenses.CC_BY, copyright_holder="StoryWeaver"
-            ),
+            license=get_license(licenses.CC_BY, copyright_holder="StoryWeaver"),
             thumbnail=item.get("thumbnail"),
             description=item["description"],
             domain_ns=domain,
@@ -319,12 +292,12 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
         )
         self.arg_parser.add_argument(
             "--login_email",
-            default="lywang07@gmail.com",
+            required=True,
             help="Login email for Pratham Books' StoryWeaver website.",
         )
         self.arg_parser.add_argument(
             "--login_password",
-            default="1234567890",
+            required=True,
             help="Login password for Pratham Books' StoryWeaver website.",
         )
 
@@ -369,9 +342,7 @@ class PrathamBooksStoryWeaverSushiChef(SushiChef):
                 source_id=category.replace(" ", "_"), title=category
             )
             channel.add_child(category_topic)
-            parse_through_tree(
-                channel_tree[category], category_topic, as_booklist
-            )
+            parse_through_tree(channel_tree[category], category_topic, as_booklist)
 
         return channel
 
