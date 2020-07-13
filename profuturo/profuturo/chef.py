@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import csv
 import glob
 import os
@@ -24,6 +26,20 @@ ROOT_DIR = os.path.abspath(os.path.join(THIS_DIR, '..'))
 FILES_DIR = os.path.join(ROOT_DIR, 'files')
 LANGUAGES = ['en', 'es', 'fr', 'pt']
 DEFAULT_LANG = 'en'
+
+TRANSLATIONS = {
+    'ICT Route': {
+        'en': 'ICT Route',
+        'es': 'Ruta TIC',
+        'pt': 'Rota TIC'
+    },
+    'Innovation Route': {
+        'en': 'Innovation Route',
+        'es': 'Ruta Innovación',
+        'pt': 'Rota Inovação'
+    }
+
+}
 
 INDEX_TEMPLATE = """
 <!DOCTYPE html>
@@ -86,7 +102,14 @@ class ProFuturoChef(SushiChef):
         child_topics = []
         for subject in self.content_tree:
             subject_id = '{}-{}'.format(source_id, subject)
-            subject_node = nodes.TopicNode(source_id=subject_id, title=subject)
+            title = subject
+            if subject.endswith('Route'):
+                lang = self.lang_id
+                if not self.lang_id in TRANSLATIONS[subject]:
+                    lang = 'en'
+                title = TRANSLATIONS[subject][lang]
+            subject_node = nodes.TopicNode(source_id=subject_id, title=title)
+
             channel.add_child(subject_node)
             modules = self.content_tree[subject]
             for module in modules:
@@ -274,7 +297,8 @@ class ProFuturoChef(SushiChef):
 
         ict_dir = os.path.join(lang_dir, 'ICT-routes')
         if os.path.exists(ict_dir):
-            self.content_tree['ICT Routes'] = []
+            self.content_tree['ICT Route'] = []
+            self.content_tree['Innovation Route'] = []
             ict_csv_files = glob.glob(os.path.join(ict_dir, '*.csv'))
             assert len(ict_csv_files) == 1
             ict_csv_file = ict_csv_files[0]
@@ -287,6 +311,9 @@ class ProFuturoChef(SushiChef):
                 for line in lines[1:]:
                     id, title, filename, description, image = line[:5]
 
+                    route = 'ICT Route'
+                    if filename.startswith('IN'):
+                        route = 'Innovation Route'
                     lar_file = os.path.join(ict_dir, filename)
                     children = self.parse_lar_file(lar_file, roles.COACH)
 
@@ -299,7 +326,7 @@ class ProFuturoChef(SushiChef):
                         'children': children
                     }
 
-                    self.content_tree['ICT Routes'].append(item)
+                    self.content_tree[route].append(item)
 
         # Add the additional content we were sent.
         if self.lang_id == 'en':
