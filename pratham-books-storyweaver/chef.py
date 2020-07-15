@@ -109,7 +109,7 @@ def books_for_each_category(category):
     data = response.json()
     total_pages = data["metadata"]["totalPages"]
     LOGGER.info(
-        "\tThere is(are) in total {} page(s) for {}......\n".format(
+        "\tThere are in total {} pages for {}......\n".format(
             total_pages, category
         )
     )
@@ -123,6 +123,10 @@ def books_for_each_category(category):
         response = downloader.make_request(
             BOOK_SEARCH_URL, params=payload, clear_cookies=False
         )
+
+        # Skip the page if there is an error (usually a 500 error)
+        if response.status_code != 200:
+            continue
         data = response.json()
         booklist += get_books_from_results(data["data"])
 
@@ -146,10 +150,21 @@ def download_all():
         channel_tree[category] = {}
         booklist = books_for_each_category(category)
 
+        # Reset Storyweaver Community number and index for each category
+        storyweaver_community_num = 0
+        index = 1
         for book in booklist:
             publisher = book["publisher"]
             language = book["language"]
             level = book["level"]
+
+            if publisher == "StoryWeaver Community":
+                storyweaver_community_num += 1
+                # Make sure we only have 20 books in one Storyweaver Community folder
+                if storyweaver_community_num > 20:
+                    index += 1
+                    storyweaver_community_num = 1
+                publisher = "{}-{}".format(publisher, index)
 
             if publisher in channel_tree[category]:
                 if language in channel_tree[category][publisher]:
