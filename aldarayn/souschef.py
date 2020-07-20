@@ -14,7 +14,7 @@ import arabic
 import csvstructure
 import video
 from collections import namedtuple
-from csvstructure import L1_KEY, L2_KEY, L3_KEY, L4_KEY, WEBSITE_URL_KEY
+from csvstructure import L1_KEY, L2_KEY, L3_KEY, L4_KEY, WEBSITE_URL_KEY, TITLE_KEY
 Row = namedtuple("Row", csvstructure.PYTHON_FIELDNAMES)
 
 def sha1(x):
@@ -32,9 +32,9 @@ def dragon_construct_channel(self, **kwargs):
         #print (row)
         #exit()
         if row[L1_KEY] == csvstructure.L1_KEY: continue
-        topic_tree = [row[L1_KEY], row[L2_KEY], row[L3_KEY], row[L4_KEY]]
+        topic_tree = [row[L1_KEY], row[L2_KEY], row[L3_KEY], row[L4_KEY], row[TITLE_KEY]]
         topic_tree = tuple(x for x in topic_tree if x)  # remove Nones
-        for i in range(1,5):
+        for i in range(1,6):
             partial_tree = topic_tree[:i]
             parent = partial_tree[:-1] or None
             leaf = partial_tree[-1]
@@ -92,15 +92,16 @@ class K12Chef(SushiChef):
 
 def make_channel():
     args = {'token': os.environ['KOLIBRI_STUDIO_TOKEN'], 'reset': True, 'verbose': True}
+    if "adult" in sys.argv:
+        adult=True
+    if "child" in sys.argv:
+        child=True
     options = {}
-    adult_chef = AdultChef()
-    try:
+    if "adult":
+        adult_chef = AdultChef()
         adult_chef.run(args, options)
-    except Exception as e:
-        print (e)
-        print ("**")
-        raise
-    #k12_chef = K12Chef()
-    #k12_chef.run(args, options)
+    if "child":
+        k12_chef = K12Chef()
+        k12_chef.run(args, options)
 
 make_channel()
