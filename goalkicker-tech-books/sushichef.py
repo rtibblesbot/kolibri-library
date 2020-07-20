@@ -13,10 +13,10 @@ from ricecooker.utils.pdf import PDFParser
 
 
 
-CHANNEL_DESCRIPTION = """A collection of programming books generated from the Stack Overflow forums """ \
+CHANNEL_DESCRIPTION = """A collection of programming books from the Stack Overflow Documentation project """ \
                       """that cover topics like Linux, Python, Java, JavaScript, PHP, HTML5, Android, SQL, """ \
                       """and other modern technologies used by professional programmers. """ \
-                      """These books will be useful for high school students and adult learners """ \
+                      """These books can be used by high school students and adult learners """ \
                       """wishing to develop advanced computer skills, or as supplementary materials for technology classes."""
 
 LIGATURES = {   u"\u00DF": "fs",
@@ -70,8 +70,11 @@ class GoalkickerChef(SushiChef):
             download_dir = os.path.join('downloads', 'book_' + str(book_counter).rjust(2, '0') + '--' + book_info['subject'])
             # Get chapters info
             pdf_path = book_info['absolute_url']
-            book_node = TopicNode(title=book_info['subject'],
-                                  source_id=book_node_source_id)
+            book_node = TopicNode(
+                title=book_info['subject'],
+                description=book_info['description'],
+                source_id=book_node_source_id,
+            )
             channel.add_child(book_node)
             with PDFParser(pdf_path, directory=download_dir) as pdfparser:
                 chapters = pdfparser.split_chapters()
@@ -82,9 +85,9 @@ class GoalkickerChef(SushiChef):
 
                 if chapter['title'].startswith('Chapter'):
                     chapter_num = re.search('Chapter (\d+)', chapter['title']).group(1)
-                    chapter_description = 'Chapter ' + chapter_num + ' of the Goalkicker book on ' + book_info['subject'] + '.'
+                    chapter_description = 'Chapter ' + chapter_num + ' of the book on ' + book_info['subject'] + '.'
                 else:
-                    chapter_description = 'Section "' + chapter['title'] + '" of the Goalkicker book on ' + book_info['subject'] + '.'
+                    chapter_description = 'Section "' + chapter['title'] + '" of the book on ' + book_info['subject'] + '.'
 
                 chapter_node = DocumentNode(
                     title=chapter['title'],
@@ -119,7 +122,7 @@ def parse_book_info(soup):
     suffix = ' Notes for Professionals'
     book_subject = book_title[:-len(suffix)] if book_title.endswith(suffix) else book_title
 
-    book_description = 'A book about ' + book_subject
+    book_description = 'A book about ' + book_subject + ' exported from the Stack Overflow Documentation project.'
 
     book_source_id = 'book/' + book_subject
 
