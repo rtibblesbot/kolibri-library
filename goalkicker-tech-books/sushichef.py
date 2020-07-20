@@ -6,16 +6,18 @@ import requests
 
 from bs4 import BeautifulSoup
 from ricecooker.chefs import SushiChef
-from ricecooker.classes.nodes import ChannelNode, TopicNode, DocumentNode
+from ricecooker.classes.nodes import TopicNode, DocumentNode
 from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.pdf import PDFParser
-from tempfile import NamedTemporaryFile
-import thumbnail
-def get_temp_filename(suffix):
-    "usage: get_temp_filename('.mp3')"
-    return NamedTemporaryFile(suffix=suffix, delete=False).name
 
+
+
+CHANNEL_DESCRIPTION = """A collection of programming books generated from the Stack Overflow forums """ \
+                      """that cover topics like Linux, Python, Java, JavaScript, PHP, HTML5, Android, SQL, """ \
+                      """and other modern technologies used by professional programmers. """ \
+                      """These books will be useful for high school students and adult learners """ \
+                      """wishing to develop advanced computer skills, or as supplementary materials for technology classes."""
 
 LIGATURES = {   u"\u00DF": "fs",
                 u"\u00C6": "AE",
@@ -34,12 +36,12 @@ LIGATURES = {   u"\u00DF": "fs",
 
 class GoalkickerChef(SushiChef):
     channel_info = {
-        'CHANNEL_TITLE': 'Goalkicker',
+        'CHANNEL_TITLE': 'Goalkicker Tech Books',
         'CHANNEL_SOURCE_DOMAIN': 'goalkicker.com',
-        'CHANNEL_SOURCE_ID': 'goalkicker_dragon',
+        'CHANNEL_SOURCE_ID': 'tech-books',
         'CHANNEL_LANGUAGE': 'en',
         'CHANNEL_THUMBNAIL': 'chefdata/channel_thumbnail.png',
-        'CHANNEL_DESCRIPTION': 'Programming Notes for Professionals books',
+        'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,
     }
 
     def construct_channel(self, **kwargs):
@@ -68,13 +70,8 @@ class GoalkickerChef(SushiChef):
             download_dir = os.path.join('downloads', 'book_' + str(book_counter).rjust(2, '0') + '--' + book_info['subject'])
             # Get chapters info
             pdf_path = book_info['absolute_url']
-            book_thumbnail_filename = get_temp_filename(".png")
-            thumbnail.pdf_smart_crop(pdf_path,
-                                     book_thumbnail_filename,
-                                     chapter=False)
             book_node = TopicNode(title=book_info['subject'],
-                                  source_id=book_node_source_id,
-                                  thumbnail=book_thumbnail_filename)
+                                  source_id=book_node_source_id)
             channel.add_child(book_node)
             with PDFParser(pdf_path, directory=download_dir) as pdfparser:
                 chapters = pdfparser.split_chapters()
@@ -85,14 +82,9 @@ class GoalkickerChef(SushiChef):
 
                 if chapter['title'].startswith('Chapter'):
                     chapter_num = re.search('Chapter (\d+)', chapter['title']).group(1)
-                    chapter_description = 'Chapter ' + chapter_num + ' of the Goalkicker book on ' + book_info['subject']
+                    chapter_description = 'Chapter ' + chapter_num + ' of the Goalkicker book on ' + book_info['subject'] + '.'
                 else:
-                    chapter_description = '"' + chapter['title'] + '" section of the Goalkicker book on ' + book_info['subject']
-
-                chapter_thumbnail_filename = get_temp_filename(".png")
-                thumbnail.pdf_smart_crop(chapter['path'],
-                                         chapter_thumbnail_filename,
-                                         chapter=True)
+                    chapter_description = 'Section "' + chapter['title'] + '" of the Goalkicker book on ' + book_info['subject'] + '.'
 
                 chapter_node = DocumentNode(
                     title=chapter['title'],
@@ -100,8 +92,7 @@ class GoalkickerChef(SushiChef):
                     source_id=chapter_node_source_id,
                     license=get_license('CC BY-SA', copyright_holder='Stack Overflow'),
                     language='en',
-                    files=[DocumentFile(path=chapter['path'], language='en')],
-                    thumbnail=chapter_thumbnail_filename,
+                    files=[DocumentFile(path=chapter['path'], language='en')]
                 )
                 book_node.add_child(chapter_node)
         return channel
@@ -147,9 +138,8 @@ def parse_book_info(soup):
 if __name__ == '__main__':
     """
     Run this script on the command line using:
-        python goalkicker_chef.py -v --reset --token=YOURTOKENHERE9139139f3a23232
+        python sushichef.py   --token=YOURTOKENHERE9139139f3a23232
     """
     goalkicker_chef = GoalkickerChef()
-    os.environ['CONTENT_CURATION_TOKEN'] = os.environ['KOLIBRI_STUDIO_TOKEN']
     goalkicker_chef.main()
 

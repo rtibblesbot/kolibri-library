@@ -2,6 +2,13 @@
 notebooks/sample_book.pdf
 notebooks/sample_chapter.pdf
 
+# chef-specific
+restore/
+storage/
+.ricecookerfilecache/
+.webcache/
+*.swp
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -108,10 +115,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# specific
-*_thumb.png
-restore/
-storage/
-.ricecookerfilecache/
-.webcache/
-*.swp
+# IDEs
+.idea
+
