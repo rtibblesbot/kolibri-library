@@ -2,6 +2,4 @@
 .webcache/
 restore/
 storage/
-node_modules/*
-ghostdriver.log
-package-lock.json
+thumbnail.png
