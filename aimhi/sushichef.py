@@ -12,6 +12,8 @@ from ricecooker.utils.youtube import YouTubeVideoUtils, YouTubePlaylistUtils
 
 from utils import *
 
+from utils import *
+
 # Image conversion
 from PIL import Image
 import requests 
@@ -106,7 +108,32 @@ class AimhiChef(SushiChef):
 
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         # Get Channel Topics
+        for playlist_id in PLAYLIST_MAP:
+          playlist = YouTubePlaylistUtils(id=playlist_id)
+          playlist_info = playlist.get_playlist_info(use_proxy=False, use_cache=False, youtube_skip_download=False)
 
+          # Get channel description if there is any
+          playlist_description = ''
+          if playlist_info["description"]:
+            playlist_description = playlist_info["description"]
+          else :
+            playlist_description = playlist_info['title']
+          print(playlist_info["title"])
+          print("description "+ playlist_description)
+          print(playlist_info["source_url"])
+          topic_source_id = 'aimhi-child-topic-{0}'.format(playlist_info["title"])
+          topic_node = nodes.TopicNode(
+            title = playlist_info["title"],
+            source_id = topic_source_id,
+            author = "AimHi",
+            provider = "AimHi",
+            description = playlist_description,
+            language = 'en'
+          )
+          channel.add_child(topic_node)
+          
+        # TODO: Replace next line with chef code
+        # raise NotImplementedError("constuct_channel method not implemented yet...")
 
         # Create thumbnails folder in chefdata if not exists
         if not os.path.isdir(os.path.join('chefdata', 'thumbnails')):
