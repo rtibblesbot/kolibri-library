@@ -8,15 +8,18 @@ from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
+from ricecooker.utils.youtube import YouTubeVideoUtils, YouTubePlaylistUtils
+
+from utils import *
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "aimhi"                             # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "<yourid>"                              # Unique ID for content source
-CHANNEL_DOMAIN = "<yourdomain.org>"                         # Who is providing the content
+CHANNEL_NAME = "AimHi"                             # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "aimhi"                              # Unique ID for content source
+CHANNEL_DOMAIN = "www.aimhi.co"                         # Who is providing the content
 CHANNEL_LANGUAGE = "en"                                     # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_DESCRIPTION = 'The nature-first, curiosity-powered online school.'                                  # Description of the channel (optional)
+CHANNEL_THUMBNAIL = AIMHI_THUMBNAIL_PATH                                   # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whenever you update downloaded content
 
 
@@ -67,10 +70,61 @@ class AimhiChef(SushiChef):
         Returns: ChannelNode
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
+        # Get Channel Topics
+        cwd = os.getcwd()
 
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
+        youtube_cache = os.path.join(cwd, "chefdata", "youtubecache")
 
+        for playlist_id in PLAYLIST_MAP:
+          
+          playlist = YouTubePlaylistUtils(id=playlist_id, cache_dir = youtube_cache)
+
+          playlist_info = playlist.get_playlist_info()
+
+          # Get channel description if there is any
+          playlist_description = ''
+          if playlist_info["description"]:
+            playlist_description = playlist_info["description"]
+          else :
+            playlist_description = playlist_info["title"]
+
+          topic_source_id = 'aimhi-child-topic-{0}'.format(playlist_info["title"])
+          topic_node = nodes.TopicNode(
+            title = playlist_info["title"],
+            source_id = topic_source_id,
+            author = "AimHi",
+            provider = "AimHi",
+            description = playlist_description,
+            language = "en"
+          )
+
+          # insert videos into playlist topic after creation
+          for child in playlist_info["children"]:
+            video = YouTubeVideoUtils( id = child["id"], cache_dir = False)
+            video_details = video.get_video_info()
+            video_source_id = "AimHi-{0}-{1}".format(playlist_info["title"], video_details["id"])
+            video_node = nodes.VideoNode(
+              source_id = video_source_id,
+              title = video_details["title"],
+              description = video_details["description"],
+              author = "AimHi",
+              language = "en",
+              provider = "AimHi",
+              thumbnail = video_details["thumbnail"],
+              license=licenses.get_license("CC BY-NC-ND", copyright_holder="AimHi"),
+              files = [
+                files.YouTubeVideoFile(
+                  youtube_id = video_details["id"],
+                  language = "en"
+                )
+              ]
+            )
+            # add video to topic
+            topic_node.add_child(video_node)
+
+          # add topic to channel
+          channel.add_child(topic_node)
+        
         return channel
 
 
