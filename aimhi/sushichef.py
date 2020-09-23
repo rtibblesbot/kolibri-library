@@ -79,7 +79,7 @@ class AimhiChef(SushiChef):
           
           playlist = YouTubePlaylistUtils(id=playlist_id, cache_dir = youtube_cache)
 
-          playlist_info = playlist.get_playlist_info()
+          playlist_info = playlist.get_playlist_info(use_proxy=False)
 
           # Get channel description if there is any
           playlist_description = ''
@@ -101,7 +101,7 @@ class AimhiChef(SushiChef):
           # insert videos into playlist topic after creation
           for child in playlist_info["children"]:
             video = YouTubeVideoUtils( id = child["id"], cache_dir = False)
-            video_details = video.get_video_info()
+            video_details = video.get_video_info(use_proxy=False)
             video_source_id = "AimHi-{0}-{1}".format(playlist_info["title"], video_details["id"])
             video_node = nodes.VideoNode(
               source_id = video_source_id,
@@ -120,6 +120,7 @@ class AimhiChef(SushiChef):
               ]
             )
             # add video to topic
+            print(video_details["id"] + " has been added!")
             topic_node.add_child(video_node)
 
           # add topic to channel
