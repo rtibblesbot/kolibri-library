@@ -11,6 +11,10 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 from ricecooker.utils.youtube import YouTubeVideoUtils, YouTubePlaylistUtils
 
 from utils import *
+# Image conversion
+from PIL import Image
+import requests 
+from io import BytesIO
 
 # Run constants
 ################################################################################
@@ -97,31 +101,63 @@ class AimhiChef(SushiChef):
             description = playlist_description,
             language = "en"
           )
-
+          
+          video_ids = []
+          
           # insert videos into playlist topic after creation
           for child in playlist_info["children"]:
-            video = YouTubeVideoUtils( id = child["id"], cache_dir = False)
-            video_details = video.get_video_info(use_proxy=False)
-            video_source_id = "AimHi-{0}-{1}".format(playlist_info["title"], video_details["id"])
-            video_node = nodes.VideoNode(
-              source_id = video_source_id,
-              title = video_details["title"],
-              description = video_details["description"],
-              author = "AimHi",
-              language = "en",
-              provider = "AimHi",
-              thumbnail = video_details["thumbnail"],
-              license=licenses.get_license("CC BY-NC-ND", copyright_holder="AimHi"),
-              files = [
-                files.YouTubeVideoFile(
-                  youtube_id = video_details["id"],
-                  language = "en"
-                )
-              ]
-            )
-            # add video to topic
-            print(video_details["id"] + " has been added!")
-            topic_node.add_child(video_node)
+            # check for duplicate videos
+            if child["id"] not in video_ids:
+              video = YouTubeVideoUtils( id = child["id"], cache_dir = False)
+              video_details = video.get_video_info(use_proxy=False)
+              video_source_id = "AimHi-{0}-{1}".format(playlist_info["title"], video_details["id"])
+
+              # Check youtube thumbnail extension as some are not supported formats
+              thumbnail_link = ''
+              print(video_details["thumbnail"])
+              image_response = requests.get(video_details["thumbnail"])
+
+              img = Image.open(BytesIO(image_response.content))
+              if img.format not in ['JPG', 'PNG', 'JPEG']:
+                # if not in correct format, convert image and download to files folder
+                print(video_details["thumbnail"])
+                print("{0}'s thumbnail not supported ({1}).".format(video_details["id"], img.format))
+                img_file_name = '{}_thumbnail.jpg'.format(video_details["id"])
+                thumbnail_link = os.path.join(cwd, 'files', img_file_name)
+                print(thumbnail_link)
+
+                jpg_img = img.convert("RGB")
+
+                # resive image to thumbnail dimensions
+                jpg_img = jpg_img.resize( (400, 225), Image.ANTIALIAS)
+                jpg_img.save(thumbnail_link)
+              else :
+                thumbnail_link = video_details["thumbnail"]
+
+              video_node = nodes.VideoNode(
+                source_id = video_source_id,
+                title = video_details["title"],
+                description = video_details["description"],
+                author = "AimHi",
+                language = "en",
+                provider = "AimHi",
+                thumbnail = thumbnail_link,
+                license=licenses.get_license("CC BY-NC-ND", copyright_holder="AimHi"),
+                files = [
+                  files.YouTubeVideoFile(
+                    youtube_id = video_details["id"],
+                    language = "en"
+                  )
+                ]
+              )
+              # add video to topic
+              print(video_details["id"] + " has been added!")
+              # add id to video_ids array 
+              video_ids.append(video_details["id"])
+              topic_node.add_child(video_node)
+
+            else :
+              continue
 
           # add topic to channel
           channel.add_child(topic_node)

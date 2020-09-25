@@ -131,3 +131,6 @@ dmypy.json
 
 chefdata
 restore
+.ricecooker-temp
+.ricecookerfilecache
+storage
