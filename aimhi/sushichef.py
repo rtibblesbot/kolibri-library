@@ -29,7 +29,12 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 
 # Additional constants
 ################################################################################
-
+NO_CACHE_KEYNAME = "--nocache"
+DOWNLOAD_TO_GOOGLE_SHEET_KEYNAME = "--tosheet"
+EXTRACT_VIDEO_INFO = "--video"
+EXTRACT_VIDEO_PLAYLIST_INFO = "--playlist"
+YOUTUBE_VIDEO_URL_FORMAT = "https://www.youtube.com/watch?v={0}"
+TOPIC_NAME_FORMAT = "AimHi Playlist - ({0})"
 
 
 # The chef subclass
@@ -59,6 +64,12 @@ class AimhiChef(SushiChef):
     DOWNLOADS_DIR = os.path.join(DATA_DIR, 'downloads')
     ARCHIVE_DIR = os.path.join(DOWNLOADS_DIR, 'archive_{}'.format(CONTENT_ARCHIVE_VERSION))
 
+    use_cache = True   # field to indicate whether use cached json data
+    to_sheet = False
+    sheet_id = ''
+    insert_video_info = False
+    video_list = []
+    to_playlist = ''
     # Your chef subclass can override/extend the following method:
     # get_channel: to create ChannelNode manually instead of using channel_info
     # pre_run: to perform preliminary tasks, e.g., crawling and scraping website
@@ -73,10 +84,30 @@ class AimhiChef(SushiChef):
             "fr" will be passed along to `construct_channel` as kwargs['lang'].
         Returns: ChannelNode
         """
+        # editing metadata
+        for key, value in kwargs.items():
+          if key == NO_CACHE_KEYNAME:
+            print('NO_CACHE_KEYNAME')
+          if key == DOWNLOAD_TO_GOOGLE_SHEET_KEYNAME:
+            print("DOWNLOAD_TO_GOOGLE_SHEET")
+          if key == EXTRACT_VIDEO_INFO:
+            print("EXTRACT_VIDEO_INFO")
+          if key == EXTRACT_VIDEO_PLAYLIST_INFO:
+            print("EXTRACT_VIDEO_PLAYLIST_INFO")
+          
+        exit(0)
+
+
+
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         # Get Channel Topics
-        # cwd = os.getcwd()
+
         
+
+        
+
+
+
         # Create thumbnails folder in chefdata if not exists
         if not os.path.isdir(os.path.join('chefdata', 'thumbnails')):
           os.makedirs(os.path.join('chefdata', 'thumbnails'))
