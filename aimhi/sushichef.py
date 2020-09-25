@@ -75,9 +75,13 @@ class AimhiChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         # Get Channel Topics
-        cwd = os.getcwd()
+        # cwd = os.getcwd()
+        
+        # Create thumbnails folder in chefdata if not exists
+        if not os.path.isdir(os.path.join('chefdata', 'thumbnails')):
+          os.makedirs(os.path.join('chefdata', 'thumbnails'))
 
-        youtube_cache = os.path.join(cwd, "chefdata", "youtubecache")
+        youtube_cache = os.path.join("chefdata", "youtubecache")
 
         for playlist_id in PLAYLIST_MAP:
           
@@ -115,7 +119,7 @@ class AimhiChef(SushiChef):
               # Check youtube thumbnail extension as some are not supported formats
               thumbnail_link = ''
               print(video_details["thumbnail"])
-              image_response = requests.get(video_details["thumbnail"])
+              image_response = requests.get("{0}".format(video_details["thumbnail"]))
 
               img = Image.open(BytesIO(image_response.content))
               if img.format not in ['JPG', 'PNG', 'JPEG']:
@@ -123,8 +127,7 @@ class AimhiChef(SushiChef):
                 print(video_details["thumbnail"])
                 print("{0}'s thumbnail not supported ({1}).".format(video_details["id"], img.format))
                 img_file_name = '{}_thumbnail.jpg'.format(video_details["id"])
-                thumbnail_link = os.path.join(cwd, 'files', img_file_name)
-                print(thumbnail_link)
+                thumbnail_link = os.path.join('chefdata', 'thumbnails', img_file_name)
 
                 jpg_img = img.convert("RGB")
 
@@ -134,6 +137,7 @@ class AimhiChef(SushiChef):
               else :
                 thumbnail_link = video_details["thumbnail"]
 
+              print(thumbnail_link)
               video_node = nodes.VideoNode(
                 source_id = video_source_id,
                 title = video_details["title"],
