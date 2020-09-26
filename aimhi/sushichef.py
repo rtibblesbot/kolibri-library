@@ -17,7 +17,7 @@ from google_sheet_utils import *
 from PIL import Image
 import requests 
 from io import BytesIO
-
+import csv
 # Run constants
 ################################################################################
 CHANNEL_NAME = "AimHi"                             # Name of Kolibri channel
@@ -35,7 +35,7 @@ NO_CACHE_KEYNAME = "--nocache"
 DOWNLOAD_TO_GOOGLE_SHEET_KEYNAME = "--tosheet"
 EXTRACT_VIDEO_INFO = "--video"
 EXTRACT_VIDEO_PLAYLIST_INFO = "--playlist"
-DOWNLOD_TO_CSV = "--tocsv"
+DOWNLOAD_TO_CSV = "--tocsv"
 YOUTUBE_VIDEO_URL_FORMAT = "https://www.youtube.com/watch?v={0}"
 TOPIC_NAME_FORMAT = "AimHi Playlist - ({0})"
 YOUTUBE_CACHE_DIR = os.path.join("chefdata", "youtubecache")
@@ -228,12 +228,42 @@ def upload_to_google_sheet(sheet_id, use_cache = True):
           video_details["title"]
         )
         google_sheet_obj.write_description_record(record)
+        video_ids.append(video_details["id"])
       else:
         continue
 
+# create a csv folder in chefdata and write video info to it
 def create_csv():
-  print("create csv")
-
+  
+  video_ids = []
+  if not os.path.isdir(os.path.join('chefdata', 'csv')):
+    os.makedirs(os.path.join('chefdata', 'csv'))
+  mycsv = csv.writer(open(os.path.join('chefdata', 'csv', 'video_info.csv'), 'w'))
+  headers = 'Video ID, Video URL, Video Title, Playlist, Description'
+  headers = [
+    "Video ID", 
+    "Video URL", 
+    "Video Title", 
+    "Playlist", 
+    "Description"
+  ]
+  mycsv.writerow(headers)
+  for playlist_id in PLAYLIST_MAP:
+    playlist = YouTubePlaylistUtils(id=playlist_id, cache_dir = YOUTUBE_CACHE_DIR)
+    playlist_info = playlist.get_playlist_info(use_proxy=False)
+    playlist_title = playlist_info["title"]
+    for child in playlist_info["children"]:
+      video = YouTubeVideoUtils( id = child["id"], cache_dir = YOUTUBE_CACHE_DIR)
+      video_details = video.get_video_info(use_proxy=False)
+      record = [
+        video_details["id"],
+        video_details["source_url"],
+        video_details["title"],
+        playlist_title,
+        video_details["description"]
+      ]
+      mycsv.writerow(record)
+      video_ids.append(video_details["id"])
 
 # CLI
 ################################################################################
