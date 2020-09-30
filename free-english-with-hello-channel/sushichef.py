@@ -63,9 +63,10 @@ sess.mount(BASE_URL, forever_adapter)
 ################################################################################
 CHANNEL_DOMAIN = ""          # Who is providing the content
 CHANNEL_LANGUAGE = "en"      # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
+CHANNEL_DESCRIPTION = "Lessons for teaching English vocabulary, grammar, and speaking."    # Description of the channel (optional)
+CHANNEL_TAGLINE = "Lessons for teaching English vocabulary, grammar, and speaking."
 CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
-CHANNEL_NAME = "Free English with Hello Channel"
+CHANNEL_NAME = "Hello English Lessons"
 CHANNEL_SOURCE_ID = "sushi-chef-hello-channel"
 
 # Additional constants
@@ -342,14 +343,12 @@ class HelloChannelChef(JsonTreeChef):
                 source_domain=HelloChannelChef.HOSTNAME,
                 source_id=BASE_URL,
                 title=CHANNEL_NAME,
-                description="""This YouTube channel teaches conversational English, English for social life
-and grammar by using Hello Channel’s TV educational shows with ESL learners.
-"""
-[:400], #400 UPPER LIMIT characters allowed 
+                description=CHANNEL_DESCRIPTION,
                 thumbnail="http://3.bp.blogspot.com/_XoyoDdCstIU/TRu159QK2wI/AAAAAAAAANs/G6QSVqXmZqY/s400/Dibujo.jpg",
                 author=AUTHOR,
                 language=CHANNEL_LANGUAGE,
                 children=[],
+                tagline=CHANNEL_TAGLINE,
                 license=LICENSE,
             )
         
