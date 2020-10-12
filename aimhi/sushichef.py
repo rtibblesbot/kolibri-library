@@ -11,7 +11,7 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 from ricecooker.utils.youtube import YouTubeVideoUtils, YouTubePlaylistUtils
 
 from utils import *
-from google_sheet_utils import *
+# from google_sheet_utils import *
 
 # Image conversion
 from PIL import Image
@@ -104,6 +104,7 @@ class AimhiChef(SushiChef):
             self.to_playlist = value
           if key == DOWNLOAD_TO_CSV:
             if value == "true":
+              print('csv = true')
               create_csv()
               exit(0)
       
@@ -238,7 +239,7 @@ def create_csv():
   video_ids = []
   if not os.path.isdir(os.path.join('chefdata', 'csv')):
     os.makedirs(os.path.join('chefdata', 'csv'))
-  mycsv = csv.writer(open(os.path.join('chefdata', 'csv', 'video_info.csv'), 'w'))
+  mycsv = csv.writer(open(os.path.join('chefdata', 'csv', 'content_metadata.csv'), 'w', newline = '', encoding='utf-8'))
   headers = 'Video ID, Video URL, Video Title, Playlist, Description'
   headers = [
     "Video ID", 
