@@ -69,7 +69,7 @@ class ChickenNChipsChef(YouTubeSushiChef):
 
 
 def get_video_ids(channel_id):
-    youtube = build('youtube', 'v3', developerKey = 'AIzaSyB55y0HJENbbEBQBQzM-jbhdkW3A4V6PMs')
+    youtube = build('youtube', 'v3', developerKey = GOOGLE_API_KEY)
     response = youtube.channels().list(id=channel_id, part = 'contentDetails').execute()
 
     uploads_id = response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
