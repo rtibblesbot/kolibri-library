@@ -21,7 +21,7 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 
 # Additional constants
 ################################################################################
-# Add GOOGLE API key here. Will need access to Youtube API v3
+# TODO Add GOOGLE API key here. Will need access to Youtube API v3
 GOOGLE_API_KEY = None
 CHICKEN_N_CHIPS_CHANNEL_ID = 'UCIGQCJIF4fdTrqxnvcwTYxg'
 
@@ -50,11 +50,56 @@ class ChickenNChipsChef(YouTubeSushiChef):
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,
     }
+    DATA_DIR = os.path.abspath('chefdata')
+    DOWNLOADS_DIR = os.path.join(DATA_DIR, 'downloads')
+    ARCHIVE_DIR = os.path.join(DOWNLOADS_DIR, 'archive_{}'.format(CONTENT_ARCHIVE_VERSION))
 
 
+    def get_video_ids(self):
+        return get_video_ids(CHICKEN_N_CHIPS_CHANNEL_ID)
+
+    def get_channel_metadata(self):
+        return {
+            'defaults': {
+                'license': licenses.AllRightsLicense("Chicken&Chips"),
+                'high_resolution': True
+            }
+        }
+
+
+
+def get_video_ids(channel_id):
+    youtube = build('youtube', 'v3', developerKey = 'AIzaSyB55y0HJENbbEBQBQzM-jbhdkW3A4V6PMs')
+    response = youtube.channels().list(id=channel_id, part = 'contentDetails').execute()
+
+    uploads_id = response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+
+    video_ids = []
+    next_page_token = None
+    while 1:
+
+        uploads_playlist = youtube.playlistItems().list(playlistId=uploads_id, part='snippet', maxResults = 50, pageToken = next_page_token).execute()
+        for element in uploads_playlist['items']:
+            video_ids.append(element['snippet']['resourceId']['videoId'])
+        
+        next_page_token = uploads_playlist.get('nextPageToken')
+
+        if next_page_token is None:
+            break
+
+    return video_ids
+
+
+settings = {
+    'generate-missing-thumbnails': True,
+    'compress-videos': True
+}
 # CLI
 ################################################################################
 if __name__ == '__main__':
     # This code runs when sushichef.py is called from the command line
     chef = ChickenNChipsChef()
+    for setting in settings:
+        value = settings[setting]
+        chef.SETTINGS[setting] = value
     chef.main()
