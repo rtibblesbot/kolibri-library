@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
+import re
 from ricecooker.chefs import YouTubeSushiChef
 from ricecooker.classes import licenses
 
@@ -65,6 +66,37 @@ class ChickenNChipsChef(YouTubeSushiChef):
                 'high_resolution': True
             }
         }
+    
+    def sort_topic_alphabetically(self, channel):
+        
+        # natural sorting
+        convert = lambda text: int(text) if text.isdigit() else text.lower() 
+        alphanum_key = lambda key: [ convert(re.sub(r'[^A-Za-z0-9]+', '', c.replace('&', 'and'))) for c in re.split('([0-9]+)', key.title) ]
+        
+        channel.children = sorted(channel.children, key = alphanum_key)
+        for child in channel.children:
+            print(child.title)
+        return channel
+
+    
+    def construct_channel(self, *args, **kwargs):
+        channel = self.get_channel(*args, **kwargs)
+
+        if len(self.get_playlist_ids()) == 0 and len(self.get_video_ids()) == 0:
+            raise NotImplementedError("Either get_playlist_ids() or get_video_ids() must be implemented.")
+
+        # TODO: Replace next line with chef code
+        nodes = self.create_nodes_for_playlists()
+        for node in nodes:
+            channel.add_child(node)
+
+        nodes = self.create_nodes_for_videos()
+        for node in nodes:
+            channel.add_child(node)
+
+        channel = self.sort_topic_alphabetically(channel)
+        
+        return channel
 
 
 
