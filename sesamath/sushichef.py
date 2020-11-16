@@ -280,6 +280,11 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
   )
   arr.append(html5_node)
   return arr
+
+settings = {
+    'generate-missing-thumbnails': True,
+}
+
 # CLI
 ################################################################################
 if __name__ == '__main__':
