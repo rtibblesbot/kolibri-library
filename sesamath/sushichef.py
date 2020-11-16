@@ -78,9 +78,89 @@ class SesamathChef(SushiChef):
         Returns: ChannelNode
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
+        count = 0
+        for url in GRADE_MAP:
+          response = requests.get(url, timeout=10)
+          sesamath_response = BeautifulSoup(response.content, 'html.parser')
 
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
+          # Grade Node Name:
+          grade = sesamath_response.find('h1', {'class': 'logo'}).get_text(strip=True)
+
+          # Create topic Node
+          grade_source_id = 'Sesamath-{0}'.format(grade)
+          grade_node = nodes.TopicNode(
+            title = grade,
+            source_id = grade_source_id,
+            author = 'Sesamath',
+            provider = 'Sesamath',
+            # TODO check to see if ok to leave blank
+            description = '',               
+            language = 'fr'
+          )
+          # Get Topics
+          visible_N2 = sesamath_response.find_all('li', {'class': 'n2' } )
+          for element_in_visible_N2 in visible_N2:
+            topic_name = element_in_visible_N2.find('h2').get_text(strip=True)
+
+            visible_N3 = element_in_visible_N2.find_all('li', {'class': 'n3'})
+            
+            topic_source_id = 'Sesamath-{0}-{1}'.format(grade, topic_name)
+            topic_node = nodes.TopicNode(
+              title = topic_name,
+              source_id = topic_source_id,
+              author = 'Sesamath',
+              provider = 'Sesamath',
+              description = '',
+              language = 'fr'
+            )
+
+            grade_node.add_child(topic_node)
+
+            for element_in_visible_N3 in visible_N3:
+              sub_topic_name = element_in_visible_N3.find('a').get_text(strip=True)
+
+              # Add subjects to sub_topics
+              sub_topic_source_id = 'Sesamath-{0}-{1}-{2}'.format(grade, topic_name, sub_topic_name)
+              sub_topic = nodes.TopicNode(
+                title = sub_topic_name,
+                source_id = sub_topic_source_id,
+                author = 'Sesamath',
+                provider = 'Sesamath',
+                description = '',
+                language = 'fr'
+              )
+
+              topic_node.add_child(sub_topic)
+
+              # Get Subject Nodes
+              visible_N4 = element_in_visible_N3.find_all('li', {'class': 'n4'})
+              for element_in_visible_N4 in visible_N4:
+                subject = element_in_visible_N4.find('a')
+                subject_name = subject.get_text(strip=True)
+                subject_href = subject['href']
+
+                subject_source_id = 'Sesamath-{0}-{1}-{2}-{3}'.format(grade, topic_name, sub_topic_name, subject_name)
+                subject_node = nodes.TopicNode(
+                  title = subject_name,
+                  source_id = subject_source_id,
+                  author = 'Sesamath',
+                  provider = 'Sesamath',
+                  description = '',
+                  language= 'fr'
+                )
+
+                sub_topic.add_child(subject_node)
+
+                # Get Exercises in Subjects
+                
+                link_to_exercise_page = url + subject_href
+
+                subject_node_arr = add_exercises(link_to_exercise_page, url, grade)
+                for node in subject_node_arr:
+                  subject_node.add_child(node)
+
+          # Add to channel here
+          channel.add_child(grade_node)
 
         return channel
 
