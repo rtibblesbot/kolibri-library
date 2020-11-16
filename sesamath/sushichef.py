@@ -234,7 +234,52 @@ def add_exercises(url, base_url, grade):
 
   return nodes_arr
 
+def scrape_iframe(element, grade, iframe_source, arr = []):
+  rand_id = uuid.uuid4()
+  source_id = '{0}_{1}'.format(element['href'], rand_id)
+  ZIP_FOLDER_PATH = os.path.join('chefdata', 'HTML5', grade, '{0}'.format(element['href']))
+  print(iframe_source)
+  attempts = 1
+  while attempts in range(11):
+    try:
+      html5_app = archive_page(iframe_source, ZIP_FOLDER_PATH)
+    except:
+      print('Error archiving page {0}'.format(iframe_source))
+      attempts +=1
+      continue
+    break
+  if attempts >=10:
+    return arr
+  entry = html5_app['index_path']
+  index_path = os.path.join(ZIP_FOLDER_PATH, 'index.html')
+  shutil.copy(entry, index_path)
+  js_files = glob.iglob('**/*.js', recursive=True)
+  for afile in js_files:
+    # The JS files can contain absolute links in code, so we need to 
+    # replace them.
+    content =  open(afile, encoding= 'utf-8').read()
+    content = content.replace('https://', '')
+    content = content.replace('https?:\/\/', '')
+    content = content.replace('/^(https?:)?\/\//.test(e)&&', '')
+    content = content.replace('//j3p.sesamath', 'j3p.sesamath')
+    assert not 'https://' in content
+    with open(afile, 'w', encoding= 'utf-8') as f:
+      f.write(content)
+      
+  zippath = zip.create_predictable_zip(ZIP_FOLDER_PATH)
 
+  html5_node = nodes.HTML5AppNode(
+      source_id = source_id,
+      files = [files.HTMLZipFile(zippath)],
+      title = element.get_text(strip = True),
+      description = '',
+      license = licenses.CC_BYLicense('Sesamath'),
+      language='en',
+      thumbnail = None,
+      author = 'Sesamath'
+  )
+  arr.append(html5_node)
+  return arr
 # CLI
 ################################################################################
 if __name__ == '__main__':
