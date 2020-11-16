@@ -1,24 +1,33 @@
 #!/usr/bin/env python
 import os
 import sys
-from ricecooker.utils import downloader, html_writer
+from ricecooker.utils import html_writer, zip
+from ricecooker.utils.downloader import archive_page, read
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, questions, licenses
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
+from utils import *
+import requests
+from bs4 import BeautifulSoup
+
+import uuid
+import glob
+import shutil
+
 
 # Run constants
 ################################################################################
 CHANNEL_ID = "7f07b95a5f3f4440b05181105f8401fc"             # UUID of channel
-CHANNEL_NAME = "Sesamath"                           # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "<yourid>"                              # Unique ID for content source
-CHANNEL_DOMAIN = "<yourdomain.org>"                         # Who is providing the content
-CHANNEL_LANGUAGE = "en"                                     # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
-CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whenever you update downloaded content
+CHANNEL_NAME = "Sesamath"                                   # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "sesamath"                              # Unique ID for content source
+CHANNEL_DOMAIN = "https://mathenpoche.sesamath.net/"        # Who is providing the content
+CHANNEL_LANGUAGE = "fr"                                     # Language of channel
+CHANNEL_DESCRIPTION = 'Avec ce site, Sésamath a pour ambition de proposer aux familles un maximum de ressources de tout type : cours, exercices, aides animées, QCM et devoirs pour s’entraîner mais aussi de l’entraînement au calcul mental, des jeux logiques'                                  # Description of the channel (optional)
+CHANNEL_THUMBNAIL = SESAMATH_THUMBNAIL_PATH                                    # Local path or url to image file (optional)
+CONTENT_ARCHIVE_VERSION = 1   
 
 
 # Additional constants
