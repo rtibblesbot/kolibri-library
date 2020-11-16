@@ -164,6 +164,75 @@ class SesamathChef(SushiChef):
 
         return channel
 
+# Get all exercises from url and add them to subject node
+def add_exercises(url, base_url, grade):
+  print(url)
+  try:
+    content = read(url, loadjs = True)
+  except:
+    print('Timeout error')
+    return []
+
+  nodes_arr = []
+  page_soup = BeautifulSoup(content[0], 'html.parser')
+  # Get all ress_ato and ress_j3p exercises
+  visible_ress_ato = page_soup.find_all('a', {'class': 'ress_ato'})
+  visible_ress_j3p = page_soup.find_all('a', {'class': 'ress_j3p'})
+
+  for element in visible_ress_ato:
+    attempts = 1
+    while attempts in range(11):
+      try:
+        content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
+        ress_ato_soup = BeautifulSoup(content[0], 'html.parser')
+        visible_iframe = ress_ato_soup.find('iframe')
+        initial_iframe_source = visible_iframe['src']
+      except:
+        print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
+        attempts +=1
+        continue
+      break
+    # move to next element in visible_ress_ato if attempts > 10
+    if attempts >= 10:
+      continue
+    
+    attempts = 1
+    while attempts in range(11):
+      try:
+        content = read(initial_iframe_source, loadjs = True)
+        iframe_soup = BeautifulSoup(content[0], 'html.parser')
+        visible_iframe_ato = iframe_soup.find('iframe')
+        iframe_source_ato = visible_iframe_ato['src']
+      except:
+        print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
+        attempts +=1
+        continue
+      break
+    if attempts >= 10:
+      continue
+    nodes_arr = scrape_iframe(element, grade, iframe_source_ato, nodes_arr)
+
+  for element in visible_ress_j3p:
+    attempts = 1
+    while attempts in range(11):
+      try:
+        content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
+        ress_j3p_soup = BeautifulSoup(content[0], 'html.parser')
+        visible_iframe_j3p = ress_j3p_soup.find('iframe')
+        # getting iframe
+        iframe_source_j3p = visible_iframe_j3p['src']
+      except:
+        print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
+        attempts +=1
+        continue
+      break
+    if attempts >=10:
+      continue
+
+    # # getting iframe
+    nodes_arr = scrape_iframe(element, grade, iframe_source_j3p, nodes_arr)
+
+  return nodes_arr
 
 
 # CLI
