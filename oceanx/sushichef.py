@@ -12,7 +12,7 @@ CHANNEL_SOURCE_ID = "oceanx-video-lessons"                              # Unique
 CHANNEL_DOMAIN = "oceanx.org"                         # Who is providing the content
 CHANNEL_LANGUAGE = "en"                                     # Language of channel
 CHANNEL_DESCRIPTION = "OceanX is a mission to explore the ocean and bring it back to the world. Join us as we build a global community deeply engaged with understanding, enjoying, and protecting our oceans. Through videos about ocean science, exploration, and discovery, experience real experiments with real scientists for learners of all ages."
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_THUMBNAIL = "assets/oceanx.jpg"                                    # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whenever you update downloaded content
 
 
@@ -57,7 +57,7 @@ class OceanXChef(YouTubeSushiChef):
     def get_channel_metadata(self):
         return {
             'defaults': {
-                'license': licenses.AllRightsLicense("OceanX"),
+                'license': licenses.SpecialPermissionsLicense(copyright_holder="OceanX", description="Footage supplied Courtesy of OceanX for use in the Kolibri Learning Platform."),
                 'high_resolution': True
             }
         }
