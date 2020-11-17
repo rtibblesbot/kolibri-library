@@ -11,7 +11,6 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 from ricecooker.utils.youtube import YouTubeVideoUtils, YouTubePlaylistUtils
 
 from utils import *
-# from google_sheet_utils import *
 
 # Image conversion
 from PIL import Image
@@ -32,7 +31,6 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 # Additional constants
 ################################################################################
 NO_CACHE_KEYNAME = "--nocache"
-DOWNLOAD_TO_GOOGLE_SHEET_KEYNAME = "--tosheet"
 EXTRACT_VIDEO_INFO = "--video"
 EXTRACT_VIDEO_PLAYLIST_INFO = "--playlist"
 DOWNLOAD_TO_CSV = "--tocsv"
@@ -92,10 +90,6 @@ class AimhiChef(SushiChef):
           if key == NO_CACHE_KEYNAME:
             self.use_cache = False
             LOGGER.info("use_cache = '%d'", self.use_cache)
-          if key == DOWNLOAD_TO_GOOGLE_SHEET_KEYNAME:
-            print("DOWNLOAD_TO_GOOGLE_SHEET")
-            self.to_sheet = True
-            self.sheet_id = value
           if key == EXTRACT_VIDEO_INFO:
             self.insert_video_info = True
             self.video_list = value.split(",")
@@ -108,9 +102,6 @@ class AimhiChef(SushiChef):
               create_csv()
               exit(0)
       
-        if self.to_sheet:
-          upload_to_google_sheet(self.sheet_id, self.use_cache)
-          exit(0)
 
 
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
@@ -208,30 +199,6 @@ class AimhiChef(SushiChef):
         
         return channel
 
-
-def upload_to_google_sheet(sheet_id, use_cache = True):
-
-  video_ids = []
-  google_sheet_obj = AimHiSheetWriter(sheet_id)
-  for playlist_id in PLAYLIST_MAP:
-    playlist = YouTubePlaylistUtils(id=playlist_id, cache_dir = YOUTUBE_CACHE_DIR)
-    playlist_info = playlist.get_playlist_info(use_proxy=False)
-    playlist_title = playlist_info["title"]
-    for child in playlist_info["children"]:
-      if child["id"] not in video_ids:
-        video = YouTubeVideoUtils( id = child["id"], cache_dir = YOUTUBE_CACHE_DIR)
-        video_details = video.get_video_info(use_proxy=False)
-        record = AimHiDescriptionRecord(
-          video_details["id"],
-          video_details["source_url"],
-          video_details["description"],
-          playlist_title,
-          video_details["title"]
-        )
-        google_sheet_obj.write_description_record(record)
-        video_ids.append(video_details["id"])
-      else:
-        continue
 
 # create a csv folder in chefdata and write video info to it
 def create_csv():
