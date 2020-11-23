@@ -159,9 +159,55 @@ class SesamathChef(SushiChef):
                 for node in subject_node_arr:
                   subject_node.add_child(node)
 
+          # Add manuals to associated grade
+          if grade in MATH_MANUALS:
+            print('Key exists. Key is : {}'.format(grade))
+            print('values are: {}'.format(MATH_MANUALS[grade]))
+            manuals_node = nodes.TopicNode(
+              title = '{} Manuals'.format(grade),
+              source_id = '{}_manuals_source_id'.format(grade),
+              author = 'Sesamath',
+              provider = 'Sesamath',
+              description = '{} Manuals'.format(grade),
+              language = 'fr'
+            )
+            for title, url in MATH_MANUALS[grade].items():
+              doc_file = files.DocumentFile(path = url)
+              rand_id = uuid.uuid4()
+              doc_node = nodes.DocumentNode(
+                title = title,
+                source_id = '{}_{}'.format(title, rand_id),
+                files = [doc_file],
+                license = licenses.CC_BYLicense('Sesamath'),
+                copyright_holder = 'Sesamath'
+              )
+              manuals_node.add_child(doc_node)
+            grade_node.add_child(manuals_node)
+
           # Add to channel here
           channel.add_child(grade_node)
 
+        # Add additional manuals
+        additional_manual_node = nodes.TopicNode(
+          title = 'Matériels suplémentaires',
+          source_id = 'Matériels_suplémentaires_source_id',
+          author = 'Sesamath',
+          provider = 'Sesamath',
+          description = 'Matériels suplémentaires',
+          language = 'fr'
+        )
+        for title, url in ADDITIONAL_MANUALS.items():
+          doc_file = files.DocumentFile(path = url)
+          rand_id = uuid.uuid4()
+          doc_node = nodes.DocumentNode(
+            title = title,
+            source_id = '{}_{}'.format(title, rand_id),
+            files = [doc_file],
+            license = licenses.CC_BYLicense('Sesamath'),
+            copyright_holder = 'Sesamath'
+          )
+          additional_manual_node.add_child(doc_node)
+        channel.add_child(additional_manual_node)
         return channel
 
 # Get all exercises from url and add them to subject node
@@ -181,7 +227,7 @@ def add_exercises(url, base_url, grade):
 
   for element in visible_ress_ato:
     attempts = 1
-    while attempts in range(11):
+    while attempts in range(21):
       try:
         content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
         ress_ato_soup = BeautifulSoup(content[0], 'html.parser')
@@ -193,11 +239,11 @@ def add_exercises(url, base_url, grade):
         continue
       break
     # move to next element in visible_ress_ato if attempts > 10
-    if attempts >= 10:
+    if attempts >= 20:
       continue
     
     attempts = 1
-    while attempts in range(11):
+    while attempts in range(21):
       try:
         content = read(initial_iframe_source, loadjs = True)
         iframe_soup = BeautifulSoup(content[0], 'html.parser')
@@ -208,13 +254,13 @@ def add_exercises(url, base_url, grade):
         attempts +=1
         continue
       break
-    if attempts >= 10:
+    if attempts >= 20:
       continue
     nodes_arr = scrape_iframe(element, grade, iframe_source_ato, nodes_arr)
 
   for element in visible_ress_j3p:
     attempts = 1
-    while attempts in range(11):
+    while attempts in range(21):
       try:
         content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
         ress_j3p_soup = BeautifulSoup(content[0], 'html.parser')
@@ -226,7 +272,7 @@ def add_exercises(url, base_url, grade):
         attempts +=1
         continue
       break
-    if attempts >=10:
+    if attempts >=20:
       continue
 
     # # getting iframe
@@ -240,7 +286,7 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
   ZIP_FOLDER_PATH = os.path.join('chefdata', 'HTML5', grade, '{0}'.format(element['href']))
   print(iframe_source)
   attempts = 1
-  while attempts in range(11):
+  while attempts in range(21):
     try:
       html5_app = archive_page(iframe_source, ZIP_FOLDER_PATH)
     except:
@@ -248,7 +294,7 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
       attempts +=1
       continue
     break
-  if attempts >=10:
+  if attempts >=20:
     return arr
   entry = html5_app['index_path']
   index_path = os.path.join(ZIP_FOLDER_PATH, 'index.html')
