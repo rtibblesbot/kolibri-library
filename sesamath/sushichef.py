@@ -21,11 +21,11 @@ import shutil
 # Run constants
 ################################################################################
 CHANNEL_ID = "7f07b95a5f3f4440b05181105f8401fc"             # UUID of channel
-CHANNEL_NAME = "Sesamath"                                   # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "sesamath"                              # Unique ID for content source
+CHANNEL_NAME = "Sésamath"                                   # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "Sésamath"                              # Unique ID for content source
 CHANNEL_DOMAIN = "https://mathenpoche.sesamath.net/"        # Who is providing the content
 CHANNEL_LANGUAGE = "fr"                                     # Language of channel
-CHANNEL_DESCRIPTION = 'Avec ce site, Sésamath a pour ambition de proposer aux familles un maximum de ressources de tout type : cours, exercices, aides animées, QCM et devoirs pour s’entraîner mais aussi de l’entraînement au calcul mental, des jeux logiques'                                  # Description of the channel (optional)
+CHANNEL_DESCRIPTION = "Sésamath propose des manuels, des cours, et beaucoup d'exercices, pour tout le programme de mathématiques du secondaire en France."                                 # Description of the channel (optional)
 CHANNEL_THUMBNAIL = SESAMATH_THUMBNAIL_PATH                                    # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1   
 
