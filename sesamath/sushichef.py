@@ -88,6 +88,8 @@ class SesamathChef(SushiChef):
 
           # Create topic Node
           grade_source_id = 'Sesamath-{0}'.format(grade)
+          
+          grade_thumbnail_path = os.path.join('files', '{}.PNG'.format(grade))
           grade_node = nodes.TopicNode(
             title = grade,
             source_id = grade_source_id,
@@ -95,7 +97,8 @@ class SesamathChef(SushiChef):
             provider = 'Sesamath',
             # TODO check to see if ok to leave blank
             description = '',               
-            language = 'fr'
+            language = 'fr',
+            thumbnail= grade_thumbnail_path
           )
           # Get Topics
           visible_N2 = sesamath_response.find_all('li', {'class': 'n2' } )
