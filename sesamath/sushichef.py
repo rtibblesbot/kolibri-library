@@ -235,7 +235,7 @@ def add_exercises(url, base_url, base_href, grade):
 
     if os.path.exists(HTML5_FILE_DOWNLOAD_PATH):
       print('{} exists. Skipping redownloading this page'.format(element['href']))
-      nodes_arr = add_success(HTML5_FILE_DOWNLOAD_PATH, element nodes_arr,)
+      nodes_arr = prev_downloaded(HTML5_FILE_DOWNLOAD_PATH, element nodes_arr,)
     else:
       print('{} does not exists. Need to download this page'.format(element['href']))
       add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
@@ -277,7 +277,7 @@ def add_exercises(url, base_url, base_href, grade):
     HTML5_FILE_DOWNLOAD_PATH = os.path.join('chefdata', 'HTML5', grade, base_href, element_num)
     if os.path.exists(HTML5_FILE_DOWNLOAD_PATH):
       print('{} exists. Skipping redownloading this page'.format(element['href']))
-      nodes_arr = add_success(HTML5_FILE_DOWNLOAD_PATH, element, nodes_arr)
+      nodes_arr = prev_downloaded(HTML5_FILE_DOWNLOAD_PATH, element, nodes_arr)
     else:
       print('{} does not exists. Need to download this page'.format(element['href']))
       add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
@@ -348,6 +348,52 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
   )
   arr.append(html5_node)
   return arr
+
+# Add to node to arr without archiving page (exercise prev downloaded)
+def prev_downloaded(path, iframe_element, arr):
+  zippath = create_predictable_zip(path)
+  rand_id = uuid4()
+  source_id = '{0}_{1}'.format(iframe_element['href'], rand_id)
+  html5_node = nodes.HTML5AppNode(
+      source_id = source_id,
+      files = [files.HTMLZipFile(os.path.relpath(zippath))],
+      title = iframe_element.get_text(strip = True),
+      description = '',
+      license = licenses.CC_BYLicense('Sésamath'),
+      language='fr',
+      thumbnail = None,
+      author = 'Sésamath'
+  )
+  arr.append(html5_node)
+  return arr
+
+# Add any failed exercises to json file
+def add_to_failed(grade, exercise_title, exercise_link):
+  with open(FAILED_JSON_PATH, encoding = 'utf-8') as f:
+    try:
+      data = json.load(f)
+    except:
+      # If no data in json file
+      print('No data in json file')
+      # Create a key
+      # add error to that key
+      with open(FAILED_JSON_PATH, 'w', encoding = 'utf-8') as json_file:
+        dict = {}
+        dict[grade] = {}
+        dict[grade][exercise_title] = exercise_link
+        json.dump(dict, json_file, indent = 2, ensure_ascii=False)
+        return
+    # check if key exists inside json object
+    if grade in data.keys():
+      with open(FAILED_JSON_PATH, 'w', encoding = 'utf-8') as json_file:
+        print('{} is a key'.format(grade))
+        data[grade][exercise_title] = exercise_link
+        json.dump(data, json_file, indent = 2, ensure_ascii=False)
+    else:
+      with open(FAILED_JSON_PATH, 'w', encoding = 'utf-8') as json_file:
+        data[grade] = {}
+        data[grade][exercise_title] = exercise_link
+        json.dump(data, json_file, indent = 2, ensure_ascii=False)
 
 settings = {
     'generate-missing-thumbnails': True,
