@@ -16,7 +16,8 @@ from bs4 import BeautifulSoup
 import uuid
 import glob
 import shutil
-
+# NEW download any failed attempts to json file
+import json
 
 # Run constants
 ################################################################################
@@ -25,15 +26,15 @@ CHANNEL_NAME = "Sésamath"                                   # Name of Kolibri c
 CHANNEL_SOURCE_ID = "Sésamath"                              # Unique ID for content source
 CHANNEL_DOMAIN = "https://mathenpoche.sesamath.net/"        # Who is providing the content
 CHANNEL_LANGUAGE = "fr"                                     # Language of channel
-CHANNEL_DESCRIPTION = "Sésamath propose des manuels, des cours, et beaucoup d'exercices, pour tout le programme de mathématiques du secondaire en France."                                 # Description of the channel (optional)
+CHANNEL_DESCRIPTION = "Sésamath propose des manuels, des cours, et beaucoup d'exercices, pour tout le programme de mathématiques du secondaire en France."                                  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = SESAMATH_THUMBNAIL_PATH                                    # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1   
 
 
 # Additional constants
 ################################################################################
-
-
+FAILED_DOWNLOADS_JSON_FOLDER_PATH = os.path.join('chefdata', 'failed_downloads')
+FAILED_JSON_PATH = os.path.join(FAILED_DOWNLOADS_JSON_FOLDER_PATH, 'failed_iframes.json')
 
 # The chef subclass
 ################################################################################
@@ -79,6 +80,14 @@ class SesamathChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         count = 0
+        # Delete any existing iframe_error file and create a new file
+        if os.path.exists(FAILED_JSON_PATH):
+          os.remove(FAILED_JSON_PATH)
+        else:
+          os.makedirs(FAILED_DOWNLOADS_JSON_FOLDER_PATH, exist_ok = True)
+        with open(FAILED_JSON_PATH, 'w+'):
+          pass
+
         for url in GRADE_MAP:
           response = requests.get(url, timeout=10)
           sesamath_response = BeautifulSoup(response.content, 'html.parser')
@@ -86,19 +95,18 @@ class SesamathChef(SushiChef):
           # Grade Node Name:
           grade = sesamath_response.find('h1', {'class': 'logo'}).get_text(strip=True)
 
+          grade_thumbnail_path = os.path.join('files', '{}.png'.format(grade))
           # Create topic Node
           grade_source_id = 'Sesamath-{0}'.format(grade)
-          
-          grade_thumbnail_path = os.path.join('files', '{}.PNG'.format(grade))
           grade_node = nodes.TopicNode(
             title = grade,
             source_id = grade_source_id,
-            author = 'Sesamath',
-            provider = 'Sesamath',
+            author = 'Sésamath',
+            provider = 'Sésamath',
             # TODO check to see if ok to leave blank
             description = '',               
             language = 'fr',
-            thumbnail= grade_thumbnail_path
+            thumbnail = grade_thumbnail_path
           )
           # Get Topics
           visible_N2 = sesamath_response.find_all('li', {'class': 'n2' } )
@@ -110,9 +118,9 @@ class SesamathChef(SushiChef):
             topic_source_id = 'Sesamath-{0}-{1}'.format(grade, topic_name)
             topic_node = nodes.TopicNode(
               title = topic_name,
-              source_id = topic_source_id,
-              author = 'Sesamath',
-              provider = 'Sesamath',
+              source_id = topic_source_id,  
+              author = 'Sésamath',
+              provider = 'Sésamath',
               description = '',
               language = 'fr'
             )
@@ -127,8 +135,8 @@ class SesamathChef(SushiChef):
               sub_topic = nodes.TopicNode(
                 title = sub_topic_name,
                 source_id = sub_topic_source_id,
-                author = 'Sesamath',
-                provider = 'Sesamath',
+                author = 'Sésamath',
+                provider = 'Sésamath',
                 description = '',
                 language = 'fr'
               )
@@ -146,8 +154,8 @@ class SesamathChef(SushiChef):
                 subject_node = nodes.TopicNode(
                   title = subject_name,
                   source_id = subject_source_id,
-                  author = 'Sesamath',
-                  provider = 'Sesamath',
+                  author = 'Sésamath',
+                  provider = 'Sésamath',
                   description = '',
                   language= 'fr'
                 )
@@ -155,62 +163,63 @@ class SesamathChef(SushiChef):
                 sub_topic.add_child(subject_node)
 
                 # Get Exercises in Subjects
-                
                 link_to_exercise_page = url + subject_href
-
-                subject_node_arr = add_exercises(link_to_exercise_page, url, grade)
+                # pass in subject_href to check if we have already downloaded the page
+                subject_href_check = '{}_sesabibli'.format(subject_href)
+                subject_node_arr = add_exercises(link_to_exercise_page, url, subject_href_check, grade)
                 for node in subject_node_arr:
                   subject_node.add_child(node)
 
-          # Add manuals to associated grade
-          if grade in MATH_MANUALS:
+          # Add manuels to associated grade
+          if grade in MATH_MANUELS:
             print('Key exists. Key is : {}'.format(grade))
-            print('values are: {}'.format(MATH_MANUALS[grade]))
-            manuals_node = nodes.TopicNode(
-              title = '{} Manuals'.format(grade),
-              source_id = '{}_manuals_source_id'.format(grade),
-              author = 'Sesamath',
-              provider = 'Sesamath',
-              description = '{} Manuals'.format(grade),
+            print('values are: {}'.format(MATH_MANUELS[grade]))
+            manuels_node = nodes.TopicNode(
+              title = '{} manuels'.format(grade),
+              source_id = '{}_manuels_source_id'.format(grade),
+              author = 'Sésamath',
+              provider = 'Sésamath',
+              description = '{} manuels'.format(grade),
               language = 'fr'
             )
-            for title, url in MATH_MANUALS[grade].items():
+            for title, url in MATH_MANUELS[grade].items():
               doc_file = files.DocumentFile(path = url)
               rand_id = uuid.uuid4()
               doc_node = nodes.DocumentNode(
                 title = title,
                 source_id = '{}_{}'.format(title, rand_id),
                 files = [doc_file],
-                license = licenses.CC_BYLicense('Sesamath'),
-                copyright_holder = 'Sesamath'
+                license = licenses.CC_BYLicense('Sésamath'),
+                copyright_holder = 'Sésamath'
               )
-              manuals_node.add_child(doc_node)
-            grade_node.add_child(manuals_node)
+              manuels_node.add_child(doc_node)
+            grade_node.add_child(manuels_node)
 
           # Add to channel here
           channel.add_child(grade_node)
 
-        # Add additional manuals
-        additional_manual_node = nodes.TopicNode(
+        # Add additional manuels
+        additional_manuel_node = nodes.TopicNode(
           title = 'Matériels suplémentaires',
           source_id = 'Matériels_suplémentaires_source_id',
-          author = 'Sesamath',
-          provider = 'Sesamath',
+          author = 'Sésamath',
+          provider = 'Sésamath',
           description = 'Matériels suplémentaires',
           language = 'fr'
         )
-        for title, url in ADDITIONAL_MANUALS.items():
+        for title, url in ADDITIONAL_MANUELS.items():
           doc_file = files.DocumentFile(path = url)
           rand_id = uuid.uuid4()
           doc_node = nodes.DocumentNode(
             title = title,
             source_id = '{}_{}'.format(title, rand_id),
             files = [doc_file],
-            license = licenses.CC_BYLicense('Sesamath'),
-            copyright_holder = 'Sesamath'
+            license = licenses.CC_BYLicense('Sésamath'),
+            copyright_holder = 'Sésamath'
           )
-          additional_manual_node.add_child(doc_node)
-        channel.add_child(additional_manual_node)
+          additional_manuel_node.add_child(doc_node)
+        channel.add_child(additional_manuel_node)
+
         return channel
 
 # Get all exercises from url and add them to subject node
@@ -307,7 +316,7 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
   source_id = '{0}_{1}'.format(element['href'], rand_id)
   ZIP_FOLDER_PATH = os.path.join('chefdata', 'HTML5', grade, '{0}'.format(element['href']))
   print(iframe_source)
-  attempts = 1
+  attempts = 0
   while attempts in range(21):
     try:
       html5_app = archive_page(iframe_source, ZIP_FOLDER_PATH)
@@ -316,7 +325,7 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
       attempts +=1
       continue
     break
-  if attempts >=20:
+  if attempts >=10:
     return arr
   entry = html5_app['index_path']
   index_path = os.path.join(ZIP_FOLDER_PATH, 'index.html')
@@ -341,15 +350,14 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
       files = [files.HTMLZipFile(zippath)],
       title = element.get_text(strip = True),
       description = '',
-      license = licenses.CC_BYLicense('Sesamath'),
-      language='en',
+      license = licenses.CC_BYLicense('Sésamath'),
+      language='fr',
       thumbnail = None,
-      author = 'Sesamath'
+      author = 'Sésamath'
   )
   arr.append(html5_node)
   return arr
 
-# Add to node to arr without archiving page (exercise prev downloaded)
 def prev_downloaded(path, iframe_element, arr):
   zippath = create_predictable_zip(path)
   rand_id = uuid4()
@@ -367,7 +375,6 @@ def prev_downloaded(path, iframe_element, arr):
   arr.append(html5_node)
   return arr
 
-# Add any failed exercises to json file
 def add_to_failed(grade, exercise_title, exercise_link):
   with open(FAILED_JSON_PATH, encoding = 'utf-8') as f:
     try:
