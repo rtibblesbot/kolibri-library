@@ -214,7 +214,7 @@ class SesamathChef(SushiChef):
         return channel
 
 # Get all exercises from url and add them to subject node
-def add_exercises(url, base_url, grade):
+def add_exercises(url, base_url, base_href, grade):
   print(url)
   try:
     content = read(url, loadjs = True)
@@ -229,57 +229,76 @@ def add_exercises(url, base_url, grade):
   visible_ress_j3p = page_soup.find_all('a', {'class': 'ress_j3p'})
 
   for element in visible_ress_ato:
-    attempts = 1
-    while attempts in range(21):
-      try:
-        content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
-        ress_ato_soup = BeautifulSoup(content[0], 'html.parser')
-        visible_iframe = ress_ato_soup.find('iframe')
-        initial_iframe_source = visible_iframe['src']
-      except:
-        print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
-        attempts +=1
+    element_num = element['href'].replace('{}/'.format(base_href), '')
+    # if exists, use that folder as entry point instead of trying to get iframe and downloading page again
+    HTML5_FILE_DOWNLOAD_PATH = os.path.join('chefdata', 'HTML5', grade, base_href, element_num)
+
+    if os.path.exists(HTML5_FILE_DOWNLOAD_PATH):
+      print('{} exists. Skipping redownloading this page'.format(element['href']))
+      nodes_arr = add_success(HTML5_FILE_DOWNLOAD_PATH, element nodes_arr,)
+    else:
+      print('{} does not exists. Need to download this page'.format(element['href']))
+      add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
+      attempts = 0
+      while attempts in range(21):
+        try:
+          content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
+          ress_ato_soup = BeautifulSoup(content[0], 'html.parser')
+          visible_iframe = ress_ato_soup.find('iframe')
+          initial_iframe_source = visible_iframe['src']
+        except:
+          print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
+          attempts +=1
+          continue
+        break
+      # move to next element in visible_ress_ato if attempts > 10
+      if attempts >= 10:
         continue
-      break
-    # move to next element in visible_ress_ato if attempts > 10
-    if attempts >= 20:
-      continue
-    
-    attempts = 1
-    while attempts in range(21):
-      try:
-        content = read(initial_iframe_source, loadjs = True)
-        iframe_soup = BeautifulSoup(content[0], 'html.parser')
-        visible_iframe_ato = iframe_soup.find('iframe')
-        iframe_source_ato = visible_iframe_ato['src']
-      except:
-        print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
-        attempts +=1
+      
+      attempts = 0
+      while attempts in range(21):
+        try:
+          content = read(initial_iframe_source, loadjs = True)
+          iframe_soup = BeautifulSoup(content[0], 'html.parser')
+          visible_iframe_ato = iframe_soup.find('iframe')
+          iframe_source_ato = visible_iframe_ato['src']
+        except:
+          print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
+          attempts +=1
+          continue
+        break
+      if attempts >= 10:
         continue
-      break
-    if attempts >= 20:
-      continue
-    nodes_arr = scrape_iframe(element, grade, iframe_source_ato, nodes_arr)
+      nodes_arr = scrape_iframe(element, grade, iframe_source_ato, nodes_arr)
 
   for element in visible_ress_j3p:
-    attempts = 1
-    while attempts in range(21):
-      try:
-        content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
-        ress_j3p_soup = BeautifulSoup(content[0], 'html.parser')
-        visible_iframe_j3p = ress_j3p_soup.find('iframe')
-        # getting iframe
-        iframe_source_j3p = visible_iframe_j3p['src']
-      except:
-        print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
-        attempts +=1
+    element_num = element['href'].replace('{}/'.format(base_href), '')
+    # if exists, use that folder as entry point instead of trying to get iframe and downloading page again
+    HTML5_FILE_DOWNLOAD_PATH = os.path.join('chefdata', 'HTML5', grade, base_href, element_num)
+    if os.path.exists(HTML5_FILE_DOWNLOAD_PATH):
+      print('{} exists. Skipping redownloading this page'.format(element['href']))
+      nodes_arr = add_success(HTML5_FILE_DOWNLOAD_PATH, element, nodes_arr)
+    else:
+      print('{} does not exists. Need to download this page'.format(element['href']))
+      add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
+      attempts = 0
+      while attempts in range(21):
+        try:
+          content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
+          ress_j3p_soup = BeautifulSoup(content[0], 'html.parser')
+          visible_iframe_j3p = ress_j3p_soup.find('iframe')
+          # getting iframe
+          iframe_source_j3p = visible_iframe_j3p['src']
+        except:
+          print('Error getting iframe for ress_ato element at {0}{1}. Attempt: {2}'.format(base_url, element['href'], attempts))
+          attempts +=1
+          continue
+        break
+      if attempts >=10:
         continue
-      break
-    if attempts >=20:
-      continue
 
-    # # getting iframe
-    nodes_arr = scrape_iframe(element, grade, iframe_source_j3p, nodes_arr)
+      # # getting iframe
+      nodes_arr = scrape_iframe(element, grade, iframe_source_j3p, nodes_arr)
 
   return nodes_arr
 
