@@ -14,7 +14,7 @@ GRADE_MAP = [
   "https://mathenpoche.sesamath.net/?page=terminale"
 ]
 
-MATH_MANUALS = {
+MATH_MANUELS = {
   "Sixième":{
     "Manuel Sésamath 6e": "https://manuel.sesamath.net/send_file.php?file=/files/ms6_2013.pdf",
     "Cahier Sésamath 6e": "https://manuel.sesamath.net/send_file.php?file=/files/cs6_2015.pdf",
@@ -45,7 +45,7 @@ MATH_MANUALS = {
   }
 }
 
-ADDITIONAL_MANUALS = {
+ADDITIONAL_MANUELS = {
   "Manuel de Cycle 4 Presentation": "https://manuel.sesamath.net/docs/manuel_cycle4_presentation.pdf",
   "Manuel Cycle 4": "https://manuel.sesamath.net/send_file.php?file=/files/cycle4_2016_v2.pdf"
 }
