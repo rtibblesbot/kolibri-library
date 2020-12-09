@@ -184,10 +184,10 @@ class SesamathChef(SushiChef):
             )
             for title, url in MATH_MANUELS[grade].items():
               doc_file = files.DocumentFile(path = url)
-              rand_id = uuid.uuid4()
+              # rand_id = uuid.uuid4()
               doc_node = nodes.DocumentNode(
                 title = title,
-                source_id = '{}_{}'.format(title, rand_id),
+                source_id = '{}'.format(title),
                 files = [doc_file],
                 license = licenses.CC_BYLicense('Sésamath'),
                 copyright_holder = 'Sésamath'
@@ -209,10 +209,10 @@ class SesamathChef(SushiChef):
         )
         for title, url in ADDITIONAL_MANUELS.items():
           doc_file = files.DocumentFile(path = url)
-          rand_id = uuid.uuid4()
+          # rand_id = uuid.uuid4()
           doc_node = nodes.DocumentNode(
             title = title,
-            source_id = '{}_{}'.format(title, rand_id),
+            source_id = '{}'.format(title),
             files = [doc_file],
             license = licenses.CC_BYLicense('Sésamath'),
             copyright_holder = 'Sésamath'
@@ -232,6 +232,8 @@ def add_exercises(url, base_url, base_href, grade):
     return []
 
   nodes_arr = []
+  # arr to hold exercises that were previously added in order to avoid adding duplicate exercises
+  prev_added_arr = []
   page_soup = BeautifulSoup(content[0], 'html.parser')
   # Get all ress_ato and ress_j3p exercises
   visible_ress_ato = page_soup.find_all('a', {'class': 'ress_ato'})
@@ -241,15 +243,18 @@ def add_exercises(url, base_url, base_href, grade):
     element_num = element['href'].replace('{}/'.format(base_href), '')
     # if exists, use that folder as entry point instead of trying to get iframe and downloading page again
     HTML5_FILE_DOWNLOAD_PATH = os.path.join('chefdata', 'HTML5', grade, base_href, element_num)
-
     if os.path.exists(HTML5_FILE_DOWNLOAD_PATH):
+      if HTML5_FILE_DOWNLOAD_PATH in prev_added_arr:
+        continue
       print('{} exists. Skipping redownloading this page'.format(element['href']))
-      nodes_arr = prev_downloaded(HTML5_FILE_DOWNLOAD_PATH, element nodes_arr,)
+      nodes_arr = add_success(HTML5_FILE_DOWNLOAD_PATH, element, nodes_arr)
+      # Add to prev_add_arr if found
+      prev_added_arr.append(HTML5_FILE_DOWNLOAD_PATH)
     else:
       print('{} does not exists. Need to download this page'.format(element['href']))
       add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
       attempts = 0
-      while attempts in range(21):
+      while attempts in range(20):
         try:
           content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
           ress_ato_soup = BeautifulSoup(content[0], 'html.parser')
@@ -265,7 +270,7 @@ def add_exercises(url, base_url, base_href, grade):
         continue
       
       attempts = 0
-      while attempts in range(21):
+      while attempts in range(20):
         try:
           content = read(initial_iframe_source, loadjs = True)
           iframe_soup = BeautifulSoup(content[0], 'html.parser')
@@ -285,13 +290,17 @@ def add_exercises(url, base_url, base_href, grade):
     # if exists, use that folder as entry point instead of trying to get iframe and downloading page again
     HTML5_FILE_DOWNLOAD_PATH = os.path.join('chefdata', 'HTML5', grade, base_href, element_num)
     if os.path.exists(HTML5_FILE_DOWNLOAD_PATH):
+      if HTML5_FILE_DOWNLOAD_PATH in prev_added_arr:
+        continue
       print('{} exists. Skipping redownloading this page'.format(element['href']))
-      nodes_arr = prev_downloaded(HTML5_FILE_DOWNLOAD_PATH, element, nodes_arr)
+      nodes_arr = add_success(HTML5_FILE_DOWNLOAD_PATH, element, nodes_arr)
+      # Add to prev_add_arr if found
+      prev_added_arr.append(HTML5_FILE_DOWNLOAD_PATH)
     else:
       print('{} does not exists. Need to download this page'.format(element['href']))
       add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
       attempts = 0
-      while attempts in range(21):
+      while attempts in range(20):
         try:
           content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
           ress_j3p_soup = BeautifulSoup(content[0], 'html.parser')
@@ -312,12 +321,12 @@ def add_exercises(url, base_url, base_href, grade):
   return nodes_arr
 
 def scrape_iframe(element, grade, iframe_source, arr = []):
-  rand_id = uuid.uuid4()
-  source_id = '{0}_{1}'.format(element['href'], rand_id)
+  # rand_id = uuid.uuid4()
+  source_id = '{0}'.format(element['href'])
   ZIP_FOLDER_PATH = os.path.join('chefdata', 'HTML5', grade, '{0}'.format(element['href']))
   print(iframe_source)
   attempts = 0
-  while attempts in range(21):
+  while attempts in range(20):
     try:
       html5_app = archive_page(iframe_source, ZIP_FOLDER_PATH)
     except:
@@ -358,10 +367,10 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
   arr.append(html5_node)
   return arr
 
-def prev_downloaded(path, iframe_element, arr):
-  zippath = create_predictable_zip(path)
-  rand_id = uuid4()
-  source_id = '{0}_{1}'.format(iframe_element['href'], rand_id)
+def add_success(path, iframe_element, arr):
+  zippath = zip.create_predictable_zip(path)
+  # rand_id = uuid4()
+  source_id = '{0}'.format(iframe_element['href'])
   html5_node = nodes.HTML5AppNode(
       source_id = source_id,
       files = [files.HTMLZipFile(os.path.relpath(zippath))],
