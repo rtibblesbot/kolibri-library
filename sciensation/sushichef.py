@@ -13,10 +13,10 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 ################################################################################
 CHANNEL_ID = "f189d7c505644311a4e62d9f3259e31b"             # UUID of channel
 CHANNEL_NAME = "Sciensation"                           # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "<yourid>"                              # Unique ID for content source
-CHANNEL_DOMAIN = "<yourdomain.org>"                         # Who is providing the content
-CHANNEL_LANGUAGE = "en"                                     # Language of channel
-CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
+CHANNEL_SOURCE_ID = "Sciensation"                              # Unique ID for content source
+CHANNEL_DOMAIN = "sciensation.org"                         # Who is providing the content
+CHANNEL_LANGUAGE = "es"                                     # Language of channel
+CHANNEL_DESCRIPTION = 'Ciênsação started in 2015, with the support of UNESCO Brasil, as an initiative to promote hands-on experiments at public schools in Brazil. Since then, volunteers have developed, tested, photographed and repeatedly revised more than 100 experiments. These experiments were then translated to Portuguese, Spanish and English, and published online, so that teachers in all of Latin America can benefit from this work.'                                  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whenever you update downloaded content
 
