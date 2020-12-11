@@ -8,7 +8,7 @@ from ricecooker.config import LOGGER              # Use LOGGER to print messages
 from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
-
+import pandas
 # Run constants
 ################################################################################
 CHANNEL_ID = "f189d7c505644311a4e62d9f3259e31b"             # UUID of channel
@@ -23,8 +23,9 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 
 # Additional constants
 ################################################################################
-
-
+EN_XLSX = os.path.join('files', 'sciensation_en.xlsx')
+ES_XLSX = os.path.join('files', 'sciensation_es.xlsx')
+PT_XLSX = os.path.join('files', 'sciensation_pt.xlsx')
 
 # The chef subclass
 ################################################################################
@@ -75,7 +76,13 @@ class SciensationChef(SushiChef):
 
         return channel
 
-
+def format_url(experiment_id, language_code):
+    if language_code == 'en':
+        return 'https://sciensation.org/hands-on_experiments/{}.html'.format(experiment_id)
+    elif language_code == 'es':
+        return 'https://ciensacion.org/experimentos_manos_en_la_masa/{}.html'.format(experiment_id)
+    else:
+        return 'https://ciensacao.org/experimento_mao_na_massa/{}.html'.format(experiment_id)
 
 # CLI
 ################################################################################
