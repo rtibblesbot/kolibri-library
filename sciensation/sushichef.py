@@ -30,6 +30,7 @@ XLSX_SHEETS = {
     'pt': os.path.join('files', 'sciensation_pt.xlsx')
 }
 SUBJECTS = ['Biology', 'Physics', 'Chemistry', 'Geography', 'Maths']
+EXPERIMENTS_FOLDER = os.path.join('chefdata', 'experiments')
 # The chef subclass
 ################################################################################
 class SciensationChef(SushiChef):
@@ -73,7 +74,7 @@ class SciensationChef(SushiChef):
         Returns: ChannelNode
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
-        # Channel structure: language --> subject --> exercises
+        # Channel structure: language --> subject --> experiments
         for lang_code, value in XLSX_SHEETS.items():
             # lang_code = language code
             # value = link to xlsx sheet
@@ -108,19 +109,20 @@ class SciensationChef(SushiChef):
                 )
                 
                 # Add exercises to subject nodes
-
+                experiment_dict = buildDict(xlsx_file)
+                subject_node = add_experiments(subject, lang_code, subject_node, experiment_dict)
                 topic_node.add_child(subject_node)
 
             channel.add_child(topic_node)
         return channel
 
-def format_url(experiment_id, language_code):
+def format_url(id, language_code):
     if language_code == 'en':
-        return 'https://sciensation.org/hands-on_experiments/{}.html'.format(experiment_id)
+        return 'https://sciensation.org/hands-on_experiments/{}.html'.format(id)
     elif language_code == 'es':
-        return 'https://ciensacion.org/experimento_manos_en_la_masa/{}.html'.format(experiment_id)
+        return 'https://ciensacion.org/experimento_manos_en_la_masa/{}.html'.format(id)
     else:
-        return 'https://ciensacao.org/experimento_mao_na_massa/{}.html'.format(experiment_id)
+        return 'https://ciensacao.org/experimento_mao_na_massa/{}.html'.format(id)
 
 def buildDict(xls):
     dict = {}
@@ -134,6 +136,21 @@ def buildDict(xls):
         dict[row_id] = subjects
     return dict
 
+def add_experiments(subject, language, node, dict):
+    print('in add_experiments')
+    for experiment_id, subject_arr in dict.items():
+        if subject in subject_arr:
+            print('{0} is part of subject: {1}'.format(experiment_id, subject))
+            url = format_url(experiment_id, language)
+            print(url)
+            node = scarpe_page(url, language, node)
+    return node
+
+
+def scrape_page(url, language, subject_node):
+    
+
+    return subject_node
 # CLI
 ################################################################################
 if __name__ == '__main__':
