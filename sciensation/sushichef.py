@@ -23,10 +23,13 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 
 # Additional constants
 ################################################################################
-EN_XLSX = os.path.join('files', 'sciensation_en.xlsx')
-ES_XLSX = os.path.join('files', 'sciensation_es.xlsx')
-PT_XLSX = os.path.join('files', 'sciensation_pt.xlsx')
-
+XLSX = os.path.join('files', 'sciensation_metadata.xlsx')
+XLSX_SHEETS = {
+    'EN': os.path.join('files', 'sciensation_en.xlsx'),
+    'ES': os.path.join('files', 'sciensation_es.xlsx'),
+    'PT': os.path.join('files', 'sciensation_pt.xlsx')
+}
+SUBJECTS = ['Biology', 'Physics', 'Chemistry', 'Geography', 'Maths']
 # The chef subclass
 ################################################################################
 class SciensationChef(SushiChef):
@@ -71,18 +74,27 @@ class SciensationChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        # TODO: Replace next line with chef code
-        raise NotImplementedError("constuct_channel method not implemented yet...")
-
         return channel
 
 def format_url(experiment_id, language_code):
     if language_code == 'en':
         return 'https://sciensation.org/hands-on_experiments/{}.html'.format(experiment_id)
     elif language_code == 'es':
-        return 'https://ciensacion.org/experimentos_manos_en_la_masa/{}.html'.format(experiment_id)
+        return 'https://ciensacion.org/experimento_manos_en_la_masa/{}.html'.format(experiment_id)
     else:
         return 'https://ciensacao.org/experimento_mao_na_massa/{}.html'.format(experiment_id)
+
+def buildDict(xls):
+    dict = {}
+    for index, row in xls.iterrows():
+        # filter out inactive exercises
+        if row['Active'] == 0:
+            continue
+        row_id = 'e{}'.format(row['ID'])
+        # split subject string into array
+        subjects = row['Subject'].split(', ')
+        dict[row_id] = subjects
+    return dict
 
 # CLI
 ################################################################################
