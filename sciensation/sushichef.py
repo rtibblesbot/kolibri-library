@@ -25,9 +25,9 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 ################################################################################
 XLSX = os.path.join('files', 'sciensation_metadata.xlsx')
 XLSX_SHEETS = {
-    'EN': os.path.join('files', 'sciensation_en.xlsx'),
-    'ES': os.path.join('files', 'sciensation_es.xlsx'),
-    'PT': os.path.join('files', 'sciensation_pt.xlsx')
+    'en': os.path.join('files', 'sciensation_en.xlsx'),
+    'es': os.path.join('files', 'sciensation_es.xlsx'),
+    'pt': os.path.join('files', 'sciensation_pt.xlsx')
 }
 SUBJECTS = ['Biology', 'Physics', 'Chemistry', 'Geography', 'Maths']
 # The chef subclass
@@ -73,7 +73,45 @@ class SciensationChef(SushiChef):
         Returns: ChannelNode
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
+        # Channel structure: language --> subject --> exercises
+        for lang_code, value in XLSX_SHEETS.items():
+            # lang_code = language code
+            # value = link to xlsx sheet
+            
+            # read xlxs file using pandas
+            xlsx_file = pandas.read_excel(value)
+            print(lang_code)
+            print(value)
+            if lang_code == 'en':
+                language = 'English'
+            elif lang_code == 'es':
+                language = 'Español'
+            else:
+                language = 'Português'
+            topic_node = nodes.TopicNode(
+                title = language,
+                source_id = 'sciensation_{}'.format(language),
+                author = 'Sciensation',
+                provider = 'Sciensation',
+                description = '{} experiements'.format(language),
+                language = lang_code
+            )
+            # add subject nodes
+            for subject in SUBJECTS:
+                subject_node = nodes.TopicNode(
+                    title = subject,
+                    source_id = 'sciensation_{0}_{1}'.format(language, subject),
+                    author = 'Sciensation',
+                    provider = 'Sciensation',
+                    description = '',
+                    language = lang_code
+                )
+                
+                # Add exercises to subject nodes
 
+                topic_node.add_child(subject_node)
+
+            channel.add_child(topic_node)
         return channel
 
 def format_url(experiment_id, language_code):
