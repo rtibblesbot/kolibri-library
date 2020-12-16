@@ -9,6 +9,8 @@ from ricecooker.exceptions import raise_for_invalid_channel
 from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
 
 import pandas
+import re
+from bs4 import BeautifulSoup
 # Run constants
 ################################################################################
 CHANNEL_ID = "f189d7c505644311a4e62d9f3259e31b"             # UUID of channel
@@ -26,8 +28,8 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 XLSX = os.path.join('files', 'sciensation_metadata.xlsx')
 XLSX_SHEETS = {
     'en': os.path.join('files', 'sciensation_en.xlsx'),
-    'es': os.path.join('files', 'sciensation_es.xlsx'),
-    'pt': os.path.join('files', 'sciensation_pt.xlsx')
+    # 'es': os.path.join('files', 'sciensation_es.xlsx'),
+    # 'pt': os.path.join('files', 'sciensation_pt.xlsx')
 }
 SUBJECTS = ['Biology', 'Physics', 'Chemistry', 'Geography', 'Maths']
 EXPERIMENTS_FOLDER = os.path.join('chefdata', 'experiments')
@@ -113,6 +115,8 @@ class SciensationChef(SushiChef):
                 subject_node = add_experiments(subject, lang_code, subject_node, experiment_dict)
                 topic_node.add_child(subject_node)
 
+                topic_node.add_child(subject_node)
+
             channel.add_child(topic_node)
         return channel
 
@@ -137,10 +141,11 @@ def buildDict(xls):
     return dict
 
 def add_experiments(subject, language, node, dict):
-    print('in add_experiments')
     for experiment_id, subject_arr in dict.items():
+        # check if experiment is part of subject
         if subject in subject_arr:
             print('{0} is part of subject: {1}'.format(experiment_id, subject))
+            # format to appropriate url depending on language
             url = format_url(experiment_id, language)
             print(url)
             node = scarpe_page(url, language, node)
@@ -148,8 +153,63 @@ def add_experiments(subject, language, node, dict):
 
 
 def scrape_page(url, language, subject_node):
-    
+    page = downloader.archive_page(url, EXPERIMENTS_FOLDER)
+    entry = page['index_path']
+    zip_path_entry = os.path.relpath(entry, 'chefdata\\experiments')
 
+    soup = BeautifulSoup(open(entry, encoding = 'utf-8'), 'html.parser')
+
+    # get title
+    visible_SRAtitle = soup.find('h1', {'class': 'SRAtitle'})
+    title = visible_SRAtitle.get_text(strip = True)
+
+    # get tags
+    visible_SRAtd = soup.findAll('div', {'class': 'SRAtd'})
+    visible_tags = visible_SRAtd[-1]
+    tags_arr = []
+    for a_tags in visible_tags.findAll('a'):
+        tag = a_tags.get_text(strip = True)
+        # remove special characters
+        tag = re.sub(r"[^a-zA-Z0-9]+", ' ', tag)
+        # removing ending whitespace
+        tag = tag.rstrip()
+        tags_arr.append(tag)
+    
+    # remove navbar
+    navbar = soup.find('nav')
+    navbar.decompose()
+
+    # remove footer
+    footer = soup.find('footer')
+    footer.decompose()
+
+    # remove all hrefs
+    for a_tag in soup.findAll('a'):
+        del a_tag['href']
+        # move all children of a tag to parent
+        a_tag.replaceWithChildren()
+
+    # write updated soup to html file
+    soup_str = str(soup)
+    html_file = open(entry, 'w', encoding = 'utf-8')
+    html_file.write(soup_str)
+    html_file.close()
+
+    zippath = zip.create_predictable_zip(EXPERIMENTS_FOLDER, zip_path_entry)
+    # copy zippath to temp folder here if necessary
+
+    html5_node = nodes.HTML5AppNode(
+        source_id = '{0}_{1}'.format(langauge, url),
+        files = [files.HTMLZipFile(zippath)],
+        title = title,
+        description = '',
+        license = licenses.CC_BYLicense('Sciensation'),
+        language = language,
+        thumbnail = None,
+        author = 'Sciensation',
+        tags = tags_arr
+    )
+    subject_node.add_child(html5_node)
     return subject_node
 # CLI
 ################################################################################
