@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
-from ricecooker.utils import downloader, html_writer
+from ricecooker.utils import downloader, html_writer, zip
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, questions, licenses
 from ricecooker.config import LOGGER              # Use LOGGER to print messages
@@ -19,17 +19,17 @@ CHANNEL_SOURCE_ID = "Sciensation"                              # Unique ID for c
 CHANNEL_DOMAIN = "sciensation.org"                         # Who is providing the content
 CHANNEL_LANGUAGE = "es"                                     # Language of channel
 CHANNEL_DESCRIPTION = 'Ciênsação started in 2015, with the support of UNESCO Brasil, as an initiative to promote hands-on experiments at public schools in Brazil. Since then, volunteers have developed, tested, photographed and repeatedly revised more than 100 experiments. These experiments were then translated to Portuguese, Spanish and English, and published online, so that teachers in all of Latin America can benefit from this work.'                                  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = None                                    # Local path or url to image file (optional)
+CHANNEL_THUMBNAIL = os.path.join('files', 'sciensation_logo.png')                                    # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whenever you update downloaded content
 
 
 # Additional constants
 ################################################################################
-XLSX = os.path.join('files', 'sciensation_metadata.xlsx')
-XLSX_SHEETS = {
-    'en': os.path.join('files', 'sciensation_en.xlsx'),
-    # 'es': os.path.join('files', 'sciensation_es.xlsx'),
-    # 'pt': os.path.join('files', 'sciensation_pt.xlsx')
+XLS = os.path.join('files', 'sciensation_metadata.xls')
+XLS_SHEETS = {
+    'en': os.path.join('files', 'sciensation_en.xls'),
+    # 'es': os.path.join('files', 'sciensation_es.xls'),
+    # 'pt': os.path.join('files', 'sciensation_pt.xls')
 }
 SUBJECTS = ['Biology', 'Physics', 'Chemistry', 'Geography', 'Maths']
 EXPERIMENTS_FOLDER = os.path.join('chefdata', 'experiments')
@@ -77,12 +77,12 @@ class SciensationChef(SushiChef):
         """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
         # Channel structure: language --> subject --> experiments
-        for lang_code, value in XLSX_SHEETS.items():
+        for lang_code, value in XLS_SHEETS.items():
             # lang_code = language code
-            # value = link to xlsx sheet
+            # value = link to xls sheet
             
             # read xlxs file using pandas
-            xlsx_file = pandas.read_excel(value)
+            xls_file = pandas.read_excel(value)
             print(lang_code)
             print(value)
             if lang_code == 'en':
@@ -111,9 +111,8 @@ class SciensationChef(SushiChef):
                 )
                 
                 # Add exercises to subject nodes
-                experiment_dict = buildDict(xlsx_file)
+                experiment_dict = buildDict(xls_file)
                 subject_node = add_experiments(subject, lang_code, subject_node, experiment_dict)
-                topic_node.add_child(subject_node)
 
                 topic_node.add_child(subject_node)
 
@@ -145,14 +144,13 @@ def add_experiments(subject, language, node, dict):
         # check if experiment is part of subject
         if subject in subject_arr:
             print('{0} is part of subject: {1}'.format(experiment_id, subject))
-            # format to appropriate url depending on language
-            url = format_url(experiment_id, language)
-            print(url)
-            node = scarpe_page(url, language, node)
+            node = scrape_page(experiment_id, language, node)
     return node
 
 
-def scrape_page(url, language, subject_node):
+def scrape_page(exp_id, language, subject_node):
+    # format to appropriate url depending on language
+    url = format_url(exp_id, language)
     page = downloader.archive_page(url, EXPERIMENTS_FOLDER)
     entry = page['index_path']
     zip_path_entry = os.path.relpath(entry, 'chefdata\\experiments')
@@ -195,11 +193,12 @@ def scrape_page(url, language, subject_node):
     html_file.write(soup_str)
     html_file.close()
 
-    zippath = zip.create_predictable_zip(EXPERIMENTS_FOLDER, zip_path_entry)
+    # zippath = zip.create_predictable_zip(EXPERIMENTS_FOLDER, zip_path_entry)
+    # create zip file
+    zippath = create_zip(exp_id, language)
     # copy zippath to temp folder here if necessary
-
     html5_node = nodes.HTML5AppNode(
-        source_id = '{0}_{1}'.format(langauge, url),
+        source_id = '{0}_{1}'.format(language, url),
         files = [files.HTMLZipFile(zippath)],
         title = title,
         description = '',
