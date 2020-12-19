@@ -11,6 +11,7 @@ from le_utils.constants import exercises, content_kinds, file_formats, format_pr
 import pandas
 import re
 from bs4 import BeautifulSoup
+import shutil
 # Run constants
 ################################################################################
 CHANNEL_ID = "f189d7c505644311a4e62d9f3259e31b"             # UUID of channel
@@ -33,6 +34,7 @@ XLS_SHEETS = {
 }
 SUBJECTS = ['Biology', 'Physics', 'Chemistry', 'Geography', 'Maths']
 EXPERIMENTS_FOLDER = os.path.join('chefdata', 'experiments')
+TEMP_FOLDER = os.path.join('chefdata', 'tempfiles')
 # The chef subclass
 ################################################################################
 class SciensationChef(SushiChef):
@@ -150,12 +152,16 @@ def add_experiments(subject, language, node, dict):
 
 def scrape_page(exp_id, language, subject_node):
     # format to appropriate url depending on language
+    my_downloader = downloader.ArchiveDownloader(EXPERIMENTS_FOLDER)
     url = format_url(exp_id, language)
-    page = downloader.archive_page(url, EXPERIMENTS_FOLDER)
-    entry = page['index_path']
-    zip_path_entry = os.path.relpath(entry, 'chefdata\\experiments')
+    # page = downloader.archive_page(url, EXPERIMENTS_FOLDER)
+    page = my_downloader.get_page(url, refresh = True)
+    my_zip_dir = my_downloader.create_zip_dir_for_page(url)
+    index_file = os.path.join(my_zip_dir, 'index.html')
+    # entry = page['index_path']
+    zip_path_entry = os.path.relpath(index_file, os.path.join('chefdata', 'experiments'))
 
-    soup = BeautifulSoup(open(entry, encoding = 'utf-8'), 'html.parser')
+    soup = BeautifulSoup(open(index_file, encoding = 'utf-8'), 'html.parser')
 
     # get title
     visible_SRAtitle = soup.find('h1', {'class': 'SRAtitle'})
@@ -189,14 +195,15 @@ def scrape_page(exp_id, language, subject_node):
 
     # write updated soup to html file
     soup_str = str(soup)
-    html_file = open(entry, 'w', encoding = 'utf-8')
+    # html_file = open(entry, 'w', encoding = 'utf-8')
+    html_file = open(index_file, 'w', encoding = 'utf-8')
     html_file.write(soup_str)
     html_file.close()
 
     # zippath = zip.create_predictable_zip(EXPERIMENTS_FOLDER, zip_path_entry)
-    # create zip file
-    zippath = create_zip(exp_id, language)
+    zippath = zip.create_predictable_zip(my_zip_dir)
     # copy zippath to temp folder here if necessary
+    shutil.copy(zippath, TEMP_FOLDER)
     html5_node = nodes.HTML5AppNode(
         source_id = '{0}_{1}'.format(language, url),
         files = [files.HTMLZipFile(zippath)],
