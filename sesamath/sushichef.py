@@ -19,6 +19,8 @@ import shutil
 # NEW download any failed attempts to json file
 import json
 
+import re
+from urllib.request import pathname2url
 # Run constants
 ################################################################################
 # CHANNEL_ID = "7f07b95a5f3f4440b05181105f8401fc"                      # UUID of channel
@@ -339,13 +341,7 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
 		break
 	if attempts >=10:
 		return arr
-	my_zip_dir = my_downloader.create_zip_dir_for_page(iframe_source)
-	# my_zip_dir = my_downloader.create_zip_dir_for_page(iframe_source)
-	index_file = os.path.join(my_zip_dir, 'index.html')
-	zip_path_entry = os.path.relpath(index_file, SESAMATH_DATA_FOLDER)
-	# entry = html5_app['index_path']
-	# index_path = os.path.join(ZIP_FOLDER_PATH, 'index.html')
-	# shutil.copy(entry, index_path)
+
 	js_files = glob.iglob('**/*.js', recursive=True)
 	for afile in js_files:
 		# The JS files can contain absolute links in code, so we need to 
@@ -358,7 +354,12 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
 		assert not 'https://' in content
 		with open(afile, 'w', encoding= 'utf-8') as f:
 			f.write(content)
-			
+
+	my_zip_dir = my_downloader.create_zip_dir_for_page(iframe_source)
+
+	index_file = os.path.join(my_zip_dir, 'index.html')
+	zip_path_entry = os.path.relpath(index_file, SESAMATH_DATA_FOLDER)
+
 	zippath = zip.create_predictable_zip(my_zip_dir)
 
 	html5_node = nodes.HTML5AppNode(
