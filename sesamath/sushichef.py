@@ -23,8 +23,7 @@ import re
 from urllib.request import pathname2url
 # Run constants
 ################################################################################
-# CHANNEL_ID = "7f07b95a5f3f4440b05181105f8401fc"                      # UUID of channel
-CHANNEL_ID = "7f07b95a5f3f4440b05181105f8401ab"                      # UUID of channel
+CHANNEL_ID = "7f07b95a5f3f4440b05181105f8401fc"                      # UUID of channel
 CHANNEL_NAME = "Sésamath"                                          	# Name of Kolibri channel
 CHANNEL_SOURCE_ID = "Sésamath"                                      # Unique ID for content source
 CHANNEL_DOMAIN = "https://mathenpoche.sesamath.net/"                # Who is providing the content
@@ -357,6 +356,16 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
 
 	my_zip_dir = my_downloader.create_zip_dir_for_page(iframe_source)
 
+	# if j3pLoad.js exists, update it
+	j3pLoad_filepath = os.path.join(my_zip_dir, 'j3p.sesamath.net', 'build', 'outils', 'j3pLoad.js')
+	if os.path.isfile(j3pLoad_filepath):
+		update_j3pLoad(j3pLoad_filepath)
+
+	# if display_1.7.14.js exists, update it
+	display_module_filepath = os.path.join(my_zip_dir, 'bibliotheque.sesamath.net', 'display_1.7.14.js')
+	if os.path.isfile(display_module_filepath):
+		update_display_module(display_module_filepath)
+
 	index_file = os.path.join(my_zip_dir, 'index.html')
 	zip_path_entry = os.path.relpath(index_file, SESAMATH_DATA_FOLDER)
 
@@ -418,6 +427,46 @@ def add_to_failed(grade, exercise_title, exercise_link):
 				data[grade] = {}
 				data[grade][exercise_title] = exercise_link
 				json.dump(data, json_file, indent = 2, ensure_ascii=False)
+
+def update_j3pLoad(j3pLoad_file):
+	content = ''
+
+	with open(j3pLoad_file, 'r', encoding = 'utf-8') as f:
+		content = f.read()
+		# print(content)
+		pattern = re.finditer(r'(?!")[^+]*\.js\?[\d]*(?=")', content)
+		# print(pattern)
+		for match in pattern:
+			match_arr = match.group(0).split("/")
+			# get last element in match_arr for filename
+			# update file name
+			match_arr[-1] = '{}.js'.format(match_arr[-1].replace('.js?', '_'))
+			# using splat operator to unpack list of arguments into os.path.join
+			updated_match = os.path.join(*match_arr)
+			url = pathname2url(updated_match)
+			# replace old match group with updated match
+			content = content.replace(match.group(0), url)
+
+	with open(j3pLoad_file, 'w', encoding = 'utf-8') as f:
+		f.write(content)
+
+def update_display_module(display_file):
+	content = ''
+
+	with open(display_file, 'r', encoding = 'utf-8') as f:
+		content = f.read()
+		print(content)
+		pattern = re.finditer(r'(?!")\.js\?[\d]*(?=")', content)
+		for match in pattern:
+
+			updated_match = '{}.js'.format(match.group(0).replace('.js?', '_'))
+
+			content = content.replace(match.group(0), updated_match)
+
+
+	with open(display_file, 'w', encoding= 'utf-8') as f:
+		f.write(content)
+
 
 settings = {
 	'generate-missing-thumbnails': True,
