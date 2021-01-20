@@ -112,7 +112,7 @@ class SesamathChef(SushiChef):
 				)
 				# Get Topics
 				visible_N2 = sesamath_response.find_all('li', {'class': 'n2' } )
-				for element_in_visible_N2 in visible_N2[1:]:
+				for element_in_visible_N2 in visible_N2:
 					topic_name = element_in_visible_N2.find('h2').get_text(strip=True)
 
 					visible_N3 = element_in_visible_N2.find_all('li', {'class': 'n3'})
@@ -129,7 +129,7 @@ class SesamathChef(SushiChef):
 
 					grade_node.add_child(topic_node)
 
-					for element_in_visible_N3 in visible_N3[1:]:
+					for element_in_visible_N3 in visible_N3:
 						sub_topic_name = element_in_visible_N3.find('a').get_text(strip=True)
 
 						# Add subjects to sub_topics
@@ -147,7 +147,7 @@ class SesamathChef(SushiChef):
 
 						# Get Subject Nodes
 						visible_N4 = element_in_visible_N3.find_all('li', {'class': 'n4'})
-						for element_in_visible_N4 in visible_N4[1:]:
+						for element_in_visible_N4 in visible_N4:
 							subject = element_in_visible_N4.find('a')
 							subject_name = subject.get_text(strip=True)
 							subject_href = subject['href']
@@ -173,7 +173,7 @@ class SesamathChef(SushiChef):
 								subject_node.add_child(node)
 
 				# Add manuels to associated grade
-				if grade in MATH_MANUELS[1:]:
+				if grade in MATH_MANUELS:
 					print('Key exists. Key is : {}'.format(grade))
 					print('values are: {}'.format(MATH_MANUELS[grade]))
 					manuels_node = nodes.TopicNode(
