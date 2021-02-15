@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import os
+import tempfile
 import xlrd
+import zipfile
 from le_utils.constants import exercises
 from le_utils.constants import licenses
 from ricecooker.chefs import SushiChef
@@ -9,9 +11,10 @@ from ricecooker.classes.nodes import (
     DocumentNode,
     H5PAppNode,
     ExerciseNode,
+    VideoNode,
 )
 from ricecooker.classes.questions import SingleSelectQuestion
-from ricecooker.classes.files import DocumentFile, H5PFile
+from ricecooker.classes.files import DocumentFile, H5PFile, VideoFile
 from ricecooker.classes.licenses import get_license
 
 AIEP_License = get_license(
@@ -53,6 +56,18 @@ def leer_preguntas(filename):
     return questions
 
 
+def get_video_from_h5p(filename):
+    mp4_file = None
+    with zipfile.ZipFile(filename, "r") as my_h5p:
+        list_of_files = my_h5p.namelist()
+        mp4s = [f for f in list_of_files if f.endswith(".mp4")]
+        mp4_content = [f for f in mp4s if "content/videos" in f]
+        if len(mp4_content) == 1:
+            mp4_file = my_h5p.extract(mp4_content[0], tempfile.mkdtemp())
+
+    return mp4_file
+
+
 def get_files(topic_name, directory, files):
     topic = TopicNode(title=topic_name, source_id="{}_id".format(topic_name))
     for filename in files:
@@ -88,19 +103,29 @@ def get_file(name, directory, filename, title=None):
             ],
         )
     elif filename.endswith("h5p"):
-        node = H5PAppNode(
+        mp4_file = get_video_from_h5p(filepath)
+        if mp4_file is None:
+            classNode = H5PAppNode
+            classFile = H5PFile
+        else:
+            classNode = VideoNode
+            classFile = VideoFile
+            filepath = mp4_file
+
+        node = classNode(
             title=title,
             description="Vídeo explicativo de la {}".format(name),
             source_id=source_id,
             license=AIEP_License,
             language="es",
             files=[
-                H5PFile(
+                classFile(
                     path=filepath,
                     language="es",
                 )
             ],
         )
+
     elif filename.endswith("xls"):
         node = ExerciseNode(
             source_id=source_id,
