@@ -4,7 +4,7 @@ import sys
 import re
 from ricecooker.chefs import YouTubeSushiChef
 from ricecooker.classes import licenses
-
+from ricecooker.config import LOGGER
 from googleapiclient.discovery import build
 
 
@@ -67,15 +67,24 @@ class ChickenNChipsChef(YouTubeSushiChef):
             }
         }
     
-    def sort_topic_alphabetically(self, channel):
-        
-        # natural sorting
-        convert = lambda text: int(text) if text.isdigit() else text.lower() 
-        alphanum_key = lambda key: [ convert(re.sub(r'[^A-Za-z0-9]+', '', c.replace('&', 'and'))) for c in re.split('([0-9]+)', key.title) ]
-        
-        channel.children = sorted(channel.children, key = alphanum_key)
-        for child in channel.children:
-            print(child.title)
+    def sort_topic_alphabetically(self, channel, key = None, reverse = False):
+        """
+        Sort Topic Nodes in channel
+        :param key: A Function to execute to decide the order. Default None
+        :param reverse: A Boolean. False will sort ascending, True will sort descending. False by default
+        :return: Sorted channel
+        """
+        # default natural sorting
+        if not key:
+            convert = lambda text: int(text) if text.isdigit() else text.lower() 
+            key = lambda key: [ convert(re.sub(r'[^A-Za-z0-9]+', '', c.replace('&', 'and'))) for c in re.split('([0-9]+)', key.title) ]
+        try:
+            channel.children = sorted(channel.children, key = key, reverse = reverse)
+        except Exception as e:
+            LOGGER.error("Failed to sort: [%s]. Calling default sorting method", e)
+            convert = lambda text: int(text) if text.isdigit() else text.lower() 
+            key = lambda key: [ convert(re.sub(r'[^A-Za-z0-9]+', '', c.replace('&', 'and'))) for c in re.split('([0-9]+)', key.title) ]
+            channel.children = sorted(channel.children, key = key, reverse = reverse)
         return channel
 
     
@@ -94,7 +103,7 @@ class ChickenNChipsChef(YouTubeSushiChef):
         for node in nodes:
             channel.add_child(node)
 
-        channel = self.sort_topic_alphabetically(channel)
+        channel = self.sort_topic_nodes(channel)
         
         return channel
 
