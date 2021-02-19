@@ -23,7 +23,7 @@ CONTENT_ARCHIVE_VERSION = 1                                 # Increment this whe
 # Additional constants
 ################################################################################
 # TODO Add GOOGLE API key here. Will need access to Youtube API v3
-GOOGLE_API_KEY = None
+GOOGLE_API_KEY = os.getenv(GOOGLE_API_KEY)
 CHICKEN_N_CHIPS_CHANNEL_ID = 'UCIGQCJIF4fdTrqxnvcwTYxg'
 
 
@@ -110,6 +110,10 @@ class ChickenNChipsChef(YouTubeSushiChef):
 
 
 def get_video_ids(channel_id):
+    if not GOOGLE_API_KEY:
+        raise Exception('Missing Google API Key. Please add a key to proceed.')
+        exit(1)
+        
     youtube = build('youtube', 'v3', developerKey = GOOGLE_API_KEY)
     response = youtube.channels().list(id=channel_id, part = 'contentDetails').execute()
 
