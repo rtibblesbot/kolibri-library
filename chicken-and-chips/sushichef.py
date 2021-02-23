@@ -67,7 +67,7 @@ class ChickenNChipsChef(YouTubeSushiChef):
             }
         }
     
-    def sort_topic_alphabetically(self, channel, key = None, reverse = False):
+    def sort_topic_nodes(self, channel, key = None, reverse = False):
         """
         Sort Topic Nodes in channel
         :param key: A Function to execute to decide the order. Default None
