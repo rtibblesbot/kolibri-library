@@ -256,7 +256,7 @@ def add_exercises(url, base_url, base_href, grade):
 		# 	print('{} does not exists. Need to download this page'.format(element['href']))
 		# 	add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
 		attempts = 0
-		while attempts in range(20):
+		while attempts in range(11):
 			try:
 				content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
 				ress_ato_soup = BeautifulSoup(content[0], 'html.parser')
@@ -272,7 +272,7 @@ def add_exercises(url, base_url, base_href, grade):
 			continue
 		
 		attempts = 0
-		while attempts in range(20):
+		while attempts in range(11):
 			try:
 				content = read(initial_iframe_source, loadjs = True)
 				iframe_soup = BeautifulSoup(content[0], 'html.parser')
@@ -302,7 +302,7 @@ def add_exercises(url, base_url, base_href, grade):
 		# 	print('{} does not exists. Need to download this page'.format(element['href']))
 		# 	add_to_failed(grade, element['href'], '{}{}'.format(base_url, element['href']))
 		attempts = 0
-		while attempts in range(20):
+		while attempts in range(11):
 			try:
 				content = read('{0}{1}'.format(base_url, element['href']), loadjs = True)
 				ress_j3p_soup = BeautifulSoup(content[0], 'html.parser')
@@ -328,7 +328,7 @@ def scrape_iframe(element, grade, iframe_source, arr = []):
 	my_downloader = ArchiveDownloader(SESAMATH_DATA_FOLDER)
 	print(iframe_source)
 	attempts = 0
-	while attempts in range(20):
+	while attempts in range(11):
 		try:
 			# html5_app = archive_page(iframe_source, ZIP_FOLDER_PATH)
 			html5_app = my_downloader.get_page(iframe_source)
