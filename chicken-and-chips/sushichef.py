@@ -62,7 +62,7 @@ class ChickenNChipsChef(YouTubeSushiChef):
     def get_channel_metadata(self):
         return {
             'defaults': {
-                'license': licenses.AllRightsLicense("Chicken&Chips"),
+                'license': licenses.CC_BY_NCLicense("Chicken&Chips"),
                 'high_resolution': True
             }
         }
@@ -70,6 +70,7 @@ class ChickenNChipsChef(YouTubeSushiChef):
     def sort_topic_nodes(self, channel, key = None, reverse = False):
         """
         Sort Topic Nodes in channel
+        :param channel: channel to sort
         :param key: A Function to execute to decide the order. Default None
         :param reverse: A Boolean. False will sort ascending, True will sort descending. False by default
         :return: Sorted channel
