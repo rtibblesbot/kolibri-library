@@ -56,6 +56,19 @@ def leer_preguntas(filename):
     return questions
 
 
+def get_title_from_video(title, filename):
+    if "dummy" in filename:
+        return "Vídeo explicativo de la {}".format(title)
+    else:
+        words = filename.split("-")[:-1]
+        if len(words) > 1:  # uses slashes to split words
+            new_title = " ".join(filename.split("-")[:-1])
+        else:
+            # just remove the file extension:
+            new_title = os.path.splitext(filename)[0]
+
+        return new_title.capitalize()
+
 def get_video_from_h5p(filename):
     mp4_file = None
     with zipfile.ZipFile(filename, "r") as my_h5p:
@@ -86,7 +99,6 @@ def get_file(name, directory, filename, title=None):
     if title is None:
         title = name
     source_id = "{}/{}".format(name, filename)
-
     node = None
     if filename.endswith(".pdf"):
         node = DocumentNode(
@@ -113,7 +125,7 @@ def get_file(name, directory, filename, title=None):
             filepath = mp4_file
 
         node = classNode(
-            title=title,
+            title=get_title_from_video(title, filename),
             description="Vídeo explicativo de la {}".format(name),
             source_id=source_id,
             license=AIEP_License,
@@ -129,7 +141,7 @@ def get_file(name, directory, filename, title=None):
     elif filename.endswith("xls"):
         node = ExerciseNode(
             source_id=source_id,
-            title="Ejercicios de la {}".format(name),
+            title="Ejercicios de {}".format(name),
             author="Equipo de AIEP",
             description="Preguntas de la unidad 1",
             language="es",
@@ -151,7 +163,7 @@ def get_course(course, base_path):
     topic = TopicNode(title=course, source_id="{}_id".format(course))
     course_dir = os.path.join(base_path, course)
     course_contents = os.listdir(course_dir)
-    course_contents.sort(reverse=True)
+    course_contents.sort()
     for f in course_contents:
         content = os.path.join(course_dir, f)
         if os.path.isdir(content):
@@ -162,7 +174,6 @@ def get_course(course, base_path):
                     topic.add_child(node)
             elif len(total_files) == 1:
                 topic.add_child(get_file(f, content, total_files[0]))
-
     return topic
 
 
@@ -177,7 +188,7 @@ class AIEPChef(SushiChef):
         "CHANNEL_DESCRIPTION": "Cursos preparados por AIEP  (Chile)",
     }
 
-    # SETTINGS = {"path": "/datos/le/un-women/AIEPOneDrive_2021-02-08/H5P ONU"}
+    # SETTINGS = {"path": "/datos/le/un-women/AIEPOneDrive_2021-02-17/H5P ONU"}
 
     def construct_channel(self, *args, **kwargs):
         BASE_PATH = kwargs.get("path", "./AIEPOneDrive")
@@ -187,7 +198,7 @@ class AIEPChef(SushiChef):
         for f in root_contents:
             if os.path.isdir(os.path.join(BASE_PATH, f)):
                 courses.append(f)
-        courses.sort(reverse=True)
+        courses.sort()
         for course in courses:
             channel.add_child(get_course(course, BASE_PATH))
         return channel
@@ -196,7 +207,7 @@ class AIEPChef(SushiChef):
 if __name__ == "__main__":
     """
     Run this script on the command line using:
-        python sushichef.py -v --token=YOURTOKENHERE9139139f3a23232 path="/AIEPOneDrive_2021-02-08/H5P ONU"
+        python sushichef.py -v --token=YOURTOKENHERE9139139f3a23232 path="/AIEPOneDrive_2021-02-17/H5P ONU"
 
     In kolibri this is needed:
       `kolibri plugin enable kolibri.plugins.h5p_viewer`
