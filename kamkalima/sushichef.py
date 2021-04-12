@@ -4,6 +4,7 @@ from jinja2 import Template
 import json
 import os
 import requests
+import pprint
 
 from le_utils.constants import content_kinds, exercises, file_types, licenses
 from le_utils.constants.languages import getlang
@@ -166,7 +167,33 @@ def group_by_theme(items):
             theme_name = theme["name"]
             items_by_theme[theme_name].append(item)
     return items_by_theme
+    
 
+# def filter_by_theme(items_by_grade):
+#     filtered_by_theme = defaultdict(list)
+#     for grade in items_by_grade:
+
+
+def group_items_by_grade_and_theme(items):
+    grade_key = {
+        4 : "صف ٤-٦",
+        7 : "صف ٧-٩",
+        10 : "صف ١٠-١٢"
+    }
+
+    items_by_grade_and_theme = defaultdict(list)
+    for item in items:
+        min_level = item["min_level"]
+        grade_level = grade_key[min_level]
+        if grade_level not in items_by_grade_and_theme.keys():
+            items_by_grade_and_theme[grade_level] = defaultdict(list)
+        themes = item["themes"]
+        for theme in themes:
+            theme_name = theme["name"]
+            items_by_grade_and_theme[grade_level][theme_name].append(item)
+    return items_by_grade_and_theme
+        
+        
 
 def audio_node_from_kamkalima_audio_item(audio_item):
     if not audio_item["audio"]:
@@ -407,42 +434,77 @@ class KamkalimaChef(JsonTreeChef):
         LOGGER.info("  Calling Kamkalima API to get authorization token.")
         access_token = get_authentication_token()
 
-        LOGGER.info("  Calling Kamkalima API to get texts items:")
-        all_texts_items = get_all_items(API_TEXTS_ENDPOINT, access_token)
-        texts_by_theme = group_by_theme(all_texts_items)
-        
+
         LOGGER.info("  Calling Kamkalima API to get audios items:")
         all_audios_items = get_all_items(API_AUDIOS_ENDPOINT, access_token)
-        audios_by_theme = group_by_theme(all_audios_items)
+        audios_by_grade_and_theme = group_items_by_grade_and_theme(all_audios_items)
+        # audios_by_theme = group_by_theme(all_audios_items)
 
+        LOGGER.info("  Calling Kamkalima API to get texts items:")
+        all_texts_items = get_all_items(API_TEXTS_ENDPOINT, access_token)
+        texts_by_grade_and_theme = group_items_by_grade_and_theme(all_texts_items)
+        # texts_by_theme = group_by_theme(all_texts_items)
+        
         # all_themes = set(texts_by_theme.keys()).union(audios_by_theme.keys())
 
-        all_text_themes = set(texts_by_theme.keys())
-        all_audio_themes = set(audios_by_theme.keys())
+        # all_text_themes = set(texts_by_theme.keys())
+        # all_audio_themes = set(audios_by_theme.keys())
+        all_audio_grade_levels = set(audios_by_grade_and_theme.keys())
+        all_text_grade_levels = set(texts_by_grade_and_theme.keys())
+
+
         # add all texts into Reading Comprehension topic (قراءة الفهم)
-        comprehension_topic_node = dict(
+        reading_topic_node = dict(
             kind = content_kinds.TOPIC,
             source_id = "reading_comprehension",
-            title = "قراءة الفهم",
+            title = "دراسة نص",
             children = []
         )
 
         LOGGER.info("Organizing text items by theme:")
 
-        for theme in all_text_themes:
-            theme_topic_node = dict(
-                kind=content_kinds.TOPIC,
-                source_id="reading_comprehension_" + theme,
-                title=theme,
-                children=[]
+        for grade_level in all_text_grade_levels:
+            all_text_grade_level_themes = set(texts_by_grade_and_theme[grade_level].keys())
+            grade_source_id = "reading_comprehension_" + grade_level
+            grade_topic_node = dict(
+                kind = content_kinds.TOPIC,
+                source_id = grade_source_id,
+                title = grade_level,
+                children = []
             )
-            text_items = texts_by_theme[theme]
-            for text_item in text_items:
-                child_topic = topic_node_from_item("text", text_item)
-                theme_topic_node["children"].append(child_topic)
-            comprehension_topic_node["children"].append(theme_topic_node)
 
-        channel['children'].append(comprehension_topic_node)
+            for theme in all_text_grade_level_themes:
+                theme_topic_node = dict(
+                    kind=content_kinds.TOPIC,
+                    source_id= grade_source_id + "_" + theme,
+                    title=theme,
+                    children=[]
+                )
+                text_items = texts_by_grade_and_theme[grade_level][theme]
+                for text_item in text_items:
+                    child_topic = topic_node_from_item("text", text_item)
+                    theme_topic_node["children"].append(child_topic)
+                grade_topic_node["children"].append(theme_topic_node)
+            
+            reading_topic_node["children"].append(grade_topic_node)
+        
+        channel["children"].append(reading_topic_node)
+
+
+        # for theme in all_text_themes:
+        #     theme_topic_node = dict(
+        #         kind=content_kinds.TOPIC,
+        #         source_id="reading_comprehension_" + theme,
+        #         title=theme,
+        #         children=[]
+        #     )
+        #     text_items = texts_by_theme[theme]
+        #     for text_item in text_items:
+        #         child_topic = topic_node_from_item("text", text_item)
+        #         theme_topic_node["children"].append(child_topic)
+        #     comprehension_topic_node["children"].append(theme_topic_node)
+
+        # channel['children'].append(comprehension_topic_node)
 
 
 
@@ -450,26 +512,75 @@ class KamkalimaChef(JsonTreeChef):
         listening_topic_node = dict(
             kind = content_kinds.TOPIC,
             source_id = "listening_comprehension",
-            title = "الاستماع والفهم",
+            title = "إصغاء",
             children = []
         )
 
         LOGGER.info("Organizing audio items by theme:")
-        for theme in all_audio_themes:
-            theme_topic_node = dict(
-                kind=content_kinds.TOPIC,
-                source_id="listening_comprehension_" + theme,
-                title=theme,
-                children=[]
+        for grade_level in all_audio_grade_levels:
+
+            all_audio_grade_level_themes = set(audios_by_grade_and_theme[grade_level].keys())
+            grade_source_id = "listening_comprehension_" + grade_level
+            grade_topic_node = dict(
+                kind = content_kinds.TOPIC,
+                source_id = grade_source_id,
+                title = grade_level,
+                children = []
             )
-            audio_items = audios_by_theme[theme]
-            for audio_item in audio_items:
-                child_topic = topic_node_from_item("audio", audio_item)
-                theme_topic_node["children"].append(child_topic)
-            listening_topic_node["children"].append(theme_topic_node)
+            
+            for theme in all_audio_grade_level_themes:
+                theme_topic_node = dict(
+                    kind=content_kinds.TOPIC,
+                    source_id= grade_source_id + "_" + theme,
+                    title=theme,
+                    children=[]
+                )
+                audio_items = audios_by_grade_and_theme[grade_level][theme]
+                for audio_item in audio_items:
+                    child_topic = topic_node_from_item("audio", audio_item)
+                    theme_topic_node["children"].append(child_topic)
+                grade_topic_node["children"].append(theme_topic_node)
+
+            listening_topic_node["children"].append(grade_topic_node)
+            
+
+
+
+        # for theme in all_audio_themes:
+        #     theme_topic_node = dict(
+        #         kind=content_kinds.TOPIC,
+        #         source_id="listening_comprehension_" + theme,
+        #         title=theme,
+        #         children=[]
+        #     )
+        #     audio_items = audios_by_theme[theme]
+        #     for audio_item in audio_items:
+        #         child_topic = topic_node_from_item("audio", audio_item)
+        #         theme_topic_node["children"].append(child_topic)
+        #     listening_topic_node["children"].append(theme_topic_node)
 
         channel['children'].append(listening_topic_node)
 
+
+
+        # LOGGER.info("Organizing content items by theme:")
+        # for theme in all_themes:
+        #     # LOGGER.info("  Processing theme " + theme)
+        #     theme_topic_node = dict( 
+        #         kind=content_kinds.TOPIC, source_id=theme, title=theme, children=[]
+        #     )
+        #     # Add audios for this theme
+        #     audio_items = audios_by_theme[theme]
+        #     for audio_item in audio_items:
+        #         child_topic = topic_node_from_item("audio", audio_item)
+        #         theme_topic_node["children"].append(child_topic)
+        #     # Add texts for this theme
+        #     text_items = texts_by_theme[theme]
+        #     for text_item in text_items:
+        #         child_topic = topic_node_from_item("text", text_item)
+        #         theme_topic_node["children"].append(child_topic)
+        #     # Add theme topic to channel
+        #     channel["children"].append(theme_topic_node)
 
 
 # CLI
