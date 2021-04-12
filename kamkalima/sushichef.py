@@ -36,7 +36,9 @@ CLIENT_CREDENTIALS_PATH = "credentials/client_credentials.json"
 HTML5APP_ZIPS_LOCAL_DIR = "chefdata/zipfiles"
 HTML5APP_TEMPLATE = "chefdata/html5app_template"
 
-
+# CONSTANTS
+FAILED_NODES = os.path.join('chefdata', 'failed_nodes')
+FAILED_NODES_JSON = os.path.join(FAILED_NODES, 'failed_nodes.json')
 # AUTHENTICATION API
 ################################################################################
 
@@ -272,7 +274,7 @@ def topic_node_from_item(item_type, item):
     """
     In order to keep the audios and texts close to their associated exercises,
     we'll store each item as a topic node.
-    `item_type` is either `audio` or `html5`
+    `item_type` is either `audio` or `text`
     """
     topic_node = dict(
         kind=content_kinds.TOPIC,
@@ -298,10 +300,48 @@ def topic_node_from_item(item_type, item):
     # Add associated exercises
     item_id = item["id"]
     for category, exercise_questions in item["questions"].items():
+        if len(exercise_questions) < 1:
+            LOGGER.info("No exercise questions for exercise id: {}, in category: {}".format(item_id, category))
+            print(item["title"])
+
+            with open(FAILED_NODES_JSON, "w", encoding = "utf-8") as f:
+                dict_failed = {}
+                dict_failed["id"] = item_id
+                dict_failed["title"] = item["title"]
+                dict_failed["category_failed"] = category
+                json.dump(dict_failed, f, indent=2, ensure_ascii=False)
+                continue
+    
+
         exercise_node = exercise_from_kamkalima_questions_list(
             item_id, category, exercise_questions
         )
         topic_node["children"].append(exercise_node)
+
+    # Add audio node if item_type is text
+    if (item_type == "text" and item['audio']):
+        # 'صوتي' = 'audio'
+        audio_node = dict(
+            kind=content_kinds.AUDIO,
+            source_id=str(item["id"]) + "audio",
+            title=item['title'] + " - صوتي",
+            description=item["excerpt"],
+            language=getlang("ar").code,
+            license=KAMKALIMA_LICENSE,
+            author=item["author"]["name"],
+            # aggregator
+            # provider
+            thumbnail=item["image"],
+            files=[
+                {
+                    "file_type": file_types.AUDIO,
+                    "path": item["audio"],
+                    "language": getlang("ar").code,
+                }
+            ],
+        )
+        topic_node["children"].append(audio_node)
+        
     return topic_node
 
 
@@ -323,6 +363,14 @@ class KamkalimaChef(JsonTreeChef):
         """
         LOGGER.info("in pre_run...")
 
+        # create faulty nodes JSON
+        if os.path.exists(FAILED_NODES):
+            os.remove(FAILED_NODES_JSON)
+        else:
+            os.makedirs(FAILED_NODES, exist_ok=True)
+        # create json file
+        with open(FAILED_NODES_JSON, 'w+'):
+            pass
         if args["update"]:
             LOGGER.info(
                 "Deleting all zips in cache dir {}".format(HTML5APP_ZIPS_LOCAL_DIR)
@@ -333,9 +381,13 @@ class KamkalimaChef(JsonTreeChef):
                     os.remove(zip_file_abs_path)
 
         ricecooker_json_tree = dict(
-            title="Kamkalima (العربيّة)",  # a humand-readbale title
+            # # test channel id
+            channel_id = 'e5d5dac2cd8d4059baddaa348714fa7c',
+            # main channel_id
+            # channel_id = 'd76da4d36cfd59279b575dfc6017aa13',
+            title="Kamkalima (العربيّة) - Test Channel",  # a humand-readbale title
             source_domain=KAMKALIMA_DOMAIN,  # content provider's domain
-            source_id="audios-and-texts",  # an alphanumeric channel ID
+            source_id="audios-and-texts_test-channel",  # an alphanumeric channel ID
             description=KAMKALIMA_CHANNEL_DESCRIPTION,
             thumbnail="./chefdata/kk-logo.png",  # logo created from SVG
             language=getlang("ar").code,  # language code of channel
@@ -358,31 +410,66 @@ class KamkalimaChef(JsonTreeChef):
         LOGGER.info("  Calling Kamkalima API to get texts items:")
         all_texts_items = get_all_items(API_TEXTS_ENDPOINT, access_token)
         texts_by_theme = group_by_theme(all_texts_items)
-
+        
         LOGGER.info("  Calling Kamkalima API to get audios items:")
         all_audios_items = get_all_items(API_AUDIOS_ENDPOINT, access_token)
         audios_by_theme = group_by_theme(all_audios_items)
 
-        all_themes = set(texts_by_theme.keys()).union(audios_by_theme.keys())
+        # all_themes = set(texts_by_theme.keys()).union(audios_by_theme.keys())
 
-        LOGGER.info("Organizing content items by theme:")
-        for theme in all_themes:
-            LOGGER.info("  Processing theme " + theme)
+        all_text_themes = set(texts_by_theme.keys())
+        all_audio_themes = set(audios_by_theme.keys())
+        # add all texts into Reading Comprehension topic (قراءة الفهم)
+        comprehension_topic_node = dict(
+            kind = content_kinds.TOPIC,
+            source_id = "reading_comprehension",
+            title = "قراءة الفهم",
+            children = []
+        )
+
+        LOGGER.info("Organizing text items by theme:")
+
+        for theme in all_text_themes:
             theme_topic_node = dict(
-                kind=content_kinds.TOPIC, source_id=theme, title=theme, children=[]
+                kind=content_kinds.TOPIC,
+                source_id="reading_comprehension_" + theme,
+                title=theme,
+                children=[]
             )
-            # Add audios for this theme
-            audio_items = audios_by_theme[theme]
-            for audio_item in audio_items:
-                child_topic = topic_node_from_item("audio", audio_item)
-                theme_topic_node["children"].append(child_topic)
-            # Add texts for this theme
             text_items = texts_by_theme[theme]
             for text_item in text_items:
                 child_topic = topic_node_from_item("text", text_item)
                 theme_topic_node["children"].append(child_topic)
-            # Add theme topic to channel
-            channel["children"].append(theme_topic_node)
+            comprehension_topic_node["children"].append(theme_topic_node)
+
+        channel['children'].append(comprehension_topic_node)
+
+
+
+        # add all audio into Listening Comprehension topic
+        listening_topic_node = dict(
+            kind = content_kinds.TOPIC,
+            source_id = "listening_comprehension",
+            title = "الاستماع والفهم",
+            children = []
+        )
+
+        LOGGER.info("Organizing audio items by theme:")
+        for theme in all_audio_themes:
+            theme_topic_node = dict(
+                kind=content_kinds.TOPIC,
+                source_id="listening_comprehension_" + theme,
+                title=theme,
+                children=[]
+            )
+            audio_items = audios_by_theme[theme]
+            for audio_item in audio_items:
+                child_topic = topic_node_from_item("audio", audio_item)
+                theme_topic_node["children"].append(child_topic)
+            listening_topic_node["children"].append(theme_topic_node)
+
+        channel['children'].append(listening_topic_node)
+
 
 
 # CLI
