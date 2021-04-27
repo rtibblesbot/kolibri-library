@@ -5,14 +5,16 @@ import json
 import os
 import requests
 import pprint
+import shutil
 
-from le_utils.constants import content_kinds, exercises, file_types, licenses
+from le_utils.constants import content_kinds, exercises, file_types, licenses, format_presets
 from le_utils.constants.languages import getlang
 from ricecooker.chefs import JsonTreeChef
 from ricecooker.config import LOGGER
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.html_writer import HTMLWriter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
+from ricecooker.classes.files import AudioFile
 
 
 
@@ -230,7 +232,6 @@ def make_html5zip_from_text_item(text_item):
     else:
         LOGGER.debug("Creating zip from text_item id=" + str(text_item['id']))
 
-
     # load template
     template_path = os.path.join(HTML5APP_TEMPLATE, "index.template.html")
     template_src = open(template_path).read()
@@ -247,6 +248,18 @@ def make_html5zip_from_text_item(text_item):
     else:
         show_splash_image = False
 
+    # check for audio element
+    show_audio_element = False
+    audio_href = ''
+    audio_file = None
+    if text_item['audio']:
+        show_audio_element = True
+        audio_file = AudioFile(path = text_item["audio"], preset = format_presets.AUDIO_DEPENDENCY)
+        audio_filename = audio_file.get_filename()
+        first_char_filename = audio_filename[0]
+        second_char_filename = audio_filename[1]
+        audio_href = os.path.join("..", "..", "content", "storage", first_char_filename, second_char_filename, audio_filename)
+
     # render template to string
     index_html = template.render(
         title=title,
@@ -254,6 +267,8 @@ def make_html5zip_from_text_item(text_item):
         author=author,
         description=description,
         show_splash_image=show_splash_image,
+        show_audio_element = show_audio_element,
+        audio_href = audio_href
     )
 
     # save to zip file
@@ -269,6 +284,7 @@ def make_html5zip_from_text_item(text_item):
             zipper.write_contents("splash.jpg", resp.content, directory="img/")
         else:
             LOGGER.warning("zip with id " + id_str + " has no splash image")
+
 
     return zip_path
 
@@ -291,7 +307,7 @@ def html5_node_from_kamkalima_text_item(text_item):
                 "file_type": file_types.HTML5,
                 "path": zip_path,
                 "language": getlang("ar").code,
-            }
+            },
         ],
     )
     return html5_node
@@ -345,29 +361,6 @@ def topic_node_from_item(item_type, item):
         )
         topic_node["children"].append(exercise_node)
 
-    # Add audio node if item_type is text
-    if (item_type == "text" and item['audio']):
-        # 'صوتي' = 'audio'
-        audio_node = dict(
-            kind=content_kinds.AUDIO,
-            source_id=str(item["id"]) + "audio",
-            title=item['title'] + " - صوتي",
-            description=item["excerpt"],
-            language=getlang("ar").code,
-            license=KAMKALIMA_LICENSE,
-            author=item["author"]["name"],
-            # aggregator
-            # provider
-            thumbnail=item["image"],
-            files=[
-                {
-                    "file_type": file_types.AUDIO,
-                    "path": item["audio"],
-                    "language": getlang("ar").code,
-                }
-            ],
-        )
-        topic_node["children"].append(audio_node)
         
     return topic_node
 
@@ -435,20 +428,15 @@ class KamkalimaChef(JsonTreeChef):
         access_token = get_authentication_token()
 
 
-        LOGGER.info("  Calling Kamkalima API to get audios items:")
-        all_audios_items = get_all_items(API_AUDIOS_ENDPOINT, access_token)
-        audios_by_grade_and_theme = group_items_by_grade_and_theme(all_audios_items)
-        # audios_by_theme = group_by_theme(all_audios_items)
-
         LOGGER.info("  Calling Kamkalima API to get texts items:")
         all_texts_items = get_all_items(API_TEXTS_ENDPOINT, access_token)
         texts_by_grade_and_theme = group_items_by_grade_and_theme(all_texts_items)
-        # texts_by_theme = group_by_theme(all_texts_items)
-        
-        # all_themes = set(texts_by_theme.keys()).union(audios_by_theme.keys())
 
-        # all_text_themes = set(texts_by_theme.keys())
-        # all_audio_themes = set(audios_by_theme.keys())
+
+        LOGGER.info("  Calling Kamkalima API to get audios items:")
+        all_audios_items = get_all_items(API_AUDIOS_ENDPOINT, access_token)
+        audios_by_grade_and_theme = group_items_by_grade_and_theme(all_audios_items)
+
         all_audio_grade_levels = set(audios_by_grade_and_theme.keys())
         all_text_grade_levels = set(texts_by_grade_and_theme.keys())
 
@@ -491,23 +479,6 @@ class KamkalimaChef(JsonTreeChef):
         channel["children"].append(reading_topic_node)
 
 
-        # for theme in all_text_themes:
-        #     theme_topic_node = dict(
-        #         kind=content_kinds.TOPIC,
-        #         source_id="reading_comprehension_" + theme,
-        #         title=theme,
-        #         children=[]
-        #     )
-        #     text_items = texts_by_theme[theme]
-        #     for text_item in text_items:
-        #         child_topic = topic_node_from_item("text", text_item)
-        #         theme_topic_node["children"].append(child_topic)
-        #     comprehension_topic_node["children"].append(theme_topic_node)
-
-        # channel['children'].append(comprehension_topic_node)
-
-
-
         # add all audio into Listening Comprehension topic
         listening_topic_node = dict(
             kind = content_kinds.TOPIC,
@@ -544,43 +515,8 @@ class KamkalimaChef(JsonTreeChef):
             listening_topic_node["children"].append(grade_topic_node)
             
 
-
-
-        # for theme in all_audio_themes:
-        #     theme_topic_node = dict(
-        #         kind=content_kinds.TOPIC,
-        #         source_id="listening_comprehension_" + theme,
-        #         title=theme,
-        #         children=[]
-        #     )
-        #     audio_items = audios_by_theme[theme]
-        #     for audio_item in audio_items:
-        #         child_topic = topic_node_from_item("audio", audio_item)
-        #         theme_topic_node["children"].append(child_topic)
-        #     listening_topic_node["children"].append(theme_topic_node)
-
         channel['children'].append(listening_topic_node)
 
-
-
-        # LOGGER.info("Organizing content items by theme:")
-        # for theme in all_themes:
-        #     # LOGGER.info("  Processing theme " + theme)
-        #     theme_topic_node = dict( 
-        #         kind=content_kinds.TOPIC, source_id=theme, title=theme, children=[]
-        #     )
-        #     # Add audios for this theme
-        #     audio_items = audios_by_theme[theme]
-        #     for audio_item in audio_items:
-        #         child_topic = topic_node_from_item("audio", audio_item)
-        #         theme_topic_node["children"].append(child_topic)
-        #     # Add texts for this theme
-        #     text_items = texts_by_theme[theme]
-        #     for text_item in text_items:
-        #         child_topic = topic_node_from_item("text", text_item)
-        #         theme_topic_node["children"].append(child_topic)
-        #     # Add theme topic to channel
-        #     channel["children"].append(theme_topic_node)
 
 
 # CLI

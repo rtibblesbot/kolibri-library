@@ -17,6 +17,14 @@
     <img src="./img/splash.jpg">
     {% endif %}
 
+    {% if show_audio_element %}
+    <br>
+    <div class = "audio_style">
+      <audio controls src="{{ audio_href }}"></audio>
+    </div>
+    <br>
+    {% endif %}
+
     <h1>{{ title }}</h1>
 
     {{ content }}
