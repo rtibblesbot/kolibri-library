@@ -1,19 +1,24 @@
 #!/usr/bin/env python
-import csv
 import os
-from ricecooker.utils import downloader, html_writer
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
-from ricecooker.config import LOGGER              # Use LOGGER to print messages
-from ricecooker.exceptions import raise_for_invalid_channel
-from le_utils.constants import exercises, content_kinds, file_formats, format_presets, languages
-from le_utils.constants.languages import getlang
+from ricecooker.config import LOGGER, THUMBNAILS              # Use LOGGER to print messages
+from le_utils.constants import exercises
+from le_utils.constants.languages import getlang_by_name
 from le_utils.constants import licenses as le_licenses
+from ricecooker.classes.questions import SingleSelectQuestion
+from utils import *
+
+import dropbox
+import json
+import re
 
 # Run constants
 ################################################################################
-CHANNEL_NAME = "TicTacLearn"                             # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "tictaclearn"                              # Unique ID for content source
+# CHANNEL_ID = "64d440bdac615b549fa160ea341ab743"         # Main channel ID
+CHANNEL_ID = "bc1a1352ba4f4324a2efbe4e0ec808f3"         # Test channel ID
+CHANNEL_NAME = "TicTacLearn Test Channel"                             # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "tictaclearn-test-channel"                              # Unique ID for content source
 CHANNEL_DOMAIN = "tictaclearn.com"                         # Who is providing the content
 CHANNEL_LANGUAGE = "en"                                     # Language of channel
 CHANNEL_DESCRIPTION = None                                  # Description of the channel (optional)
@@ -22,31 +27,15 @@ CONTENT_ARCHIVE_VERSION = 1
 
 # Additional constants
 ################################################################################
-COLUMN_MAPPING = {
-    'id': 'Id',
-    'name': 'Name of the Content',
-    'description': 'Description of the content in one line – telling about the content',
-    'curriculum': 'Board',
-    'class': 'Class',
-    'lang': 'Medium',
-    'subject': 'Subject',
-    'topic': 'Topic',
-    'copyright': 'Copyright',
-    'icon': 'Icon',
-    'url': 'File Path',
-    'license': 'License'
-}
-
-
-def get_column(row, column_id, default=None):
-    if column_id in row:
-        return row[column_id].strip()
-    elif column_id in COLUMN_MAPPING:
-        column = COLUMN_MAPPING[column_id]
-        if column in row:
-            return row[column].strip()
-
-    return default
+VIDEOS_XLS = os.path.join("files", "videos.xls")
+ASSESSMENT_XLS = os.path.join("files", "assessments.xls")
+CREDENTIALS = os.path.join("credentials", "credentials.json")
+VIDEO_FOLDER = os.path.abspath(os.path.join("chefdata", "videos"))
+SHEETS_FOLDER = os.path.abspath(os.path.join("chefdata", "sheets"))
+FAILED_LINKS_DIR = os.path.join("chefdata", "failed_links")
+FAILED_LINKS_JSON = os.path.join(FAILED_LINKS_DIR, "failed_links.json")
+FAILED_IMAGES_JSON = os.path.join(FAILED_LINKS_DIR, "failed_image_links.json")
+TTL_MAIN_LOGO = os.path.join("files", "Images", "TTLFinalLogo.jpg")
 
 # The chef subclass
 ################################################################################
@@ -64,15 +53,15 @@ class TicTacLearnChef(SushiChef):
     For more info, see https://ricecooker.readthedocs.io
     """
     channel_info = {
+        'CHANNEL_ID': CHANNEL_ID,
         'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,
         'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,
         'CHANNEL_TITLE': CHANNEL_NAME,
         'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,
-        'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL,
+        'CHANNEL_THUMBNAIL': TTL_MAIN_LOGO,
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,
     }
     ASSETS_DIR = os.path.abspath('assets')
-    CSVS_DIR = os.path.join(ASSETS_DIR, 'csvs')
     DATA_DIR = os.path.abspath('chefdata')
     DOWNLOADS_DIR = os.path.join(DATA_DIR, 'downloads')
     ARCHIVE_DIR = os.path.join(DOWNLOADS_DIR, 'archive_{}'.format(CONTENT_ARCHIVE_VERSION))
@@ -81,119 +70,190 @@ class TicTacLearnChef(SushiChef):
     # pre_run: to perform preliminary tasks, e.g., crawling and scraping website
     # __init__: if need to customize functionality or add command line arguments
 
-    def build_tree_from_spreadsheet(self):
-        """
-        Tree structure:
-        Language -> Class -> Subject -> Topic (optional) -> Name
-        :return:
-        """
-        channel_tree = {}
+    def video_node_from_dropbox(self, video_details, link, token):
+        dbx = dropbox.Dropbox(token)
 
-        for row in self.math_items:
-            lang = get_column(row, 'lang')
-            assert lang
-            if not lang in channel_tree:
-                channel_tree[lang] = {}
+        metadata, res = dbx.sharing_get_shared_link_file(url=link)
+        # get relative path to video file
+        video_path = os.path.relpath(os.path.join(VIDEO_FOLDER, metadata.name))
 
-            class_name = get_column(row, 'class')
-            assert class_name
-            if not class_name in channel_tree[lang]:
-                channel_tree[lang][class_name] = {}
 
-            subject = get_column(row, 'subject')
-            assert subject
-            if not subject in channel_tree[lang][class_name]:
-                channel_tree[lang][class_name][subject] = {'topics': {}, 'items':[]}
+        if not os.path.isfile(video_path):
+            with open(video_path, 'wb') as f:
+                f.write(res.content)
+        else:
+            LOGGER.info("{} already downloaded. Skipping".format(metadata.name))
 
-            topic = get_column(row, "topic")
-            if topic:
-                raise NotImplementedError("No support yet for handling topics")
+        video_file = files.VideoFile(path = video_path)
+
+        video_node = nodes.VideoNode(
+            title = video_details["title"],
+            source_id = link,
+            license = licenses.CC_BYLicense("TicTacLearn"),
+            files = [video_file]
+        )
+
+        return video_node
+
+    # returns an array of questions
+    def create_question(self, question_data):
+        question_arr = []
+
+        for id, question_metadata in question_data:
+            if question_metadata["question"] is None:
+                question_text = question_metadata["question_image"]
             else:
-                channel_tree[lang][class_name][subject]["items"].append(row)
+                question_text = question_metadata["question"] if question_metadata["question_image"] == None else question_metadata["question"] + " " +question_metadata["question_image"]
 
-        return channel_tree
+            question = SingleSelectQuestion(
+                id = id,
+                question = question_text,
+                correct_answer = question_metadata["correct_answer"],
+                all_answers = question_metadata["all_answers"],
+                hints = []
+            )
+            question_arr.append(question)
+        
+        return question_arr
 
-    def load_tree_data(self):
-        math_csv = os.path.join(self.CSVS_DIR, 'TTL-45-English-Math.csv')
-
-        self.math_items = []
-        with open(math_csv, mode='r') as csv_file:
-            rows = csv.DictReader(csv_file)
-            counter = 0
-            for row in rows:
-                # ignore the labels row
-                if counter > 0:
-                    self.math_items.append(row)
-                counter += 1
-
-        self.channel_tree = self.build_tree_from_spreadsheet()
-
-    def download_content(self):
-        self.load_tree_data()
-        assert self.channel_tree
-
-        def get_filename(url):
-            return url.split('/')[-1].split('?')[0]
-
-        for lang in self.channel_tree:
-            for class_name in self.channel_tree[lang]:
-                for subject in self.channel_tree[lang][class_name]:
-                    for item in self.channel_tree[lang][class_name][subject]['items']:
-                        url = get_column(item, 'url')
-                        url = url.replace('?dl=0', '?dl=1')
-                        filename = get_filename(url)
-                        if url:
-                            download_path = os.path.join(self.ARCHIVE_DIR, lang, class_name, subject, filename)
-                            os.makedirs(os.path.dirname(download_path), exist_ok=True)
-                            if not os.path.exists(download_path):
-                                content = downloader.read(url)
-                                with open(download_path, 'wb') as f:
-                                    f.write(content)
-                            item['file'] = download_path
-
-                        icon = get_column(item, 'icon')
-                        icon = icon.replace('?dl=0', '?dl=1')
-                        if icon:
-                            icon_filename = get_filename(icon)
-                            icon_path = os.path.join(self.ARCHIVE_DIR, lang, class_name, subject, icon_filename)
-                            content = downloader.read(icon)
-                            with open(icon_path, 'wb') as f:
-                                f.write(content)
-                            item['thumbnail'] = icon_path
-
-    def add_content_to_tree(self, channel):
-        tree = self.channel_tree
-        lang = 'English'
-        lang_obj = getlang("en")
-        for class_name in tree[lang]:
-            class_obj = tree[lang][class_name]
-            class_id = "{}-{}".format(lang, class_name)
-            class_node = nodes.TopicNode(source_id=class_name, title=class_name)
-            for subject_name in class_obj:
-                subject_id = "{}-{}".format(class_id, subject_name)
-                subject_node = nodes.TopicNode(source_id=subject_id, title=subject_name)
-                subject_obj = class_obj[subject_name]
-                for item in subject_obj['items']:
-                    item_id = "{}-{}".format(subject_id, get_column(item, 'id'))
-                    video = nodes.VideoNode(
-                        source_id=item_id,
-                        title=get_column(item, 'name'),
-                        description=get_column(item, 'description'),
-                        files=[
-                            files.VideoFile(path=get_column(item, 'file'))
-                        ],
-                        language=lang_obj,
-                        # FIXME: Use the column's license field instead of hardcoding.
-                        license=licenses.get_license(le_licenses.CC_BY, copyright_holder=get_column(item, "copyright")),
-                        # thumbnail=get_column(item, "thumbnail")
+    def upload_content(self, data, access_token, channel):
+        for language, language_value in data.items():
+            # convert to title to apply title case for node titles
+            language = language.title()
+            language_node = nodes.TopicNode(
+                title = language,
+                source_id = language,
+                author = "TicTacLearn",
+                description = '',
+                thumbnail = TTL_MAIN_LOGO,
+                language = getlang_by_name(language)
+            )
+            for grade, grade_value in language_value.items():
+                grade_node = nodes.TopicNode(
+                    title = 'Grade {}'.format(grade),
+                    source_id = "{}-{}".format(language, grade),
+                    author = "TicTacLearn",
+                    description= '',
+                    thumbnail = TTL_MAIN_LOGO,
+                    language=getlang_by_name(language)
+                )
+                
+                for subject, subject_value in grade_value.items():
+                    subject = subject.title()
+                    subject_node = nodes.TopicNode(
+                        title = subject,
+                        source_id = "{}-{}-{}".format(language, grade,subject),
+                        author = "TicTacLearn",
+                        description= '',
+                        thumbnail = TTL_MAIN_LOGO,
+                        language=getlang_by_name(language) 
                     )
-                    subject_node.add_child(video)
+                    for chapter, chapter_value in subject_value.items():
+                        chapter = chapter.title()
+                        chapter_node = nodes.TopicNode(
+                            title = chapter,
+                            source_id = "{}-{}-{}-{}".format(language, grade, subject, chapter),
+                            author = "TicTacLearn",
+                            description= '',
+                            thumbnail = TTL_MAIN_LOGO,
+                            language=getlang_by_name(language)
+                        )
+                        for topic, topic_value in chapter_value.items():
+                            topic = topic.title()
+                            if topic == "Chapter Assessment":
+                                questions = self.create_question(topic_value.items())
+                                exercise_node = nodes.ExerciseNode(
+                                    source_id = "{}-{}-{}-{}-{}".format(language, grade, subject,chapter, topic),
+                                    title = topic,
+                                    author = "TicTacLearn",
+                                    description = "Chapter Assessment",
+                                    language = getlang_by_name(language),
+                                    license = licenses.CC_BYLicense("TicTacLearn"),
+                                    thumbnail = TTL_MAIN_LOGO,
+                                    exercise_data = {
+                                        "mastery_model": exercises.M_OF_N,
+                                        "m": len(questions),
+                                        "n": len(questions),
+                                        "randomize": True
+                                    },
+                                    questions = questions
+                                )
+                                chapter_node.add_child(exercise_node)
+                            else:
+                                topic_node = nodes.TopicNode(
+                                    title = topic,
+                                    source_id = "{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
+                                    author = "TicTacLearn",
+                                    description= '',
+                                    thumbnail = TTL_MAIN_LOGO,
+                                    language=getlang_by_name(language)
+                                )
+                                for content_type, content in topic_value.items():
+                                    if content_type == "video":
+                                        for link, details in content.items():
+                                            try:
+                                                video_node = self.video_node_from_dropbox(details, link, access_token)
+                                                topic_node.add_child(video_node)
+                                            except Exception as e:
+                                                print(e)
+                                                print("Error getting video from dropbox with link: {}".format(link))
+                                                self.add_to_failed(link, details, content_type)
+                                                continue
+                                    else:
+                                        # content type is assessment
+                                        questions = self.create_question(content.items())
+                                        exercise_node = nodes.ExerciseNode(
+                                            source_id = "{}-{}-{}-{}-{}-Assessment".format(language, grade, subject, chapter, topic),
+                                            title = "{} Assessment".format(topic),
+                                            author = "TicTacLearn",
+                                            description = "{} Assessment".format(topic),
+                                            license = licenses.CC_BYLicense("TicTacLearn"),
+                                            thumbnail = TTL_MAIN_LOGO,
+                                            exercise_data = {
+                                                "mastery_model": exercises.M_OF_N,
+                                                "m": len(questions),
+                                                "n": len(questions),
+                                                "randomize": True
+                                            },
+                                            questions = questions
+                                        )
+                                        topic_node.add_child(exercise_node)
 
-                class_node.add_child(subject_node)
+                                chapter_node.add_child(topic_node)
+                        subject_node.add_child(chapter_node)
+                    grade_node.add_child(subject_node)
+                language_node.add_child(grade_node)
+            channel.add_child(language_node)
+        
+        return channel
 
+    def get_file_id(self, url):
+        regex = '(?<=\/d\/)(.+)(?=\/)'
+        result = re.search(regex, url)
+        return result.group(1)
 
-            channel.add_child(class_node)
-
+    def add_to_failed(self, link, details, content_type):
+        with open(FAILED_LINKS_JSON, encoding = 'utf-8') as f:
+            try:
+                data = json.loads(f.read())
+            except:
+                # no data in json file
+                print('no data in json file')
+                with open(FAILED_LINKS_JSON, 'w', encoding='utf-8') as json_file:
+                    dict_failed = {}
+                    dict_failed[link] = {}
+                    dict_failed[link]["title"] = details["title"]
+                    dict_failed[link]["type"] = content_type
+                    json.dump(dict_failed, json_file, indent = 4, ensure_ascii=False)
+                    return
+            
+            with open(FAILED_LINKS_JSON, 'w', encoding = 'utf-8') as json_file:
+                data[link] = {}
+                data[link]["title"] = details["title"]
+                data[link]["type"]= content_type
+                json.dump(data, json_file, indent=4, ensure_ascii=False)
+                return
+    
 
     def construct_channel(self, *args, **kwargs):
         """
@@ -205,9 +265,40 @@ class TicTacLearnChef(SushiChef):
             "fr" will be passed along to `construct_channel` as kwargs['lang'].
         Returns: ChannelNode
         """
+        """
+        Channel structure:
+            Language > Grade > Subject > Chapter > Topic Name > Content
+        """
         channel = self.get_channel(*args, **kwargs)  # Create ChannelNode from data in self.channel_info
 
-        self.add_content_to_tree(channel)
+        if os.path.exists(FAILED_LINKS_DIR):
+            os.remove(FAILED_LINKS_JSON)
+        else:
+            os.makedirs(FAILED_LINKS_DIR, exist_ok=True)
+        
+        if not os.path.exists(VIDEO_FOLDER):
+            os.makedirs(VIDEO_FOLDER, exist_ok=True)
+
+        if not os.path.exists(SHEETS_FOLDER):
+            os.makedirs(SHEETS_FOLDER, exist_ok=True)
+        with open(FAILED_LINKS_JSON, 'w+'):
+            pass
+        with open(FAILED_IMAGES_JSON, 'w+'):
+            pass
+
+        # set up dropbox credentials
+        with open(CREDENTIALS, 'r') as myfile:
+            credentials_data = myfile.read()
+        
+        creds = json.loads(credentials_data)
+        access_token = creds['dropbox_token']
+
+
+        data = read_videos_xls(VIDEOS_XLS)
+        data = read_assessment_xls(ASSESSMENT_XLS, data)
+
+        channel = self.upload_content(data, access_token, channel)
+        
 
         return channel
 
