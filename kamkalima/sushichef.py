@@ -401,13 +401,11 @@ class KamkalimaChef(JsonTreeChef):
                     os.remove(zip_file_abs_path)
 
         ricecooker_json_tree = dict(
-            # # test channel id
-            channel_id = 'e5d5dac2cd8d4059baddaa348714fa7c',
-            # main channel_id
-            # channel_id = 'd76da4d36cfd59279b575dfc6017aa13',
-            title="Kamkalima (العربيّة) - Test Channel",  # a humand-readbale title
+            # channel_id = 'e5d5dac2cd8d4059baddaa348714fa7c',  # test channel id
+            channel_id = 'd76da4d36cfd59279b575dfc6017aa13',    # main channel_id
+            title="Kamkalima (العربيّة)",  # a humand-readbale title
             source_domain=KAMKALIMA_DOMAIN,  # content provider's domain
-            source_id="audios-and-texts_test-channel",  # an alphanumeric channel ID
+            source_id="audios-and-texts",  # an alphanumeric channel ID
             description=KAMKALIMA_CHANNEL_DESCRIPTION,
             thumbnail="./chefdata/kk-logo.png",  # logo created from SVG
             language=getlang("ar").code,  # language code of channel
@@ -448,34 +446,42 @@ class KamkalimaChef(JsonTreeChef):
             title = "دراسة نص",
             children = []
         )
+        grade_key = {
+            4 : "صف ٤-٦",
+            7 : "صف ٧-٩",
+            10 : "صف ١٠-١٢"
+        }
+        grade_arr = ["صف ٤-٦", "صف ٧-٩", "صف ١٠-١٢"]
 
         LOGGER.info("Organizing text items by theme:")
+        # ordering by grade
+        for grade in grade_arr:
+            for grade_level in all_text_grade_levels:
+                if grade_level == grade:
+                    all_text_grade_level_themes = set(texts_by_grade_and_theme[grade_level].keys())
+                    grade_source_id = "reading_comprehension_" + grade_level
+                    grade_topic_node = dict(
+                        kind = content_kinds.TOPIC,
+                        source_id = grade_source_id,
+                        title = grade_level,
+                        children = []
+                    )
 
-        for grade_level in all_text_grade_levels:
-            all_text_grade_level_themes = set(texts_by_grade_and_theme[grade_level].keys())
-            grade_source_id = "reading_comprehension_" + grade_level
-            grade_topic_node = dict(
-                kind = content_kinds.TOPIC,
-                source_id = grade_source_id,
-                title = grade_level,
-                children = []
-            )
-
-            for theme in all_text_grade_level_themes:
-                theme_topic_node = dict(
-                    kind=content_kinds.TOPIC,
-                    source_id= grade_source_id + "_" + theme,
-                    title=theme,
-                    children=[]
-                )
-                text_items = texts_by_grade_and_theme[grade_level][theme]
-                for text_item in text_items:
-                    child_topic = topic_node_from_item("text", text_item)
-                    theme_topic_node["children"].append(child_topic)
-                grade_topic_node["children"].append(theme_topic_node)
-            
-            reading_topic_node["children"].append(grade_topic_node)
-        
+                    for theme in all_text_grade_level_themes:
+                        theme_topic_node = dict(
+                            kind=content_kinds.TOPIC,
+                            source_id= grade_source_id + "_" + theme,
+                            title=theme,
+                            children=[]
+                        )
+                        text_items = texts_by_grade_and_theme[grade_level][theme]
+                        for text_item in text_items:
+                            child_topic = topic_node_from_item("text", text_item)
+                            theme_topic_node["children"].append(child_topic)
+                        grade_topic_node["children"].append(theme_topic_node)
+                    
+                    reading_topic_node["children"].append(grade_topic_node)
+                
         channel["children"].append(reading_topic_node)
 
 
@@ -488,33 +494,33 @@ class KamkalimaChef(JsonTreeChef):
         )
 
         LOGGER.info("Organizing audio items by theme:")
-        for grade_level in all_audio_grade_levels:
+        for grade in grade_arr: 
+            for grade_level in all_audio_grade_levels:
+                if grade_level == grade:
+                    all_audio_grade_level_themes = set(audios_by_grade_and_theme[grade_level].keys())
+                    grade_source_id = "listening_comprehension_" + grade_level
+                    grade_topic_node = dict(
+                        kind = content_kinds.TOPIC,
+                        source_id = grade_source_id,
+                        title = grade_level,
+                        children = []
+                    )
+                    
+                    for theme in all_audio_grade_level_themes:
+                        theme_topic_node = dict(
+                            kind=content_kinds.TOPIC,
+                            source_id= grade_source_id + "_" + theme,
+                            title=theme,
+                            children=[]
+                        )
+                        audio_items = audios_by_grade_and_theme[grade_level][theme]
+                        for audio_item in audio_items:
+                            child_topic = topic_node_from_item("audio", audio_item)
+                            theme_topic_node["children"].append(child_topic)
+                        grade_topic_node["children"].append(theme_topic_node)
 
-            all_audio_grade_level_themes = set(audios_by_grade_and_theme[grade_level].keys())
-            grade_source_id = "listening_comprehension_" + grade_level
-            grade_topic_node = dict(
-                kind = content_kinds.TOPIC,
-                source_id = grade_source_id,
-                title = grade_level,
-                children = []
-            )
-            
-            for theme in all_audio_grade_level_themes:
-                theme_topic_node = dict(
-                    kind=content_kinds.TOPIC,
-                    source_id= grade_source_id + "_" + theme,
-                    title=theme,
-                    children=[]
-                )
-                audio_items = audios_by_grade_and_theme[grade_level][theme]
-                for audio_item in audio_items:
-                    child_topic = topic_node_from_item("audio", audio_item)
-                    theme_topic_node["children"].append(child_topic)
-                grade_topic_node["children"].append(theme_topic_node)
-
-            listening_topic_node["children"].append(grade_topic_node)
-            
-
+                    listening_topic_node["children"].append(grade_topic_node)
+                    
         channel['children'].append(listening_topic_node)
 
 
