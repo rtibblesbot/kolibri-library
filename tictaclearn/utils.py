@@ -2,7 +2,6 @@ import pandas
 import os
 import json
 FAILED_IMAGES_JSON = os.path.join("chefdata", "failed_links", "failed_image_links.json")
-
 def read_videos_xls(xls):
     """
     Build dict for channel structure
@@ -39,10 +38,15 @@ def read_videos_xls(xls):
         if chapter not in data_dict[language][grade][subject]:
             data_dict[language][grade][subject][chapter] = {}
 
+
+
         topic_name = row["Topic Name"].lower().strip()
         if topic_name not in data_dict[language][grade][subject][chapter]:
             data_dict[language][grade][subject][chapter][topic_name] = {}
 
+        # adding chapter assessment
+        # data_dict[language][grade][subject][chapter][topic_name]["chapter assessment"] = {}
+        
         # Assessment = Exercise, Video = Video
         content_type = row["Content Type"].lower().strip()
         if content_type not in data_dict[language][grade][subject][chapter][topic_name]:
@@ -56,7 +60,6 @@ def read_videos_xls(xls):
                 "license": row["License"],
                 "icon": row["Icon"]
             }
-
     return data_dict
 
 
@@ -78,6 +81,7 @@ def read_assessment_xls(xls, data):
             chapter_title = question_parts[1].strip()
         else:
             print("Error: Question Set Name not in correct format")
+            # self.add_to_failed(row["Medium"], row["Question Set Name"], row["QuestionText"])
             continue
 
         language = row["Medium"].lower()
@@ -127,14 +131,17 @@ def read_assessment_xls(xls, data):
             answers.append(option_four)
 
         answer_key = {
-            1: "{}".format(option_one),
-            2: "{}".format(option_two),
-            3: "{}".format(option_three),
-            4: "{}".format(option_four),
+            1: option_one,
+            2: option_two,
+            3: option_three,
+            4: option_four,
         }
         
         answer = answer_key[row["AnswerNo"]]
 
+        if len(answers) > 4:
+            print(answers)
+        
         question_metadata = {
             "question": question_text,
             "question_image": question_image,
@@ -154,11 +161,16 @@ def read_assessment_xls(xls, data):
             if content_type not in data[language][grade][subject][chapter][topic]:
                 data[language][grade][subject][chapter][topic][content_type] = {}
             data[language][grade][subject][chapter][topic][content_type][question_id] = question_metadata
+            # print(data[language][grade][subject][chapter][topic][content_type])
         else:
             chapter_assessment = "Chapter Assessment"
             if chapter_assessment not in data[language][grade][subject][chapter]:
                 data[language][grade][subject][chapter][chapter_assessment] = {}
             data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
+            # print(data[language][grade][subject][chapter][chapter_assessment])
+
+
+        # location where to add question objects
 
     return data
 
