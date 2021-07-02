@@ -217,6 +217,7 @@ def audio_node_from_kamkalima_audio_item(audio_item):
                 "file_type": file_types.AUDIO,
                 "path": audio_item["audio"],
                 "language": getlang("ar").code,
+                
             }
         ],
     )
@@ -291,6 +292,25 @@ def make_html5zip_from_text_item(text_item):
 
 def html5_node_from_kamkalima_text_item(text_item):
     zip_path = make_html5zip_from_text_item(text_item)
+
+    # add audio_file to files if exists
+    files=[
+        {
+            "file_type": file_types.HTML5,
+            "path": zip_path,
+            "language": getlang("ar").code,
+        },
+    ]
+    # add audio_file to files if exists
+    if text_item['audio']:
+        files.append(
+            {
+                "file_type": file_types.AUDIO,
+                "path": text_item['audio'],
+                "language": getlang('ar').code
+            }
+        )
+
     html5_node = dict(
         kind=content_kinds.HTML5,
         source_id=str(text_item["id"]),
