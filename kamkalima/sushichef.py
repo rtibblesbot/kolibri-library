@@ -15,7 +15,7 @@ from ricecooker.classes.licenses import get_license
 from ricecooker.utils.html_writer import HTMLWriter
 from ricecooker.utils.jsontrees import write_tree_to_json_tree
 from ricecooker.classes.files import AudioFile
-
+from ricecooker import config
 
 
 
@@ -216,8 +216,7 @@ def audio_node_from_kamkalima_audio_item(audio_item):
             {
                 "file_type": file_types.AUDIO,
                 "path": audio_item["audio"],
-                "language": getlang("ar").code,
-                
+                "language": getlang("ar").code, 
             }
         ],
     )
@@ -227,9 +226,22 @@ def audio_node_from_kamkalima_audio_item(audio_item):
 def make_html5zip_from_text_item(text_item):
     id_str = str(text_item["id"])
     zip_path = os.path.join(HTML5APP_ZIPS_LOCAL_DIR, id_str + ".zip")
+
+    # check for audio element
+    show_audio_element = False
+    audio_href = ''
+    audio_file = None
+    if text_item['audio']:
+        show_audio_element = True
+        audio_file = AudioFile(path = text_item["audio"], preset = format_presets.AUDIO_DEPENDENCY)
+        audio_filename = audio_file.get_filename()
+        first_char_filename = audio_filename[0]
+        second_char_filename = audio_filename[1]
+        audio_href = os.path.join("..", "..", "content", "storage", first_char_filename, second_char_filename, audio_filename)
+
     if os.path.exists(zip_path):
         LOGGER.debug("Found existing zip at " + zip_path)
-        return zip_path
+        return zip_path, audio_file
     else:
         LOGGER.debug("Creating zip from text_item id=" + str(text_item['id']))
 
@@ -248,18 +260,6 @@ def make_html5zip_from_text_item(text_item):
         show_splash_image = True
     else:
         show_splash_image = False
-
-    # check for audio element
-    show_audio_element = False
-    audio_href = ''
-    audio_file = None
-    if text_item['audio']:
-        show_audio_element = True
-        audio_file = AudioFile(path = text_item["audio"], preset = format_presets.AUDIO_DEPENDENCY)
-        audio_filename = audio_file.get_filename()
-        first_char_filename = audio_filename[0]
-        second_char_filename = audio_filename[1]
-        audio_href = os.path.join("..", "..", "content", "storage", first_char_filename, second_char_filename, audio_filename)
 
     # render template to string
     index_html = template.render(
@@ -286,14 +286,12 @@ def make_html5zip_from_text_item(text_item):
         else:
             LOGGER.warning("zip with id " + id_str + " has no splash image")
 
-
-    return zip_path
+    return zip_path, audio_file
 
 
 def html5_node_from_kamkalima_text_item(text_item):
-    zip_path = make_html5zip_from_text_item(text_item)
+    zip_path, audio_file = make_html5zip_from_text_item(text_item)
 
-    # add audio_file to files if exists
     files=[
         {
             "file_type": file_types.HTML5,
@@ -302,12 +300,14 @@ def html5_node_from_kamkalima_text_item(text_item):
         },
     ]
     # add audio_file to files if exists
-    if text_item['audio']:
+    if audio_file is not None:
+        audio_path = config.get_storage_path(audio_file.get_filename())
         files.append(
             {
                 "file_type": file_types.AUDIO,
-                "path": text_item['audio'],
-                "language": getlang('ar').code
+                "path": audio_path,
+                "language": getlang("ar").code,
+                "preset": format_presets.AUDIO_DEPENDENCY
             }
         )
 
@@ -322,13 +322,7 @@ def html5_node_from_kamkalima_text_item(text_item):
         # aggregator
         # provider
         thumbnail=text_item["image"],
-        files=[
-            {
-                "file_type": file_types.HTML5,
-                "path": zip_path,
-                "language": getlang("ar").code,
-            },
-        ],
+        files= files
     )
     return html5_node
 
