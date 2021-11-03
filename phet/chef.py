@@ -5,6 +5,8 @@ import re
 import requests
 import tempfile
 import zipfile
+import time
+import random
 
 from bs4 import BeautifulSoup
 
@@ -19,10 +21,9 @@ from ricecooker.utils.zip import create_predictable_zip
 from le_utils.constants import roles
 from le_utils.constants.languages import getlang
 
-
 sess = requests.Session()
 cache = FileCache('.webcache')
-forever_adapter= CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
+forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
 
 sess.mount('http://', forever_adapter)
 sess.mount('https://', forever_adapter)
@@ -31,6 +32,9 @@ ID_BLACKLIST_BY_LANG = {
     'en': ["html", "by-device", "new", "quantum", "general"],
     'ar': ["html", "by-device", "new", "quantum", "general", "by-level"]
 }
+
+BASE_URL = "https://phet-api.colorado.edu"
+BASE_URL_DOWNLOAD = "https://phet.colorado.edu"
 
 ARABIC_NAME_CATEGORY = {
     "Physics": "الفيزياء",
@@ -65,14 +69,28 @@ SIM_TYPO = {
     "رؤية اللّون": "رؤية الألوان",
 }
 
-
 CHANNEL_DESCRIPTIONS = {
     'ar': 'تزوّد هذه القناة والمعمول بمحتواها من قبل جامعة كونيتيكيت الأمريكية مجموعة من برمجيات المحاكاة التي يمكن للمتعلمين في المرحلة الإعدادية والثانوية التفاعل معها لفهم أكبر لما قد يدرسونه من قوانين وتجارب في الرياضيات والعلوم المختلفة وخاصة مادتي الكيمياء والفيزياء.',
     'en': 'The PhET Interactive Simulations project created by the University of Colorado Boulder provides interactive math and science simulations that engage students with intuitive, game-like environments. Students can learn about math, physics, biology, and chemistry through hands-on exploration and discovery. The simulations are appropriate for all ages and include guiding teacher lesson plans.',
 }
 
+# CHANNEL_ID = "d5c3b3aa38fd46c09b4643cea5d21779"  # Test channel ID
+CHANNEL_NAME = "channel PhET Interactive Simulations "  # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations"  # Unique ID for content source
+CHANNEL_DOMAIN = "https://phet.colorado.edu"  # Who is providing the content
+CHANNEL_LANGUAGE = "ta"  # Language of channel
+CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
 
 class PhETSushiChef(SushiChef):
+    channel_info = {
+        # 'CHANNEL_ID': CHANNEL_ID,
+        'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,
+        'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,
+        'CHANNEL_TITLE': CHANNEL_NAME,
+        'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,
+        'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTIONS,
+        'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL
+    }
 
     def get_channel(self, **kwargs):
         LANGUAGE = kwargs.get("lang", "en")
@@ -87,31 +105,65 @@ class PhETSushiChef(SushiChef):
         if description is None:
             description = CHANNEL_DESCRIPTIONS['en']
 
+        # channel = ChannelNode(
+        #     source_domain = 'phet.colorado.edu',
+        #     source_id = 'phet-html5-simulations{}'.format(source_id_suffix),
+        #     title = 'PhET Interactive Simulations ({})'.format(lang_obj.native_name),
+        #     thumbnail = 'chefdata/phet-logo-TM-partners.png',
+        #     description = description,
+        #     language=lang_obj,
+        # )
+
         channel = ChannelNode(
-            source_domain = 'phet.colorado.edu',
-            source_id = 'phet-html5-simulations{}'.format(source_id_suffix),
-            title = 'PhET Interactive Simulations ({})'.format(lang_obj.native_name),
-            thumbnail = 'chefdata/phet-logo-TM-partners.png',
-            description = description,
+            source_domain='phet.colorado.edu',
+            source_id='phet-html5-simulations{}-test'.format(source_id_suffix),
+            title='PhET Interactive Simulations ({})'.format(lang_obj.native_name),
+            thumbnail='chefdata/phet-logo-TM-partners.png',
+            description=description,
             language=lang_obj,
         )
 
         return channel
 
     def construct_channel(self, **kwargs):
-
         channel = self.get_channel(**kwargs)
-        LANGUAGE = kwargs.get("lang", "en")
+        # print("channel",channel)
+        channel_info = self.channel_info
+        LANGUAGE = kwargs.get("lang", "ht")
+        channel = ChannelNode(
+            source_domain=channel_info['CHANNEL_SOURCE_DOMAIN'],
+            source_id=channel_info['CHANNEL_SOURCE_ID']+f'-{LANGUAGE}',
+            title=channel_info['CHANNEL_TITLE'],
+            thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
+            description=channel_info.get('CHANNEL_DESCRIPTION').get(LANGUAGE),
+            language="en",
+        )
 
-        r = sess.get("https://phet.colorado.edu/services/metadata/1.1/simulations?format=json&type=html&locale=" + LANGUAGE)
-        data = json.loads(r.content.decode())
+        # r = sess.get("https://phet.colorado.edu/services/metadata/1.1/simulations?format=json&type=html&locale=" + LANGUAGE)
+        # data = json.loads(r.content.decode())
+        # self.download_category(
+        #     parent=channel,
+        #     cat_id="1",
+        #     categories=data["categories"],
+        #     sims={proj["simulations"][0]["id"]: proj["simulations"][0] for proj in data["projects"]},
+        #     keywords={kw["id"]: kw["strings"][0][LANGUAGE] for kw in data["keywords"]},
+        #     language=LANGUAGE,
+        # )
+        r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locate=" + LANGUAGE)
+        r_cat = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/categories?locale=" + LANGUAGE)
+        r_keyword = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/keywords?locale=" + LANGUAGE)
+        sim_data = json.loads(r_sim.text)
+        cat_data = json.loads(r_cat.text)
+        keyword_data = json.loads(r_keyword.text)
         self.download_category(
             parent=channel,
             cat_id="1",
-            categories=data["categories"],
-            sims={proj["simulations"][0]["id"]: proj["simulations"][0] for proj in data["projects"]},
-            keywords={kw["id"]: kw["strings"][0][LANGUAGE] for kw in data["keywords"]},
-            language=LANGUAGE,
+            categories=cat_data,
+            sims={sim["id"]: sim for sim in sim_data["simulations"]},
+            keywords={keyword_data.get(key).get("id"): keyword_data.get(key)["strings"][LANGUAGE] for key in
+                      keyword_data if keyword_data.get(key)["strings"]},
+            language=LANGUAGE
+
         )
 
         return channel
@@ -122,9 +174,9 @@ class PhETSushiChef(SushiChef):
         """
 
         print("Processing category:", cat_id)
-
         cat = categories[str(cat_id)]
-
+        random_sleep = random.randint(0,2)
+        time.sleep(random_sleep)
         # loop through all subtopics and recursively add them
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
@@ -138,7 +190,6 @@ class PhETSushiChef(SushiChef):
             title = title.replace(" And ", " and ")
             title = title.replace("Mathconcepts", "Concepts")
             title = title.replace("Mathapplications", "Applications")
-
             if language == "ar":
                 title = ARABIC_NAME_CATEGORY[title]
             # create the topic node, and add it to the parent
@@ -156,20 +207,31 @@ class PhETSushiChef(SushiChef):
                 # skip ones that aren't found (probably as they aren't HTML5)
                 if sim_id not in sims:
                     continue
-                self.download_sim(parent, sims[sim_id], keywords, language)
+                self.download_sim(parent, sims[sim_id], sim_id, keywords, language)
 
-    def download_sim(self, topic, sim, keywords, language):
+    def download_sim(self, topic, sim, sim_id, keywords, language):
         """
         Download, zip, and add a node for a sim, as well as any associated video.
         """
+        sim_detail_res = sess.get(
+            f'https://phet-api.colorado.edu/partner-services/2.0/metadata/simulations/{sim_id}?locale={language}')
+        sim_detail_data = json.loads(sim_detail_res.text)
+        time.sleep(2)
+        # localized_sim = sim["localizedSimulations"][0]
+        run_url = sim.get('defaultData').get('runUrl')
+        title = sim.get('defaultData').get('title')
+        if sim.get('localizedData') and sim.get('localizedData').get(language):
+            if sim.get('localizedData').get(language).get('runUrl'):
+                run_url = sim.get('localizedData').get(language).get('runUrl')
+            if sim.get('localizedData').get(language).get('title'):
+                title = sim.get('localizedData').get(language).get('title')
 
-        localized_sim = sim["localizedSimulations"][0]
-
-        print("\tProcessing sim:", localized_sim["title"])
+        download_url = f'{BASE_URL_DOWNLOAD}{run_url}?download'
+        print("\tProcessing sim:", title)
 
         dst = tempfile.mkdtemp()
         download_file(
-            localized_sim["downloadUrl"],
+            download_url,
             dst,
             filename="index.html",
             request_fn=sess.get,
@@ -177,45 +239,54 @@ class PhETSushiChef(SushiChef):
         )
 
         zippath = create_predictable_zip(dst)
+        authors = None
+        if sim_detail_data.get("thanksTo"):
+            authors = re.sub(" \(.*?\)", "", sim_detail_data["thanksTo"])
+            authors = re.sub("<br\/?>", ", ", authors)
 
-        authors = re.sub(" \(.*?\)", "", sim["credits"]["designTeam"])
-        authors = re.sub("<br\/?>", ", ", authors)
-
-        title = localized_sim["title"]
         if language == "ar":
             if title in ARABIC_NAME_CATEGORY:
                 title = ARABIC_NAME_CATEGORY[title]
             if title in SIM_TYPO:
                 title = SIM_TYPO[title]
 
+        # get thumbnail image
+        lst_sim_images = sim.get('defaultData').get('simImages')
+        sim_image = lst_sim_images[0].get('url')
+        for dict_image in lst_sim_images:
+            if dict_image.get('width') == 128:
+                sim_image = dict_image.get('url')
+                break
+
         # create a node for the sim
         simnode = HTML5AppNode(
-            source_id="sim-%d" % localized_sim["id"],
+            source_id="sim-%d" % sim["id"],
             files=[HTMLZipFile(zippath)],
             title=title,
-            description=sim["description"][language][:200],
+            # description=sim["description"][language][:200],
             license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
-            # author=authors,
+            author=authors,
             # tags=[keywords[topic] for topic in sim["topicIds"]],
-            thumbnail=sim["media"]["thumbnailUrl"],
+            thumbnail=sim_image,
             language=getlang(language),
         )
 
         # if there's a video, extract it and put it in the topic right before the sim
-        videos = sim["media"]["vimeoFiles"]
-        if videos:
-            video_url = [v for v in videos if v.get("height") == 540][0]["link"]
+        if sim_detail_data.get('defaultData') and sim_detail_data.get('defaultData').get('simPrimerVideoData'):
+            videos = sim_detail_data["defaultData"]["simPrimerVimeoData"]['files']
+            if videos:
+                video_url = [v for v in videos if v.get("height") == 540][0]["link"]
 
-            videonode = VideoNode(
-                source_id="video-%d" % localized_sim["id"],
-                files=[VideoFile(video_url)],
-                title="Video: %s" % localized_sim["title"],
-                license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
-                thumbnail=sim["media"]["thumbnailUrl"],
-                role=roles.COACH,
-            )
+                videonode = VideoNode(
+                    source_id="video-%d" % sim["id"],
+                    files=[VideoFile(video_url)],
+                    title="Video: %s" % title,
+                    license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
+                    thumbnail=sim_image,
+                    role=roles.COACH,
+                )
 
-            topic.add_child(videonode)
+                topic.add_child(videonode)
 
         # add the sim node into the topic
         topic.add_child(simnode)
@@ -239,7 +310,10 @@ def process_sim_html(content, destpath, **kwargs):
             script.extract()
         # remove menu options that link to online resources
         if 'createTandem("phetWebsiteButton' in str(script):
-            script.string = re.compile('\{[^}]+createTandem\("phetWebsiteButton"\).*createTandem\("getUpdate"[^\}]*\},').sub("", script.string.replace("\n", " "))
+            script.string = re.compile(
+                '\{[^}]+createTandem\("phetWebsiteButton"\).*createTandem\("getUpdate"[^\}]*\},').sub("",
+                                                                                                      script.string.replace(
+                                                                                                          "\n", " "))
 
     return str(soup)
 
