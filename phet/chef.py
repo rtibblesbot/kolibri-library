@@ -4,9 +4,6 @@ import json
 import re
 import requests
 import tempfile
-import zipfile
-import time
-import random
 
 from bs4 import BeautifulSoup
 
@@ -14,12 +11,21 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes.files import HTMLZipFile, VideoFile
 from ricecooker.classes.licenses import CC_BYLicense
 from ricecooker.classes.nodes import ChannelNode, HTML5AppNode, TopicNode, VideoNode
-from ricecooker.utils.browser import preview_in_browser
 from ricecooker.utils.caching import CacheForeverHeuristic, FileCache, CacheControlAdapter
 from ricecooker.utils.html import download_file
 from ricecooker.utils.zip import create_predictable_zip
 from le_utils.constants import roles
 from le_utils.constants.languages import getlang
+from requests.packages.urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+
+from deep_translator import GoogleTranslator
+
+retry_strategy = Retry(
+    total=5,
+    backoff_factor=1
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
 
 sess = requests.Session()
 cache = FileCache('.webcache')
@@ -27,7 +33,8 @@ forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=c
 
 sess.mount('http://', forever_adapter)
 sess.mount('https://', forever_adapter)
-
+sess.mount('http://', adapter)
+sess.mount('https://', adapter)
 ID_BLACKLIST_BY_LANG = {
     'en': ["html", "by-device", "new", "quantum", "general"],
     'ar': ["html", "by-device", "new", "quantum", "general", "by-level"]
@@ -57,6 +64,34 @@ ARABIC_NAME_CATEGORY = {
     "Applications": "تطبيقات",
 }
 
+HAITIAN_NAME_CATEGORY = {
+    'Elementary School': 'Lekòl Elemantè',
+    'By Level': 'Pa Nivo',
+    'Middle School': 'Lekòl mwayen',
+    'High School': 'Lekòl Segondè',
+    'University': 'Inivèsite',
+    'By Device': 'Pa Aparèy',
+    'Ipad Tablet': 'Tablet Ipad',
+    'Chromebook': 'Chromebook',
+    'Html': 'Html',
+    'Concepts': 'Konsèp',
+    'Applications': 'Aplikasyon',
+    'Light and Radiation': 'Limyè ak Radyasyon ',
+    'Electricity Magnets and Circuits': 'Leman elektrisite ak sikwi',
+    'Biology': 'Biyoloji',
+    'Chemistry': 'Chimi',
+    'Earth Science': 'Syans Latè',
+    'Math': 'Matematik',
+    'General': 'Jeneral',
+    'Root': 'Rasin',
+    'Physics': 'Fizik',
+    'Motion': 'Mouvman',
+    'Sound and Waves': 'Son ak Vag',
+    'Work Energy and Power': 'Travay Enèji ak pouvwa',
+    'Heat and Thermodynamics': 'Chalè ak Thermodinamik',
+    'Quantum Phenomena': 'Fenomèn Kantik',
+    'Quantum': 'Quantum'}
+
 SIM_TYPO = {
     "أشكال الجزئ": "أشكال الجزيء",
     "مولارية": "المولارية",
@@ -72,14 +107,16 @@ SIM_TYPO = {
 CHANNEL_DESCRIPTIONS = {
     'ar': 'تزوّد هذه القناة والمعمول بمحتواها من قبل جامعة كونيتيكيت الأمريكية مجموعة من برمجيات المحاكاة التي يمكن للمتعلمين في المرحلة الإعدادية والثانوية التفاعل معها لفهم أكبر لما قد يدرسونه من قوانين وتجارب في الرياضيات والعلوم المختلفة وخاصة مادتي الكيمياء والفيزياء.',
     'en': 'The PhET Interactive Simulations project created by the University of Colorado Boulder provides interactive math and science simulations that engage students with intuitive, game-like environments. Students can learn about math, physics, biology, and chemistry through hands-on exploration and discovery. The simulations are appropriate for all ages and include guiding teacher lesson plans.',
+    'ht': 'Pwojè PhET Interactive Simulations ki kreye pa Inivèsite Colorado Boulder ofri similasyon entèraktif matematik ak syans ki angaje elèv yo ak anviwònman entwisyon ki sanble ak yon jwèt. Elèv yo ka aprann matematik, fizik, byoloji, ak chimi atravè eksplorasyon pratik ak dekouvèt. Similasyon yo apwopriye pou tout laj e yo gen ladan plan leson pwofesè k ap gide yo.'
 }
 
 # CHANNEL_ID = "d5c3b3aa38fd46c09b4643cea5d21779"  # Test channel ID
-CHANNEL_NAME = "channel PhET Interactive Simulations "  # Name of Kolibri channel
+CHANNEL_NAME = {"en": "channel PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://phet.colorado.edu"  # Who is providing the content
-CHANNEL_LANGUAGE = "ta"  # Language of channel
+CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
+
 
 class PhETSushiChef(SushiChef):
     channel_info = {
@@ -91,6 +128,7 @@ class PhETSushiChef(SushiChef):
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTIONS,
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL
     }
+    translator = None
 
     def get_channel(self, **kwargs):
         LANGUAGE = kwargs.get("lang", "en")
@@ -126,16 +164,26 @@ class PhETSushiChef(SushiChef):
         return channel
 
     def construct_channel(self, **kwargs):
-        channel = self.get_channel(**kwargs)
-        # print("channel",channel)
+        # channel = self.get_channel(**kwargs)
         channel_info = self.channel_info
-        LANGUAGE = kwargs.get("lang", "ht")
+        LANGUAGE = kwargs.get("lang", "en")
+        self.translator = GoogleTranslator(source='en', target=LANGUAGE)
+        dict_downloaded_paths = {}
+        title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
+        if not title:
+            title = channel_info['CHANNEL_TITLE'].get('en')
+            title = f'{title}-{LANGUAGE}'
+        description = channel_info.get('CHANNEL_DESCRIPTION').get(LANGUAGE)
+        if not description:
+            description = channel_info.get('CHANNEL_DESCRIPTION').get("en")
+            description = self.translator.translate(description)
+
         channel = ChannelNode(
             source_domain=channel_info['CHANNEL_SOURCE_DOMAIN'],
-            source_id=channel_info['CHANNEL_SOURCE_ID']+f'-{LANGUAGE}',
-            title=channel_info['CHANNEL_TITLE'],
+            source_id=channel_info['CHANNEL_SOURCE_ID'] + f'-{LANGUAGE}',
+            title=title,
             thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
-            description=channel_info.get('CHANNEL_DESCRIPTION').get(LANGUAGE),
+            description=description,
             language="en",
         )
 
@@ -162,21 +210,18 @@ class PhETSushiChef(SushiChef):
             sims={sim["id"]: sim for sim in sim_data["simulations"]},
             keywords={keyword_data.get(key).get("id"): keyword_data.get(key)["strings"][LANGUAGE] for key in
                       keyword_data if keyword_data.get(key)["strings"]},
-            language=LANGUAGE
-
+            language=LANGUAGE,
+            dict_downloaded_paths=dict_downloaded_paths
         )
 
         return channel
 
-    def download_category(self, parent, cat_id, categories, sims, keywords, language):
+    def download_category(self, parent, cat_id, categories, sims, keywords, language, dict_downloaded_paths):
         """
         Process a category, and add all its sub-categories, and its simulations/videos.
         """
-
         print("Processing category:", cat_id)
         cat = categories[str(cat_id)]
-        random_sleep = random.randint(0,2)
-        time.sleep(random_sleep)
         # loop through all subtopics and recursively add them
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
@@ -192,6 +237,10 @@ class PhETSushiChef(SushiChef):
             title = title.replace("Mathapplications", "Applications")
             if language == "ar":
                 title = ARABIC_NAME_CATEGORY[title]
+            elif language == 'ht':
+                title = HAITIAN_NAME_CATEGORY[title]
+            else:
+                title = self.translator.translate(title)
             # create the topic node, and add it to the parent
             subtopic = TopicNode(
                 source_id=subcat["name"],
@@ -199,7 +248,7 @@ class PhETSushiChef(SushiChef):
             )
             parent.add_child(subtopic)
             # recursively download the contents of the topic
-            self.download_category(subtopic, child_id, categories, sims, keywords, language)
+            self.download_category(subtopic, child_id, categories, sims, keywords, language, dict_downloaded_paths)
 
         # loop through all sims in this topic and add them, but only if we're at a leaf topic
         if len(parent.children) == 0:
@@ -207,16 +256,15 @@ class PhETSushiChef(SushiChef):
                 # skip ones that aren't found (probably as they aren't HTML5)
                 if sim_id not in sims:
                     continue
-                self.download_sim(parent, sims[sim_id], sim_id, keywords, language)
+                self.download_sim(parent, sims[sim_id], sim_id, keywords, language, dict_downloaded_paths)
 
-    def download_sim(self, topic, sim, sim_id, keywords, language):
+    def download_sim(self, topic, sim, sim_id, keywords, language, dict_downloaded_paths):
         """
         Download, zip, and add a node for a sim, as well as any associated video.
         """
         sim_detail_res = sess.get(
             f'https://phet-api.colorado.edu/partner-services/2.0/metadata/simulations/{sim_id}?locale={language}')
         sim_detail_data = json.loads(sim_detail_res.text)
-        time.sleep(2)
         # localized_sim = sim["localizedSimulations"][0]
         run_url = sim.get('defaultData').get('runUrl')
         title = sim.get('defaultData').get('title')
@@ -225,20 +273,29 @@ class PhETSushiChef(SushiChef):
                 run_url = sim.get('localizedData').get(language).get('runUrl')
             if sim.get('localizedData').get(language).get('title'):
                 title = sim.get('localizedData').get(language).get('title')
+            else:
+                title = self.translator.translate(text=title)
+        else:
+            title = self.translator.translate(text=title)
 
         download_url = f'{BASE_URL_DOWNLOAD}{run_url}?download'
         print("\tProcessing sim:", title)
+        dst = None
+        if download_url not in dict_downloaded_paths:
+            dst = tempfile.mkdtemp()
+            dict_downloaded_paths[download_url] = {"dst": dst}
+        if dst:
+            download_file(
+                download_url,
+                dst,
+                filename="index.html",
+                request_fn=sess.get,
+                middleware_callbacks=[process_sim_html],
+            )
 
-        dst = tempfile.mkdtemp()
-        download_file(
-            download_url,
-            dst,
-            filename="index.html",
-            request_fn=sess.get,
-            middleware_callbacks=[process_sim_html],
-        )
+            zippath = create_predictable_zip(dst)
+            dict_downloaded_paths.get(download_url).update({"zippath": zippath})
 
-        zippath = create_predictable_zip(dst)
         authors = None
         if sim_detail_data.get("thanksTo"):
             authors = re.sub(" \(.*?\)", "", sim_detail_data["thanksTo"])
@@ -249,7 +306,11 @@ class PhETSushiChef(SushiChef):
                 title = ARABIC_NAME_CATEGORY[title]
             if title in SIM_TYPO:
                 title = SIM_TYPO[title]
-
+        elif language == 'ht':
+            if title in HAITIAN_NAME_CATEGORY:
+                title = HAITIAN_NAME_CATEGORY[title]
+        else:
+            title = self.translator.translate(text=title)
         # get thumbnail image
         lst_sim_images = sim.get('defaultData').get('simImages')
         sim_image = lst_sim_images[0].get('url')
@@ -259,6 +320,7 @@ class PhETSushiChef(SushiChef):
                 break
 
         # create a node for the sim
+        zippath = dict_downloaded_paths.get(download_url).get('zippath')
         simnode = HTML5AppNode(
             source_id="sim-%d" % sim["id"],
             files=[HTMLZipFile(zippath)],
