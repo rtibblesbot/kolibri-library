@@ -1,4 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 from collections import defaultdict
 from jinja2 import Template
 import json
@@ -237,7 +239,7 @@ def make_html5zip_from_text_item(text_item):
         audio_filename = audio_file.get_filename()
         first_char_filename = audio_filename[0]
         second_char_filename = audio_filename[1]
-        audio_href = os.path.join("..", "..", "content", "storage", first_char_filename, second_char_filename, audio_filename)
+        audio_href = "../../storage/{}/{}/{}".format(first_char_filename, second_char_filename, audio_filename)
 
     if os.path.exists(zip_path):
         LOGGER.debug("Found existing zip at " + zip_path)
@@ -416,10 +418,11 @@ class KamkalimaChef(JsonTreeChef):
 
         ricecooker_json_tree = dict(
             # channel_id = 'e5d5dac2cd8d4059baddaa348714fa7c',  # test channel id
-            channel_id = 'd76da4d36cfd59279b575dfc6017aa13',    # main channel_id
+            # channel_id = 'd76da4d36cfd59279b575dfc6017aa13',    # main channel_id
+            channel_id = 'kamkalima_test_id',    # test channel_id
             title="Kamkalima (العربيّة)",  # a humand-readbale title
             source_domain=KAMKALIMA_DOMAIN,  # content provider's domain
-            source_id="audios-and-texts",  # an alphanumeric channel ID
+            source_id="audios-and-texts_test",  # an alphanumeric channel ID
             description=KAMKALIMA_CHANNEL_DESCRIPTION,
             thumbnail="./chefdata/kk-logo.png",  # logo created from SVG
             language=getlang("ar").code,  # language code of channel
