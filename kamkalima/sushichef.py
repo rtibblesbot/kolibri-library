@@ -424,7 +424,7 @@ class KamkalimaChef(JsonTreeChef):
             source_domain=KAMKALIMA_DOMAIN,  # content provider's domain
             source_id="audios-and-texts_test",  # an alphanumeric channel ID
             description=KAMKALIMA_CHANNEL_DESCRIPTION,
-            thumbnail="./chefdata/kk-logo.png",  # logo created from SVG
+            thumbnail="kk-logo.png",  # logo created from SVG
             language=getlang("ar").code,  # language code of channel
             children=[],
         )
