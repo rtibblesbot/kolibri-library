@@ -49,9 +49,18 @@ headers = {
     "Connection": "keep-alive"
 }
 
-FOLDER_STORAGE = os.path.join(os.getcwd(),'chefdata', "storage")
+FOLDER_STORAGE = os.path.join(os.getcwd(), 'chefdata', "storage")
+FOLDER_STORAGE_PARALLEL = os.path.join(os.getcwd(), 'chefdata', "parallel")
+FOLDER_STORAGE_BROWSER = os.path.join(os.getcwd(), 'chefdata', "test2")
+
 if not os.path.exists(FOLDER_STORAGE):
     os.mkdir(FOLDER_STORAGE)
+
+if not os.path.exists(FOLDER_STORAGE_PARALLEL):
+    os.mkdir(FOLDER_STORAGE_PARALLEL)
+
+if not os.path.exists(FOLDER_STORAGE_BROWSER):
+    os.mkdir(FOLDER_STORAGE_BROWSER)
 
 
 def get_lang_by_name_with_fallback(language_name):
@@ -130,27 +139,57 @@ class AfricanStorybookChef(SushiChef):
 
 
 async def download_all_epubs():
-    browser = await launch(headless=False)
+    dict_page_download = {}
+    browser = await launch(headless=True)
     page = await browser.newPage()
-    # client = await page.target.createCDPSession()
     await page.goto('https://www.africanstorybook.org/', {'waitUntil': 'networkidle2'})
     await page._client.send('Page.setDownloadBehavior',
-                            {'behavior': 'allow', 'downloadPath': FOLDER_STORAGE, 'waitUntil': 'networkidle2'})
+                            {'behavior': 'allow', 'downloadPath': FOLDER_STORAGE_BROWSER, 'waitUntil': 'networkidle2'})
     time.sleep(10)
     books = await page.evaluate('bookItems')
-    lst_books = os.listdir(FOLDER_STORAGE)
-
+    lst_books = os.listdir(FOLDER_STORAGE_BROWSER)
+    await page.close()
+    await browser.close()
     for book in books:
         book_name = "asb{}.epub".format(book.get('id'))
         if book_name not in lst_books:
-            print("Book name {}".format(book_name))
-            await page.evaluate(pageFunction="doDownloadEpub('{}')".format(book.get('id')))
-            LOGGER.info("Downloading book %s" % (book.get('id')))
-            time.sleep(3)
+            LOGGER.info("Book name %s" % book_name)
+            page, browser = await download_epub_book(book.get('id'))
+            dict_page_download[book_name] = {'page': page, 'browser':browser}
+            lst_finished_dl_book = await find_finished_download(dict_page_download)
+            if len(lst_finished_dl_book) > 2:
+                for book_name_finish in lst_finished_dl_book:
+                    dict_page_browser = dict_page_download.get(book_name_finish)
+                    if not dict_page_browser.get('page').isClosed():
+                        page_finished = dict_page_browser.get('page')
+                        browser_finished = dict_page_browser.get('browser')
+                        await page_finished.close()
+                        await browser_finished.close()
+                        dict_page_download.pop(book_name_finish)
         else:
-            print("Book name {} already exists".format(book_name))
-    time.sleep(10)
+            LOGGER.info("Book name %s already exists" % book_name)
     await browser.close()
+
+
+async def download_epub_book(book_id):
+    browser = await launch(headless=True)
+    pages = await browser.pages()
+    page = pages[0]
+    await page.goto('https://www.africanstorybook.org/', {'waitUntil': 'networkidle2'})
+    await page._client.send('Page.setDownloadBehavior',
+                            {'behavior': 'allow', 'downloadPath': FOLDER_STORAGE_BROWSER, 'waitUntil': 'networkidle2'})
+    await page.evaluate(pageFunction="doDownloadEpub('{}')".format(book_id))
+    LOGGER.info("Downloading book %s" % (book_id))
+    return page, browser
+
+
+async def find_finished_download(dict_page_download):
+    book_downloads = os.listdir(FOLDER_STORAGE_BROWSER)
+    lst_finished_dl_book = []
+    for book_name in dict_page_download:
+        if book_name in book_downloads:
+            lst_finished_dl_book.append(book_name)
+    return lst_finished_dl_book
 
 
 def download_all(kwargs):
@@ -198,10 +237,11 @@ def download_all(kwargs):
                     description = html.unescape(book["summary"])
 
                     for language in languages:
-                        book = create_node_for_book( book_path, book_name, book_id, title, author, description, language)
+                        book = create_node_for_book(book_path, book_name, book_id, title, author, description, language)
 
                         if book:
-                            LOGGER.info("... downloaded a Level %s %s book titled %s" % (level, language, str(title).encode('utf8')))
+                            LOGGER.info("... downloaded a Level %s %s book titled %s" % (
+                            level, language, str(title).encode('utf8')))
                             channel_tree[language][level].append(book)
                         else:
                             LOGGER.warning("... WARNING: book %s not found in %s" % (book_id, language))
@@ -254,6 +294,7 @@ BG_IMG_RE = re.compile("background-image:url\((.*)\)")
 with open("resources/font_sizing.css") as f:
     FONT_SIZING_CSS = f.read()
 
+
 class Dummy404ResponseObject(requests.Response):
     def __init__(self, url):
         super(Dummy404ResponseObject, self).__init__()
@@ -305,6 +346,12 @@ if __name__ == '__main__':
     """
     This code will run when the sushi chef is called from the command line.
     """
-    asyncio.get_event_loop().run_until_complete(download_all_epubs())
+    start_time = time.time()
+    print(start_time)
+    print(time.localtime(start_time))
+    asyncio.run(download_all_epubs(),debug=True)
+    end_time = time.time()
+    print(end_time)
+    print(end_time - start_time)
     # chef = AfricanStorybookChef()
     # chef.main()
