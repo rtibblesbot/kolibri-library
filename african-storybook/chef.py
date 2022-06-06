@@ -51,7 +51,9 @@ headers = {
 
 FOLDER_STORAGE = os.path.join(os.getcwd(), 'chefdata', "storage")
 FOLDER_STORAGE_PARALLEL = os.path.join(os.getcwd(), 'chefdata', "parallel")
-FOLDER_STORAGE_BROWSER = os.path.join(os.getcwd(), 'chefdata', "test2")
+FOLDER_STORAGE_BROWSER = os.path.join(os.getcwd(), 'chefdata', "test3")
+# copyright_holder = 'African Storybook Initiative'
+COPYRIGHT_HOLDER = 'African Storybook Initiative'
 
 if not os.path.exists(FOLDER_STORAGE):
     os.mkdir(FOLDER_STORAGE)
@@ -61,6 +63,8 @@ if not os.path.exists(FOLDER_STORAGE_PARALLEL):
 
 if not os.path.exists(FOLDER_STORAGE_BROWSER):
     os.mkdir(FOLDER_STORAGE_BROWSER)
+
+ABS_FOLDER_STORAGE_BROWSER = os.path.abspath(FOLDER_STORAGE_BROWSER)
 
 
 def get_lang_by_name_with_fallback(language_name):
@@ -102,46 +106,61 @@ class AfricanStorybookChef(SushiChef):
             language="mul",
         )
 
-        # download_book("https://www.africanstorybook.org/reader.php?id=16451", "16451", "title", "author", "description", "en")
-
-        # Download the books into a dict {language: [list of books]}
-        channel_tree = download_all(kwargs)
-
-        # ... now add them to the ricecooker channel tree!
+        books, dict_languages = get_languages_and_books()
         LOGGER.debug('STARTING TO CREATE THE RICECOOKER CHANNEL TREE')
-        for language, levels in sorted(channel_tree.items(), key=lambda t: t[0]):
-            # Skip creating topic node with the language called "0" -- a bug
-            # from the ASB website itself. There's two books here, though, but
-            # I can't tell in which language those two books are.
-            if language == "0":
+        dict_node_languages = {}
+        dict_node_levels = {}
+
+        for key_language in dict_languages:
+            if key_language == "0":
                 LOGGER.info('skipping language 0')
                 continue
-
+            language = dict_languages.get(key_language)
             lang_obj = get_lang_by_name_with_fallback(language)
             LOGGER.debug('LANGUAGE ' + language + '   lang_obj=' + str(lang_obj))
 
             language_node = nodes.TopicNode(source_id=language, title=language, language=lang_obj.code)
+            dict_node_languages[key_language] = language_node
             channel.add_child(language_node)
 
-            for level, books in sorted(levels.items(), key=lambda t: t[0]):
-                LOGGER.debug('   LEVEL %s' % level)
-                # TODO(davidhu): Translate this topic title "Level #" into the
-                # topic's language.
-                level_node = nodes.TopicNode(source_id=level, title="Level %s" % level)
-                language_node.add_child(level_node)
+        for book in books:
+            book_lang = dict_languages.get(book.get('lang'))
+            if book_lang:
+                lang_node = dict_node_languages.get(book.get('lang'))
+                if not dict_node_levels.get(book_lang) or not dict_node_levels.get(book_lang).get(book.get('level')):
+                    topic_level_node = nodes.TopicNode(source_id="{}-{}".format(book_lang, book.get('level')),
+                                                       title='Level {}'.format(book.get('level')),
+                                                       )
+                    if not dict_node_levels.get(book_lang):
+                        dict_node_levels[book_lang] = {book.get('level'): topic_level_node}
+                    else:
+                        dict_node_levels[book_lang].update({book.get('level'): topic_level_node})
 
-                for book in books:
-                    print(book)
-                    LOGGER.debug('      BOOK source_id=' + book.source_id)
-                    level_node.add_child(book)
+                    lang_node.add_child(topic_level_node)
+                else:
+                    topic_level_node = dict_node_levels.get(book_lang).get(book.get('level'))
 
+                book_name = 'asb{}.epub'.format(book.get('id'))
+                book_path = os.path.join(FOLDER_STORAGE, book_name)
+                book = nodes.DocumentNode(
+                    source_id="%s|%s|%s" % (book_lang, book.get('level'), book_name),
+                    title=truncate_metadata(book.get('title')),
+                    license=licenses.CC_BYLicense(copyright_holder=truncate_metadata(COPYRIGHT_HOLDER)),
+                    description=book.get('summary'),
+                    author=truncate_metadata(book.get('author')),
+                    files=[files.EPubFile("{}".format(book_path))],
+                    language=get_lang_by_name_with_fallback(book_lang),
+                )
+                topic_level_node.add_child(book)
         return channel
 
 
 async def download_all_epubs():
     dict_page_download = {}
     browser = await launch(headless=True)
-    page = await browser.newPage()
+    await browser.close()
+    pages = await browser.pages()
+    page = pages[0]
     await page.goto('https://www.africanstorybook.org/', {'waitUntil': 'networkidle2'})
     await page._client.send('Page.setDownloadBehavior',
                             {'behavior': 'allow', 'downloadPath': FOLDER_STORAGE_BROWSER, 'waitUntil': 'networkidle2'})
@@ -149,15 +168,15 @@ async def download_all_epubs():
     books = await page.evaluate('bookItems')
     lst_books = os.listdir(FOLDER_STORAGE_BROWSER)
     await page.close()
-    await browser.close()
+    books = books[0:1000]
     for book in books:
         book_name = "asb{}.epub".format(book.get('id'))
         if book_name not in lst_books:
             LOGGER.info("Book name %s" % book_name)
             page, browser = await download_epub_book(book.get('id'))
-            dict_page_download[book_name] = {'page': page, 'browser':browser}
+            dict_page_download[book_name] = {'page': page, 'browser': browser}
             lst_finished_dl_book = await find_finished_download(dict_page_download)
-            if len(lst_finished_dl_book) > 2:
+            if len(lst_finished_dl_book) > 1:
                 for book_name_finish in lst_finished_dl_book:
                     dict_page_browser = dict_page_download.get(book_name_finish)
                     if not dict_page_browser.get('page').isClosed():
@@ -184,12 +203,23 @@ async def download_epub_book(book_id):
 
 
 async def find_finished_download(dict_page_download):
-    book_downloads = os.listdir(FOLDER_STORAGE_BROWSER)
     lst_finished_dl_book = []
     for book_name in dict_page_download:
-        if book_name in book_downloads:
+        if os.path.exists(os.path.join(ABS_FOLDER_STORAGE_BROWSER, book_name)):
             lst_finished_dl_book.append(book_name)
     return lst_finished_dl_book
+
+
+def get_languages_and_books():
+    with WebDriver("https://www.africanstorybook.org/", delay=10000) as driver:
+        books = driver.execute_script("return bookItems;")
+        languages_html = driver.execute_script("return languages;")
+        language_id_map = {}
+        bs_html_page = BeautifulSoup(languages_html, "html.parser")
+        for node in bs_html_page:
+            language_id_map[node["value"]] = node.text.strip()
+
+    return books, language_id_map
 
 
 def download_all(kwargs):
@@ -201,7 +231,6 @@ def download_all(kwargs):
             random.seed(42)
             sample_size = int(kwargs['sample'])
             books = random.sample(books, sample_size)
-        # total_books = len(books)
 
         # Build a dict of {African Storybook language ID: language name}
         lst_books = os.listdir(FOLDER_STORAGE)
@@ -221,12 +250,8 @@ def download_all(kwargs):
                 continue
             scraped_ids.add(book_id)
 
-            # book_url = "http://www.africanstorybook.org/reader.php?id=%s" % book_id
             if is_approved:
-                # book_url = "https://www.africanstorybook.org/read/downloadbook.php?id=%s&a=1&d=0&layout=landscape" % book_id
-
                 book_name = 'asb{}.epub'.format(book_id)
-                book_path = None
                 if book_name in lst_books:
                     book_path = os.path.join(FOLDER_STORAGE, book_name)
                     level = book["level"]
@@ -237,12 +262,20 @@ def download_all(kwargs):
                     description = html.unescape(book["summary"])
 
                     for language in languages:
-                        book = create_node_for_book(book_path, book_name, book_id, title, author, description, language)
-
+                        book = nodes.DocumentNode(
+                            source_id="%s|%s|%s" % (language, book_id, book_name),
+                            title=truncate_metadata(title),
+                            license=licenses.CC_BYLicense(copyright_holder=truncate_metadata(COPYRIGHT_HOLDER)),
+                            description=description,
+                            author=truncate_metadata(author),
+                            files=[files.EPubFile("{}".format(book_path))],
+                            language=get_lang_by_name_with_fallback(language),
+                        )
                         if book:
                             LOGGER.info("... downloaded a Level %s %s book titled %s" % (
-                            level, language, str(title).encode('utf8')))
-                            channel_tree[language][level].append(book)
+                                level, language, str(title).encode('utf8')))
+                            if book not in channel_tree[language][level]:
+                                channel_tree[language][level].append(book)
                         else:
                             LOGGER.warning("... WARNING: book %s not found in %s" % (book_id, language))
     return channel_tree
@@ -287,71 +320,15 @@ def truncate_metadata(data_string):
     return data_string
 
 
-FONT_SRC_RE = re.compile(r"src:\W?url\(.*?fonts/(.*?)['\"]?\)")
-UP_DIR_IMG_RE = re.compile(r"url\(['\"]?../im.*?\)")
-BG_IMG_RE = re.compile("background-image:url\((.*)\)")
-
-with open("resources/font_sizing.css") as f:
-    FONT_SIZING_CSS = f.read()
-
-
-class Dummy404ResponseObject(requests.Response):
-    def __init__(self, url):
-        super(Dummy404ResponseObject, self).__init__()
-        self._content = b""
-        self.status_code = 404
-        self.url = url
-
-
-def make_request(url, clear_cookies=True, timeout=60, *args, **kwargs):
-    if clear_cookies:
-        sess.cookies.clear()
-
-    retry_count = 0
-    max_retries = 5
-    while True:
-        try:
-            response = sess.get(url, headers=headers, timeout=timeout, *args, **kwargs)
-            break
-        except NETWORK_ERRORS as e:
-            retry_count += 1
-            LOGGER.error("Error with connection ('{msg}'); about to perform retry {count} of {trymax}."
-                         .format(msg=str(e), count=retry_count, trymax=max_retries))
-            time.sleep(retry_count * 1)
-            if retry_count >= max_retries:
-                return Dummy404ResponseObject(url=url)
-
-    if response.status_code != 200:
-        LOGGER.error("HTTP CODE " + str(response.status_code) + ' for ' + url)
-
-    return response
-
-
-def get_parsed_html_from_url(url, *args, **kwargs):
-    html = make_request(url, *args, **kwargs).text
-    return BeautifulSoup(html, "html.parser")
-
-
-def make_fully_qualified_url(url):
-    if url.startswith("//"):
-        return "http:" + url
-    if url.startswith("/"):
-        return "http://www.africanstorybook.org" + url
-    if not url.startswith("http"):
-        return "http://www.africanstorybook.org/" + url
-    return url
-
-
 if __name__ == '__main__':
     """
     This code will run when the sushi chef is called from the command line.
+    First need to be run only with asyncio.run to download all epub books 
+    chef = AfricanStorybookChef()
+    chef.main()
+    
+    NEED TO make this work in one call
     """
-    start_time = time.time()
-    print(start_time)
-    print(time.localtime(start_time))
-    asyncio.run(download_all_epubs(),debug=True)
-    end_time = time.time()
-    print(end_time)
-    print(end_time - start_time)
-    # chef = AfricanStorybookChef()
-    # chef.main()
+    # asyncio.run(download_all_epubs())
+    chef = AfricanStorybookChef()
+    chef.main()
