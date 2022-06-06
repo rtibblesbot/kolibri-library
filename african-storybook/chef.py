@@ -85,7 +85,7 @@ class AfricanStorybookChef(SushiChef):
     """
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
-        'CHANNEL_SOURCE_ID': "african-storybook_2",
+        'CHANNEL_SOURCE_ID': "african-storybook",
         'CHANNEL_TITLE': "African Storybook Library (multiple languages)",
         'CHANNEL_THUMBNAIL': "thumbnail.png",
         'CHANNEL_DESCRIPTION': "Library of picture storybooks in all the languages of African countries, designed to promote basic literacy and reading for learners of young ages and varying literacy levels.",
