@@ -1,23 +1,20 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """
 Sushi Chef for African Storybook: http://www.africanstorybook.org/
 We make an HTML5 app out of each interactive reader.
 """
 
-from collections import defaultdict
-import html
 import os
-import random
 import re
 import requests
-import tempfile
-import time
+from collections import OrderedDict
+import html
 
-import asyncio
 from pyppeteer import launch
 import time
-
+import asyncio
 from bs4 import BeautifulSoup
 
 from le_utils.constants.languages import getlang_by_name, getlang_by_native_name
@@ -85,9 +82,9 @@ class AfricanStorybookChef(SushiChef):
     """
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
-        'CHANNEL_SOURCE_ID': "african-storybook",
+        'CHANNEL_SOURCE_ID': "african-storybook-2",
         'CHANNEL_TITLE': "African Storybook Library (multiple languages)",
-        'CHANNEL_THUMBNAIL': "thumbnail.png",
+        'CHANNEL_THUMBNAIL': "asb120.png",
         'CHANNEL_DESCRIPTION': "Library of picture storybooks in all the languages of African countries, designed to promote basic literacy and reading for learners of young ages and varying literacy levels.",
     }
 
@@ -101,7 +98,7 @@ class AfricanStorybookChef(SushiChef):
             source_domain=channel_info['CHANNEL_SOURCE_DOMAIN'],
             source_id=channel_info['CHANNEL_SOURCE_ID'],
             title=channel_info['CHANNEL_TITLE'],
-            # thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
+            thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
             description=channel_info.get('CHANNEL_DESCRIPTION'),
             language="mul",
         )
@@ -109,7 +106,7 @@ class AfricanStorybookChef(SushiChef):
         books, dict_languages = get_languages_and_books()
         LOGGER.debug('STARTING TO CREATE THE RICECOOKER CHANNEL TREE')
         dict_node_languages = {}
-        dict_node_levels = {}
+        dict_node_levels = OrderedDict()
 
         for key_language in dict_languages:
             if key_language == "0":
@@ -135,30 +132,30 @@ class AfricanStorybookChef(SushiChef):
                         dict_node_levels[book_lang] = {book.get('level'): topic_level_node}
                     else:
                         dict_node_levels[book_lang].update({book.get('level'): topic_level_node})
-
                     lang_node.add_child(topic_level_node)
+                    lang_node.sort_children()
                 else:
                     topic_level_node = dict_node_levels.get(book_lang).get(book.get('level'))
 
                 book_name = 'asb{}.epub'.format(book.get('id'))
                 book_path = os.path.join(FOLDER_STORAGE, book_name)
-                book = nodes.DocumentNode(
+                book_node = nodes.DocumentNode(
                     source_id="%s|%s|%s" % (book_lang, book.get('level'), book_name),
-                    title=truncate_metadata(book.get('title')),
+                    title=truncate_metadata(html.unescape(book.get('title'))),
                     license=licenses.CC_BYLicense(copyright_holder=truncate_metadata(COPYRIGHT_HOLDER)),
                     description=book.get('summary'),
                     author=truncate_metadata(book.get('author')),
                     files=[files.EPubFile("{}".format(book_path))],
                     language=get_lang_by_name_with_fallback(book_lang),
                 )
-                topic_level_node.add_child(book)
+                topic_level_node.add_child(book_node)
         return channel
 
 
 async def download_all_epubs():
     dict_page_download = {}
     browser = await launch(headless=True)
-    await browser.close()
+    # await browser.close()
     pages = await browser.pages()
     page = pages[0]
     await page.goto('https://www.africanstorybook.org/', {'waitUntil': 'networkidle2'})
@@ -168,7 +165,7 @@ async def download_all_epubs():
     books = await page.evaluate('bookItems')
     lst_books = os.listdir(FOLDER_STORAGE_BROWSER)
     await page.close()
-    books = books[0:1000]
+    # books = books[0:1000]
     for book in books:
         book_name = "asb{}.epub".format(book.get('id'))
         if book_name not in lst_books:
@@ -243,5 +240,4 @@ if __name__ == '__main__':
     NEED TO make this work in one call
     """
     # asyncio.run(download_all_epubs())
-    chef = AfricanStorybookChef()
-    chef.main()
+    AfricanStorybookChef().main()
