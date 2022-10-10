@@ -1,6 +1,10 @@
 import pandas
 import os
 import json
+from openpyxl import load_workbook
+
+logo = os.path.abspath('TTLFinalLogo.jpg')
+
 FAILED_IMAGES_JSON = os.path.join("chefdata", "failed_links", "failed_image_links.json")
 def read_videos_xls(xls):
     """
@@ -8,58 +12,68 @@ def read_videos_xls(xls):
     Dict structure:
         Language > Grade > Subject > Chapter > Topic Name > Content Type > Content
     """
-    data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values='')
-    data_dict = {}
+    wb = load_workbook(xls)
+    sheetnames = wb.sheetnames
+    dict_sheet_names = {}
+    for sheet_name in sheetnames:
+        if 'english' in sheet_name.lower():
+            if 'english' not in dict_sheet_names:
+                dict_sheet_names['english'] = [sheet_name]
+            else:
+                dict_sheet_names['english'].append(sheet_name)
+
     # building dict row by row
-    for index, row in data_from_xls.iterrows():
-        # Skip any content that does not have a link and all assessments
-        # as we will be getting assessment data from a separate xls
-        if row["Link to Content"] == "N/A" or row["Content Type"] == "Assessment":
-            continue
-        # adding language keys to dict
-        # converting strings to lower due to inconsistent naming convention in xls
-        language = row["Language"].lower().strip()
-        if language not in data_dict:
-            data_dict[language] = {}
-        
-        # addingggrade keys to dict
-        grade = row["Grade"]
-        if grade not in data_dict[language]:
-            data_dict[language][grade] = {}
+    data_dict = {}
+    for language in dict_sheet_names:
+        for sheet in dict_sheet_names[language]:
+            data_from_xls = pandas.read_excel(xls,sheet_name=sheet, keep_default_na=False, na_values='')
+            for index, row in data_from_xls.iterrows():
+                # Skip any content that does not have a link and all assessments
+                # as we will be getting assessment data from a separate xls
+                # adding language keys to dict
+                # converting strings to lower due to inconsistent naming convention in xls
+                # language = row["Language"].lower().strip()
+                if language not in data_dict:
+                    data_dict[language] = {}
 
-        subject = row["Subject"].lower().strip()
-        if subject not in data_dict[language][grade]:
-            data_dict[language][grade][subject] = {}
+                # addingggrade keys to dict
+                grade = row["Grade"]
+                if grade not in data_dict[language]:
+                    data_dict[language][grade] = {}
 
-        chapter_num = row["Chapter No"]
-        chapter_name = row["Chapter Name"].lower().strip()
-        chapter = "{} - {}".format(chapter_num, chapter_name)
+                subject = sheet.split(' ')[0]
+                if subject not in data_dict[language][grade]:
+                    data_dict[language][grade][subject] = {}
 
-        if chapter not in data_dict[language][grade][subject]:
-            data_dict[language][grade][subject][chapter] = {}
+                chapter_num = row['Chapter Number']
+                chapter_name = row["Chapter Name"].lower().strip()
+                chapter = "{} - {}".format(chapter_num, chapter_name)
 
+                if chapter not in data_dict[language][grade][subject]:
+                    data_dict[language][grade][subject][chapter] = {}
 
+                topic_name = row["Topic Name"].lower().strip()
+                if topic_name not in data_dict[language][grade][subject][chapter]:
+                    data_dict[language][grade][subject][chapter][topic_name] = {}
+                # adding chapter assessment
+                # data_dict[language][grade][subject][chapter][topic_name]["chapter assessment"] = {}
 
-        topic_name = row["Topic Name"].lower().strip()
-        if topic_name not in data_dict[language][grade][subject][chapter]:
-            data_dict[language][grade][subject][chapter][topic_name] = {}
+                # Assessment = Exercise, Video = Video
+                content_type = 'Video'
+                if content_type not in data_dict[language][grade][subject][chapter][topic_name]:
+                    data_dict[language][grade][subject][chapter][topic_name][content_type] = {}
 
-        # adding chapter assessment
-        # data_dict[language][grade][subject][chapter][topic_name]["chapter assessment"] = {}
-        
-        # Assessment = Exercise, Video = Video
-        content_type = row["Content Type"].lower().strip()
-        if content_type not in data_dict[language][grade][subject][chapter][topic_name]:
-            data_dict[language][grade][subject][chapter][topic_name][content_type] = {}
-
-        link = row["Link to Content"].lower().strip()
-        if link not in data_dict[language][grade][subject][chapter][topic_name][content_type]:
-            data_dict[language][grade][subject][chapter][topic_name][content_type][link] = {
-                "title": row["Video/Assessment Title"],
-                "copyright": row["Copyright"],
-                "license": row["License"],
-                "icon": row["Icon"]
-            }
+                if row.get("Branded video link"):
+                    link = row["Branded video link"].lower().strip()
+                else:
+                    link = row.get("Branded video").lower().strip()
+                if link not in data_dict[language][grade][subject][chapter][topic_name][content_type]:
+                    data_dict[language][grade][subject][chapter][topic_name][content_type][link] = {
+                        "title": row["Video topic as per Youtube"],
+                        "copyright": 'TicTacLearn',
+                        "license": 'TicTacLearn',
+                        "icon": logo
+                    }
     return data_dict
 
 
@@ -67,10 +81,11 @@ def read_assessment_xls(xls, data):
     data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values = '')
     # to map to correct option given which is the right answer
     for index, row in data_from_xls.iterrows():
-        question_parts = [x.strip() for x in row["Question Set Name"].split("|")]
+        question_parts = [x.strip() for x in row["Video/Assessment Title"].split("|")]
         topic = None
         chapter_title = None
-
+        if row["Link to Content"] == "N/A" or row["Content Type"] == "Assessment":
+            continue
         if len(question_parts) == 4:
             # if length === 4, then chapter assessment
             # if chapter assessment, chapter is located at str_parts[0]
@@ -84,15 +99,15 @@ def read_assessment_xls(xls, data):
             # self.add_to_failed(row["Medium"], row["Question Set Name"], row["QuestionText"])
             continue
 
-        language = row["Medium"].lower()
-        grade = row["Class"]
+        language = row["Language"].lower()
+        grade = row["Grade"]
         if row["Subject"] == "Math" or row["Subject"] == "Maths":
             # provided xls from TTL has Subject listed as mathematics on videos.xls and math/maths in assessments.xls
             subject = 'mathematics'
         else:
             subject = row["Subject"].lower()
         
-        chapter = "{} - {}".format(row["ChapterNo"], chapter_title).lower()
+        chapter = "{} - {}".format(row["Chapter No"], chapter_title).lower()
         content_type = "assessment"
         
         # some questions only have an image with no text

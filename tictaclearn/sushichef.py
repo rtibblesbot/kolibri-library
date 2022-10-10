@@ -27,8 +27,8 @@ CONTENT_ARCHIVE_VERSION = 1
 
 # Additional constants
 ################################################################################
-VIDEOS_XLS = os.path.join("files", "videos.xls")
-ASSESSMENT_XLS = os.path.join("files", "assessments.xls")
+VIDEOS_XLS = os.path.abspath("ticataclearn_dropbox.xlsx")
+ASSESSMENT_XLS = os.path.abspath("assessments.xlsx")
 CREDENTIALS = os.path.join("credentials", "credentials.json")
 VIDEO_FOLDER = os.path.abspath(os.path.join("chefdata", "videos"))
 SHEETS_FOLDER = os.path.abspath(os.path.join("chefdata", "sheets"))
@@ -189,7 +189,7 @@ class TicTacLearnChef(SushiChef):
                                     language=getlang_by_name(language)
                                 )
                                 for content_type, content in topic_value.items():
-                                    if content_type == "video":
+                                    if content_type.lower() == "video":
                                         for link, details in content.items():
                                             try:
                                                 video_node = self.video_node_from_dropbox(details, link, access_token)
@@ -289,7 +289,7 @@ class TicTacLearnChef(SushiChef):
         # set up dropbox credentials
         with open(CREDENTIALS, 'r') as myfile:
             credentials_data = myfile.read()
-        
+
         creds = json.loads(credentials_data)
         access_token = creds['dropbox_token']
 
