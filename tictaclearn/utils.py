@@ -303,6 +303,7 @@ def get_all_local_files(xls):
     for sheet_name in dict_sheet_names:
         data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values='', sheet_name=[sheet_name],
                                           engine='openpyxl')
+        data_from_xls = data_from_xls.dropna()
         # to map to correct option given which is the right answer
         for index, row in data_from_xls.get(sheet_name).iterrows():
             language = sheet_name.split(' ')[-1]
