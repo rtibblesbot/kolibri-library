@@ -325,6 +325,7 @@ def get_all_local_files(xls):
                 if vt_number:
                     vt_number = str(int(vt_number))
             except Exception as ex:
+                print(sheet_name)
                 print(row)
                 print(vt_number)
                 print(ex)
