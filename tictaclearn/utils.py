@@ -293,7 +293,7 @@ def get_all_local_files(xls):
     dict_sheet_names = {}
     # sheet_name = 'Math (1-10) English' # TESTING REASON
 
-    excel_file = pandas.ExcelFile(xls)
+    excel_file = pandas.ExcelFile(xls, engine='openpyxl')
     for sheet_name in excel_file.sheet_names:
         splitted = sheet_name.split(' ')
         if splitted[-1] == 'English':
