@@ -36,18 +36,18 @@ FAILED_LINKS_DIR = os.path.join("chefdata", "failed_links")
 FAILED_LINKS_JSON = os.path.join(FAILED_LINKS_DIR, "failed_links.json")
 FAILED_IMAGES_JSON = os.path.join(FAILED_LINKS_DIR, "failed_image_links.json")
 TTL_MAIN_LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.join("TTLFinalLogo.jpg"))
-EXCEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads',
+EXCEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           'TicTacLearn - Dropbox Catalogue 2022 (1).xlsx'
                           )
-ASSESSMENT_XLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads',
+ASSESSMENT_XLS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               'Math_G1to10_English_FINAL_(External Sharing).xlsx'
                               )
 DICT_ASSESSMENT_XLS = {
     'Mathematics': os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), 'downloads', 'English', 'Mathematics',
+        os.path.dirname(os.path.abspath(__file__)),
         'Math_G1to10_English_FINAL_(External Sharing).xlsx'),
     'Science': os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), 'downloads', 'English', 'Science',
+        os.path.dirname(os.path.abspath(__file__)),
         'Science_G6to10_English_FINAL_external.xlsx')
 }
 
@@ -224,7 +224,8 @@ class TicTacLearnChef(SushiChef):
                                                 topic_node.add_child(video_node)
                                             except Exception as e:
                                                 print(e)
-                                                print("Error getting video from local with path: {}".format(file_name))
+                                                print("Error getting video from local with path: {}".format(
+                                                    content.get(file_name)))
                                     else:
                                         # content type is assessment
                                         questions = self.create_question(content.items())

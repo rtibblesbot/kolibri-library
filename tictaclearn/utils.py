@@ -1,7 +1,11 @@
+import sys
+
 import pandas
 import os
 import json
 from openpyxl import load_workbook
+from urllib import parse
+import pathlib
 
 logo = os.path.abspath('TTLFinalLogo.jpg')
 
@@ -73,6 +77,7 @@ def read_videos_xls(xls):
 
                 chapter_num = row['Chapter Number']
                 chapter_name = row["Chapter Name"].lower().strip()
+                chapter_name = chapter_name.replace('?', '')
                 chapter = "{} - {}".format(chapter_num, chapter_name)
 
                 if chapter not in data_dict[language][grade][subject]:
@@ -129,7 +134,7 @@ def read_assessment_xls(dict_xls, data):
             language = row["Medium"]
             grade = row["Class"]
             grade = "Grade_{}".format(integer_to_roman(grade))
-            image_path = os.path.abspath(os.path.join(MATH_IMAGES, language, 'Images'))
+            image_path = os.path.abspath(os.path.join('downloads', MATH_IMAGES, language, 'Images'))
 
             if row["Subject"] == "Math" or row["Subject"] == "Maths":
                 # provided xls from TTL has Subject listed as mathematics on videos.xls and math/maths in assessments.xls
@@ -257,6 +262,32 @@ def add_to_failed(path_arr):
             return
 
 
+def make_the_correct_path(language, subject, grade_string, chapter, vt, video_name):
+    """
+    folder_path: Content from this folder path need to be check
+    name: Looking if this name is inside this folder path
+    """
+    lst_folders = [language, subject, grade_string, chapter, vt, video_name]
+    folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
+
+    for folder in lst_folders:
+        tmp_folder_path = os.path.join(os.path.join(folder_path, folder))
+        pathlib.Path(tmp_folder_path).exists()
+        if os.path.exists(tmp_folder_path):
+            folder_path = tmp_folder_path
+            continue
+        else:
+            lst_content = os.listdir(folder_path)
+            for content in lst_content:
+                if folder in content:
+                    folder_path = os.path.join(os.path.join(folder_path, content))
+                    break
+
+    if os.path.isfile(folder_path):
+        return folder_path
+    return None
+
+
 def get_all_local_files(xls):
     dict_all_files_with_local_path = {}
     dict_sheet_names = {}
@@ -279,17 +310,25 @@ def get_all_local_files(xls):
                 subject = 'Mathematics'
             grade = row['Grade']
             grade_string = 'Grade_{}'.format(grade)
-            chapter_number = row.get('Chapter No') or row.get('Chapter Number')
-            chapter_name = row['Chapter Name']
+            chapter_number = row.get('Chapter No')
+            if chapter_number is None:
+                chapter_number = row.get('Chapter Number')
+            chapter_name = row['Chapter Name'].replace('?', '_')
             chapter = 'Chapter_{}_{}'.format(chapter_number, chapter_name.strip().replace(' ', '_').upper())
-            vt_number = str(int(row.get('Video Topic Number ') or row.get('No of videos in the VT')))
+            vt_number = row.get('Video Topic Number ')
+            if not vt_number:
+                vt_number = row.get('Video Topic Number')
+            elif not vt_number:
+                vt_number = (row.get('No of videos in the VT'))
+            if vt_number:
+                vt_number = str(int(vt_number))
             vt_name = row['Topic Name'].lower().strip()
+            vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
             video_name = row.get('Branded video link') or row.get('Branded video')
-            video_name = video_name.split('/')[-1].split('?')[0]
+            video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'
-            file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads', language, subject,
-                                     grade_string, chapter, vt, video_name)
+            file_path = make_the_correct_path(language, subject, grade_string, chapter, vt, video_name)
 
             if language not in dict_all_files_with_local_path:
                 dict_all_files_with_local_path[language] = {}
