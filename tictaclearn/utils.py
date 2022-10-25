@@ -332,7 +332,7 @@ def get_all_local_files(xls):
             vt_name = str(row['Topic Name']).lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
-            video_name = row.get('Branded video link') or row.get('Branded video')
+            video_name = str(row.get('Branded video link') or row.get('Branded video'))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'
             file_path = make_the_correct_path(language, subject, grade_string, chapter, vt, video_name)
