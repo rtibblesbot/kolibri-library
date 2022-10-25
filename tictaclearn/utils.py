@@ -134,7 +134,7 @@ def read_assessment_xls(dict_xls, data):
             language = row["Medium"]
             grade = row["Class"]
             grade = "Grade_{}".format(integer_to_roman(grade))
-            image_path = os.path.abspath(os.path.join('downloads', MATH_IMAGES, language, 'Images'))
+            image_path = os.path.abspath(os.path.join('downloads', MATH_IMAGES, language))
 
             if row["Subject"] == "Math" or row["Subject"] == "Maths":
                 # provided xls from TTL has Subject listed as mathematics on videos.xls and math/maths in assessments.xls
