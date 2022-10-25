@@ -317,12 +317,17 @@ def get_all_local_files(xls):
             chapter_name = str(row['Chapter Name']).replace('?', '_')
             chapter = 'Chapter_{}_{}'.format(chapter_number, chapter_name.strip().replace(' ', '_').upper())
             vt_number = row.get('Video Topic Number ')
-            if vt_number is None:
-                vt_number = row.get('Video Topic Number')
-            elif vt_number is None:
-                vt_number = (row.get('No of videos in the VT'))
-            if vt_number:
-                vt_number = str(int(vt_number))
+            try:
+                if vt_number is None:
+                    vt_number = row.get('Video Topic Number')
+                elif vt_number is None:
+                    vt_number = (row.get('No of videos in the VT'))
+                if vt_number:
+                    vt_number = str(int(vt_number))
+            except Exception as ex:
+                print(row)
+                print(vt_number)
+                print(ex)
             vt_name = row['Topic Name'].lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
