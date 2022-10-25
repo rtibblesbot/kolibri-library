@@ -329,7 +329,7 @@ def get_all_local_files(xls):
                 print(row)
                 print(vt_number)
                 print(ex)
-            vt_name = row['Topic Name'].lower().strip()
+            vt_name = str(row['Topic Name']).lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
             video_name = row.get('Branded video link') or row.get('Branded video')
