@@ -114,7 +114,7 @@ def read_videos_xls(xls):
 
 def read_assessment_xls(dict_xls, data):
     for key in dict_xls:
-        data_from_xls = pandas.read_excel(dict_xls.get(key), keep_default_na=False, na_values='')
+        data_from_xls = pandas.read_excel(dict_xls.get(key), keep_default_na=False, na_values='', engine='openpyxl')
         # to map to correct option given which is the right answer
         for index, row in data_from_xls.iterrows():
             question_parts = [x.strip() for x in row["Question Set Name"].split("|")]
@@ -301,7 +301,8 @@ def get_all_local_files(xls):
 
     # to map all the sheets in the given excel
     for sheet_name in dict_sheet_names:
-        data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values='', sheet_name=[sheet_name])
+        data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values='', sheet_name=[sheet_name],
+                                          engine='openpyxl')
         # to map to correct option given which is the right answer
         for index, row in data_from_xls.get(sheet_name).iterrows():
             language = sheet_name.split(' ')[-1]
