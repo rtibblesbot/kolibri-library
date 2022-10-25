@@ -314,7 +314,7 @@ def get_all_local_files(xls):
             chapter_number = row.get('Chapter No')
             if chapter_number is None:
                 chapter_number = row.get('Chapter Number')
-            chapter_name = row['Chapter Name'].replace('?', '_')
+            chapter_name = str(row['Chapter Name']).replace('?', '_')
             chapter = 'Chapter_{}_{}'.format(chapter_number, chapter_name.strip().replace(' ', '_').upper())
             vt_number = row.get('Video Topic Number ')
             if not vt_number:
