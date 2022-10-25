@@ -317,9 +317,9 @@ def get_all_local_files(xls):
             chapter_name = str(row['Chapter Name']).replace('?', '_')
             chapter = 'Chapter_{}_{}'.format(chapter_number, chapter_name.strip().replace(' ', '_').upper())
             vt_number = row.get('Video Topic Number ')
-            if not vt_number:
+            if vt_number is None:
                 vt_number = row.get('Video Topic Number')
-            elif not vt_number:
+            elif vt_number is None:
                 vt_number = (row.get('No of videos in the VT'))
             if vt_number:
                 vt_number = str(int(vt_number))
