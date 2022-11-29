@@ -58,12 +58,12 @@ DICT_ASSESSMENT_XLS = {
             os.path.dirname(os.path.abspath(__file__)),
             'TTL_math_practice_content',
             'Hindi',
-            'Math_G1to10_Hindi_FINAL (External Sharing)'),
+            'Math_G1to10_Hindi_FINAL (External Sharing).xlsx'),
         'Science': os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             'TTL_science_practice_content',
             'Hindi',
-            'Math_G1to10_English_FINAL (External Sharing)')
+            'Math_G1to10_English_FINAL (External Sharing).xlsx')
     }
 }
 
