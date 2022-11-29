@@ -237,8 +237,8 @@ class TicTacLearnChef(SushiChef):
                                         if content_type.lower() == "video":
                                             for file_name in content:
                                                 try:
-                                                    video_node = self.video_node_from_local_storage(file_name,
-                                                                                                    content.get(file_name))
+                                                    video_node = self.video_node_from_local_storage(
+                                                        file_name, content.get(file_name))
                                                     topic_node.add_child(video_node)
                                                 except Exception as e:
                                                     LOGGER.info(e)
