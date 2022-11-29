@@ -205,7 +205,10 @@ def read_assessment_xls(dict_xls, data):
             }
 
             # check if chapter exists as some chapters only appear on assessment excel
-            if chapter not in data[language][grade][subject]:
+            if data and data.get(language) \
+                    and data[language].get(grade) \
+                    and data[language][grade].get(subject) \
+                    and chapter not in data[language][grade][subject]:
                 data[language][grade][subject][chapter] = {}
 
             # have to check if topic exists
@@ -219,9 +222,15 @@ def read_assessment_xls(dict_xls, data):
                 # print(data[language][grade][subject][chapter][topic][content_type])
             else:
                 chapter_assessment = "Chapter Assessment"
-                if chapter_assessment not in data[language][grade][subject][chapter]:
+                if data.get(language) \
+                        and data[language].get(grade) \
+                        and data[language][grade].get(subject) \
+                        and data[language][grade][subject].get(chapter) \
+                        and chapter_assessment not in data[language][grade][subject][chapter]:
                     data[language][grade][subject][chapter][chapter_assessment] = {}
-                data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
+                if data[language][grade].get(subject) and data[language][grade][subject].get(chapter) and \
+                        data[language][grade][subject][chapter].get(chapter_assessment):
+                    data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
                 # print(data[language][grade][subject][chapter][chapter_assessment])
 
             # location where to add question objects

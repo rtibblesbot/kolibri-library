@@ -17,10 +17,10 @@ import re
 ################################################################################
 # CHANNEL_ID = "64d440bdac615b549fa160ea341ab743"         # Main channel ID
 # CHANNEL_ID = "bc1a1352ba4f4324a2efbe4e0ec808f3"  # Test channel ID
-CHANNEL_NAME = "TicTacLearn English Channel"  # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "tictaclearn-test-english-channel-3"  # Unique ID for content source
+CHANNEL_NAME = "TicTacLearn"  # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "tictaclearn"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://tictaclearn.org/"  # Who is providing the content
-CHANNEL_LANGUAGE = "hi"  # Language of channel
+CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_DESCRIPTION = None  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None  # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1
@@ -46,7 +46,7 @@ DICT_ASSESSMENT_XLS = {
             os.path.dirname(os.path.abspath(__file__)),
             'TTL_math_practice_content',
             'English',
-            'Math_G1to10_English_FINAL_(External Sharing).xlsx'),
+            'Math_G1to10_English_FINAL (External Sharing).xlsx'),
         'Science': os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             'TTL_science_practice_content',
@@ -67,6 +67,7 @@ DICT_ASSESSMENT_XLS = {
     }
 }
 
+
 # The chef subclass
 ################################################################################
 class TicTacLearnChef(SushiChef):
@@ -82,10 +83,11 @@ class TicTacLearnChef(SushiChef):
         to build the contentnode tree.
     For more info, see https://ricecooker.readthedocs.io
     """
+    language = getlang(CHANNEL_LANGUAGE)
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,
-        'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,
-        'CHANNEL_TITLE': CHANNEL_NAME,
+        'CHANNEL_SOURCE_ID': "{}_{}".format(CHANNEL_SOURCE_ID, language.name),
+        'CHANNEL_TITLE': "{} ()".format(CHANNEL_NAME, language.name),
         'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,
         'CHANNEL_THUMBNAIL': TTL_MAIN_LOGO,
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,
@@ -139,7 +141,6 @@ class TicTacLearnChef(SushiChef):
     # returns an array of questions
     def create_question(self, question_data):
         question_arr = []
-
         for id, question_metadata in question_data:
             if question_metadata["question"] is None:
                 question_text = question_metadata["question_image"]
@@ -204,23 +205,24 @@ class TicTacLearnChef(SushiChef):
                             topic = topic.title()
                             if topic == "Chapter Assessment":
                                 questions = self.create_question(topic_value.items())
-                                exercise_node = nodes.ExerciseNode(
-                                    source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
-                                    title=topic,
-                                    author="TicTacLearn",
-                                    description="Chapter Assessment",
-                                    language=getlang_by_name(language),
-                                    license=licenses.CC_BYLicense("TicTacLearn"),
-                                    thumbnail=TTL_MAIN_LOGO,
-                                    exercise_data={
-                                        "mastery_model": exercises.M_OF_N,
-                                        "m": len(questions),
-                                        "n": len(questions),
-                                        "randomize": True
-                                    },
-                                    questions=questions
-                                )
-                                chapter_node.add_child(exercise_node)
+                                if questions:
+                                    exercise_node = nodes.ExerciseNode(
+                                        source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
+                                        title=topic,
+                                        author="TicTacLearn",
+                                        description="Chapter Assessment",
+                                        language=getlang_by_name(language),
+                                        license=licenses.CC_BYLicense("TicTacLearn"),
+                                        thumbnail=TTL_MAIN_LOGO,
+                                        exercise_data={
+                                            "mastery_model": exercises.M_OF_N,
+                                            "m": len(questions),
+                                            "n": len(questions),
+                                            "randomize": True
+                                        },
+                                        questions=questions
+                                    )
+                                    chapter_node.add_child(exercise_node)
                             else:
                                 topic_node = nodes.TopicNode(
                                     title=topic,
