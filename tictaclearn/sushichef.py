@@ -39,34 +39,31 @@ TTL_MAIN_LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path
 EXCEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           'TicTacLearn - Dropbox Catalogue 2022 (1).xlsx'
                           )
-ASSESSMENT_XLS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                              'Math_G1to10_English_FINAL_(External Sharing).xlsx'
-                              )
 
 DICT_ASSESSMENT_XLS = {
     'en': {
         'Mathematics': os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'TTL Math Practice Content (External Sharing)',
+            'TTL_math_practice_content',
             'English',
             'Math_G1to10_English_FINAL_(External Sharing).xlsx'),
         'Science': os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'TTL Science Practice Content (External Sharing)',
+            'TTL_science_practice_content',
             'English',
             'Science_G6to10_English_FINAL_external.xlsx')
     },
     'hi': {
         'Mathematics': os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'TTL Math Practice Content (External Sharing)',
+            'TTL_math_practice_content',
             'Hindi',
-            'Math_G1to10_Hindi_FINAL_(External Sharing).xlsx'),
+            'Math_G1to10_Hindi_FINAL (External Sharing)'),
         'Science': os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'TTL Science Practice Content (External Sharing)',
-            'English',
-            'Science_G6to10_Hindi_FINAL_external.xlsx')
+            'TTL_science_practice_content',
+            'Hindi',
+            'Math_G1to10_English_FINAL (External Sharing)')
     }
 }
 
@@ -333,6 +330,7 @@ class TicTacLearnChef(SushiChef):
 
         dict_all_files = get_all_local_files(EXCEL_PATH)
         dict_assessment_lang = DICT_ASSESSMENT_XLS.get(CHANNEL_LANGUAGE)
+        print(dict_assessment_lang)
         data = read_assessment_xls(dict_assessment_lang, dict_all_files)
 
         channel = self.upload_content(data, channel)
