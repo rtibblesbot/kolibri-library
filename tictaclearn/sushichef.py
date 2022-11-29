@@ -4,7 +4,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes import nodes, files, licenses
 from ricecooker.config import LOGGER, THUMBNAILS  # Use LOGGER to print messages
 from le_utils.constants import exercises
-from le_utils.constants.languages import getlang_by_name
+from le_utils.constants.languages import getlang_by_name, getlang
 from le_utils.constants import licenses as le_licenses
 from ricecooker.classes.questions import SingleSelectQuestion
 from utils import *
@@ -63,7 +63,7 @@ DICT_ASSESSMENT_XLS = {
             os.path.dirname(os.path.abspath(__file__)),
             'TTL_science_practice_content',
             'Hindi',
-            'Math_G1to10_English_FINAL (External Sharing).xlsx')
+            'Science_G6to10_Hindi_FINAL_external.xlsx')
     }
 }
 
@@ -328,9 +328,9 @@ class TicTacLearnChef(SushiChef):
         with open(FAILED_IMAGES_JSON, 'w+'):
             pass
 
-        dict_all_files = get_all_local_files(EXCEL_PATH)
+        language = getlang(CHANNEL_LANGUAGE)
+        dict_all_files = get_all_local_files(EXCEL_PATH, language.name)
         dict_assessment_lang = DICT_ASSESSMENT_XLS.get(CHANNEL_LANGUAGE)
-        print(dict_assessment_lang)
         data = read_assessment_xls(dict_assessment_lang, dict_all_files)
 
         channel = self.upload_content(data, channel)

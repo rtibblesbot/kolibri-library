@@ -126,11 +126,14 @@ def read_assessment_xls(dict_xls, data):
                 # if normal assessment, chapter is located at str_parts[1] and topic is located at str_parts[0]
                 topic = question_parts[0].lower().strip()
                 chapter_title = question_parts[1].strip()
+            elif len(question_parts) == 7 or len(question_parts) == 6:
+                # if normal assessment, chapter is located at str_parts[1] and topic is located at str_parts[0]
+                topic = question_parts[0].lower().strip()
+                chapter_title = question_parts[1].strip()
             else:
                 print("Error: Question Set Name not in correct format")
                 # self.add_to_failed(row["Medium"], row["Question Set Name"], row["QuestionText"])
                 continue
-
             language = row["Medium"]
             grade = row["Class"]
             grade = "Grade_{}".format(integer_to_roman(grade))
@@ -288,7 +291,7 @@ def make_the_correct_path(language, subject, grade_string, chapter, vt, video_na
     return None
 
 
-def get_all_local_files(xls):
+def get_all_local_files(xls, language):
     dict_all_files_with_local_path = {}
     dict_sheet_names = {}
     # sheet_name = 'Math (1-10) English' # TESTING REASON
@@ -296,9 +299,8 @@ def get_all_local_files(xls):
     excel_file = pandas.ExcelFile(xls, engine='openpyxl')
     for sheet_name in excel_file.sheet_names:
         splitted = sheet_name.split(' ')
-        if splitted[-1] == 'English':
+        if splitted[-1] == language:
             dict_sheet_names[sheet_name] = {'subject': splitted[0], 'language': splitted[-1]}
-
     # to map all the sheets in the given excel
     for sheet_name in dict_sheet_names:
         data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values='', sheet_name=[sheet_name],
@@ -328,8 +330,6 @@ def get_all_local_files(xls):
                 if vt_number:
                     vt_number = str(int(vt_number))
             except Exception as ex:
-                print(sheet_name)
-                print(row)
                 print(vt_number)
                 print(ex)
             vt_name = str(row['Topic Name']).lower().strip()
