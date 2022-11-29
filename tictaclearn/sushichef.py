@@ -192,66 +192,27 @@ class TicTacLearnChef(SushiChef):
                         language=getlang_by_name(language)
                     )
                     for chapter, chapter_value in subject_value.items():
-                        chapter = chapter.title()
-                        chapter_node = nodes.TopicNode(
-                            title=chapter.replace('_', ' '),
-                            source_id="{}-{}-{}-{}".format(language, grade, subject, chapter),
-                            author="TicTacLearn",
-                            description='',
-                            thumbnail=TTL_MAIN_LOGO,
-                            language=getlang_by_name(language)
-                        )
-                        for topic, topic_value in chapter_value.items():
-                            topic = topic.title()
-                            if topic == "Chapter Assessment":
-                                questions = self.create_question(topic_value.items())
-                                if questions:
-                                    exercise_node = nodes.ExerciseNode(
-                                        source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
-                                        title=topic,
-                                        author="TicTacLearn",
-                                        description="Chapter Assessment",
-                                        language=getlang_by_name(language),
-                                        license=licenses.CC_BYLicense("TicTacLearn"),
-                                        thumbnail=TTL_MAIN_LOGO,
-                                        exercise_data={
-                                            "mastery_model": exercises.M_OF_N,
-                                            "m": len(questions),
-                                            "n": len(questions),
-                                            "randomize": True
-                                        },
-                                        questions=questions
-                                    )
-                                    chapter_node.add_child(exercise_node)
-                            else:
-                                topic_node = nodes.TopicNode(
-                                    title=topic,
-                                    source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
-                                    author="TicTacLearn",
-                                    description='',
-                                    thumbnail=TTL_MAIN_LOGO,
-                                    language=getlang_by_name(language)
-                                )
-                                for content_type, content in topic_value.items():
-                                    if content_type.lower() == "video":
-                                        for file_name in content:
-                                            try:
-                                                video_node = self.video_node_from_local_storage(file_name,
-                                                                                                content.get(file_name))
-                                                topic_node.add_child(video_node)
-                                            except Exception as e:
-                                                LOGGER.info(e)
-                                                LOGGER.info("Error getting video from local with path: {}".format(
-                                                    content))
-                                    else:
-                                        # content type is assessment
-                                        questions = self.create_question(content.items())
+                        if chapter:
+                            chapter = chapter.title()
+                            chapter_node = nodes.TopicNode(
+                                title=chapter.replace('_', ' '),
+                                source_id="{}-{}-{}-{}".format(language, grade, subject, chapter),
+                                author="TicTacLearn",
+                                description='',
+                                thumbnail=TTL_MAIN_LOGO,
+                                language=getlang_by_name(language)
+                            )
+                            for topic, topic_value in chapter_value.items():
+                                topic = topic.title()
+                                if topic == "Chapter Assessment":
+                                    questions = self.create_question(topic_value.items())
+                                    if questions:
                                         exercise_node = nodes.ExerciseNode(
-                                            source_id="{}-{}-{}-{}-{}-Assessment".format(language, grade, subject,
-                                                                                         chapter, topic),
-                                            title="{} Assessment".format(topic),
+                                            source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
+                                            title=topic,
                                             author="TicTacLearn",
-                                            description="{} Assessment".format(topic),
+                                            description="Chapter Assessment",
+                                            language=getlang_by_name(language),
                                             license=licenses.CC_BYLicense("TicTacLearn"),
                                             thumbnail=TTL_MAIN_LOGO,
                                             exercise_data={
@@ -262,10 +223,50 @@ class TicTacLearnChef(SushiChef):
                                             },
                                             questions=questions
                                         )
-                                        topic_node.add_child(exercise_node)
+                                        chapter_node.add_child(exercise_node)
+                                else:
+                                    topic_node = nodes.TopicNode(
+                                        title=topic,
+                                        source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
+                                        author="TicTacLearn",
+                                        description='',
+                                        thumbnail=TTL_MAIN_LOGO,
+                                        language=getlang_by_name(language)
+                                    )
+                                    for content_type, content in topic_value.items():
+                                        if content_type.lower() == "video":
+                                            for file_name in content:
+                                                try:
+                                                    video_node = self.video_node_from_local_storage(file_name,
+                                                                                                    content.get(file_name))
+                                                    topic_node.add_child(video_node)
+                                                except Exception as e:
+                                                    LOGGER.info(e)
+                                                    LOGGER.info("Error getting video from local with path: {}".format(
+                                                        content))
+                                        else:
+                                            # content type is assessment
+                                            questions = self.create_question(content.items())
+                                            exercise_node = nodes.ExerciseNode(
+                                                source_id="{}-{}-{}-{}-{}-Assessment".format(language, grade, subject,
+                                                                                             chapter, topic),
+                                                title="{} Assessment".format(topic),
+                                                author="TicTacLearn",
+                                                description="{} Assessment".format(topic),
+                                                license=licenses.CC_BYLicense("TicTacLearn"),
+                                                thumbnail=TTL_MAIN_LOGO,
+                                                exercise_data={
+                                                    "mastery_model": exercises.M_OF_N,
+                                                    "m": len(questions),
+                                                    "n": len(questions),
+                                                    "randomize": True
+                                                },
+                                                questions=questions
+                                            )
+                                            topic_node.add_child(exercise_node)
 
-                                chapter_node.add_child(topic_node)
-                        subject_node.add_child(chapter_node)
+                                    chapter_node.add_child(topic_node)
+                            subject_node.add_child(chapter_node)
                     grade_node.add_child(subject_node)
                 language_node.add_child(grade_node)
             channel.add_child(language_node)
