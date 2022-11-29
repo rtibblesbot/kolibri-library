@@ -42,15 +42,33 @@ EXCEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 ASSESSMENT_XLS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               'Math_G1to10_English_FINAL_(External Sharing).xlsx'
                               )
-DICT_ASSESSMENT_XLS = {
-    'Mathematics': os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        'Math_G1to10_English_FINAL_(External Sharing).xlsx'),
-    'Science': os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        'Science_G6to10_English_FINAL_external.xlsx')
-}
 
+DICT_ASSESSMENT_XLS = {
+    'en': {
+        'Mathematics': os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'TTL Math Practice Content (External Sharing)',
+            'English',
+            'Math_G1to10_English_FINAL_(External Sharing).xlsx'),
+        'Science': os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'TTL Science Practice Content (External Sharing)',
+            'English',
+            'Science_G6to10_English_FINAL_external.xlsx')
+    },
+    'hi': {
+        'Mathematics': os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'TTL Math Practice Content (External Sharing)',
+            'Hindi',
+            'Math_G1to10_Hindi_FINAL_(External Sharing).xlsx'),
+        'Science': os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'TTL Science Practice Content (External Sharing)',
+            'English',
+            'Science_G6to10_Hindi_FINAL_external.xlsx')
+    }
+}
 
 # The chef subclass
 ################################################################################
