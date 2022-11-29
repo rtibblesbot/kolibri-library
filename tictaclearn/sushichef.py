@@ -242,6 +242,7 @@ class TicTacLearnChef(SushiChef):
                                                     topic_node.add_child(video_node)
                                                 except Exception as e:
                                                     LOGGER.info(e)
+                                                    LOGGER.info("{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic))
                                                     LOGGER.info("Error getting video from local with path: {}".format(
                                                         content))
                                         else:
