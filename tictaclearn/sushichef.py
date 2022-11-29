@@ -87,7 +87,7 @@ class TicTacLearnChef(SushiChef):
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,
         'CHANNEL_SOURCE_ID': "{}_{}".format(CHANNEL_SOURCE_ID, language.name),
-        'CHANNEL_TITLE': "{} ()".format(CHANNEL_NAME, language.name),
+        'CHANNEL_TITLE': "{} ({})".format(CHANNEL_NAME, language.name),
         'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,
         'CHANNEL_THUMBNAIL': TTL_MAIN_LOGO,
         'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTION,
