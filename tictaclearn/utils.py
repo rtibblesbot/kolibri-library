@@ -314,6 +314,7 @@ def get_all_local_files(xls, language):
                                           engine='openpyxl')
         # to map to correct option given which is the right answer
         for index, row in data_from_xls.get(sheet_name).iterrows():
+            chapter = None
             language = sheet_name.split(' ')[-1]
             subject = sheet_name.split(' ')[0]
             if subject == 'Math':
@@ -324,9 +325,8 @@ def get_all_local_files(xls, language):
             if chapter_number is None:
                 chapter_number = row.get('Chapter Number')
             chapter_name = str(row['Chapter Name']).replace('?', '_')
-            print(chapter_name)
-            print(chapter_number)
-            chapter = 'Chapter_{}_{}'.format(int(chapter_number), chapter_name.strip().replace(' ', '_').upper())
+            if chapter_number and chapter_number != 'nan':
+                chapter = 'Chapter_{}_{}'.format(int(chapter_number), chapter_name.strip().replace(' ', '_').upper())
             vt_number = row.get('Video Topic Number ')
             try:
                 if vt_number is None:
