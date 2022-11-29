@@ -345,6 +345,8 @@ def get_all_local_files(xls, language):
             vt_name = str(row['Topic Name']).lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
+            if not os.path.exists(vt):
+                vt = 'VT_Part {}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
             video_name = str(html.unescape(row.get('Branded video link')) or html.unescape(row.get('Branded video')))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'
