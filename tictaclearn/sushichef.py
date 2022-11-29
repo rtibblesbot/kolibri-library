@@ -20,7 +20,7 @@ import re
 CHANNEL_NAME = "TicTacLearn English Channel"  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "tictaclearn-test-english-channel-3"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://tictaclearn.org/"  # Who is providing the content
-CHANNEL_LANGUAGE = "en"  # Language of channel
+CHANNEL_LANGUAGE = "hi"  # Language of channel
 CHANNEL_DESCRIPTION = None  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = None  # Local path or url to image file (optional)
 CONTENT_ARCHIVE_VERSION = 1
