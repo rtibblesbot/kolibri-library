@@ -240,9 +240,9 @@ class TicTacLearnChef(SushiChef):
                                                                                                 content.get(file_name))
                                                 topic_node.add_child(video_node)
                                             except Exception as e:
-                                                print(e)
-                                                print("Error getting video from local with path: {}".format(
-                                                    content.get(file_name)))
+                                                LOGGER.info(e)
+                                                LOGGER.info("Error getting video from local with path: {}".format(
+                                                    content))
                                     else:
                                         # content type is assessment
                                         questions = self.create_question(content.items())
