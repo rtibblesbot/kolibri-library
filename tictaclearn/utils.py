@@ -11,7 +11,9 @@ import html
 logo = os.path.abspath('TTLFinalLogo.jpg')
 
 FAILED_IMAGES_JSON = os.path.join("chefdata", "failed_links", "failed_image_links.json")
-MATH_IMAGES = "TTL Math Practice Content (External Sharing)"
+
+DICT_IMAGES = {'Mathematics': 'TTL_math_practice_content',
+               'Science': 'TTL_science_practice_content'}
 
 
 def integer_to_roman(num):
@@ -138,7 +140,6 @@ def read_assessment_xls(dict_xls, data):
             language = row["Medium"]
             grade = row["Class"]
             grade = "Grade_{}".format(integer_to_roman(grade))
-            image_path = os.path.abspath(os.path.join('downloads', MATH_IMAGES, language))
 
             if row["Subject"] == "Math" or row["Subject"] == "Maths":
                 # provided xls from TTL has Subject listed as mathematics on videos.xls and math/maths in assessments.xls
@@ -147,6 +148,7 @@ def read_assessment_xls(dict_xls, data):
                 subject = row["Subject"].capitalize()
 
             chapter = "Chapter_{}_{}".format(row["ChapterNo"], chapter_title.replace(' ', '_').upper())
+            image_path = os.path.abspath(os.path.join(DICT_IMAGES.get(subject), language))
             content_type = "assessment"
 
             # some questions only have an image with no text

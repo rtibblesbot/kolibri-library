@@ -141,7 +141,7 @@ class TicTacLearnChef(SushiChef):
     # returns an array of questions
     def create_question(self, question_data):
         question_arr = []
-        for id, question_metadata in question_data:
+        for key_id, question_metadata in question_data:
             if question_metadata["question"] is None:
                 question_text = question_metadata["question_image"]
             else:
@@ -149,7 +149,7 @@ class TicTacLearnChef(SushiChef):
                     question_metadata["question"] + " " + question_metadata["question_image"]
 
             question = SingleSelectQuestion(
-                id=id,
+                id=key_id,
                 question=question_text,
                 correct_answer=question_metadata["correct_answer"],
                 all_answers=question_metadata["all_answers"],
