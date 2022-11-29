@@ -314,7 +314,8 @@ class TicTacLearnChef(SushiChef):
             pass
 
         dict_all_files = get_all_local_files(EXCEL_PATH)
-        data = read_assessment_xls(DICT_ASSESSMENT_XLS, dict_all_files)
+        dict_assessment_lang = DICT_ASSESSMENT_XLS.get(CHANNEL_LANGUAGE)
+        data = read_assessment_xls(dict_assessment_lang, dict_all_files)
 
         channel = self.upload_content(data, channel)
 
