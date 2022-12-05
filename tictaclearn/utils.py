@@ -275,12 +275,15 @@ def add_to_failed(path_arr):
             return
 
 
-def make_the_correct_path(language, subject, grade_string, chapter, vt, video_name):
+def make_the_correct_path(language, subject, grade_string, chapter, vt, video_name=None):
     """
     folder_path: Content from this folder path need to be check
     name: Looking if this name is inside this folder path
     """
-    lst_folders = [language, subject, grade_string, chapter, vt, video_name]
+    if video_name:
+        lst_folders = [language, subject, grade_string, chapter, vt, video_name]
+    else:
+        lst_folders = [language, subject, grade_string, chapter, vt]
     folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
 
     for folder in lst_folders:
@@ -347,8 +350,10 @@ def get_all_local_files(xls, language):
             vt_name = str(row['Topic Name']).lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
-            if not os.path.exists(vt):
-                vt = 'VT_Part {}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
+            vt_path = make_the_correct_path(language, subject, grade_string, chapter, vt)
+            if vt_path:
+                vt = vt_path.split(os.path.sep)[-1]
+
             video_name = str(row.get('Branded video link') or row.get('Branded video'))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'

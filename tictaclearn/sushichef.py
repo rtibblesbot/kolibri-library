@@ -18,7 +18,7 @@ import re
 # CHANNEL_ID = "64d440bdac615b549fa160ea341ab743"         # Main channel ID
 # CHANNEL_ID = "bc1a1352ba4f4324a2efbe4e0ec808f3"  # Test channel ID
 CHANNEL_NAME = "TicTacLearn"  # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "tictaclearn"  # Unique ID for content source
+CHANNEL_SOURCE_ID = "tictaclearn2"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://tictaclearn.org/"  # Who is providing the content
 CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_DESCRIPTION = None  # Description of the channel (optional)
