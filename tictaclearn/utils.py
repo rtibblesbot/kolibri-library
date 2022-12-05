@@ -280,24 +280,22 @@ def make_the_correct_path(language, subject, grade_string, chapter, vt, video_na
     folder_path: Content from this folder path need to be check
     name: Looking if this name is inside this folder path
     """
-    if video_name:
-        lst_folders = [language, subject, grade_string, chapter, vt, video_name]
-    else:
-        lst_folders = [language, subject, grade_string, chapter, vt]
+    lst_folders = [language, subject, grade_string, chapter, vt, video_name]
     folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
 
     for folder in lst_folders:
-        tmp_folder_path = os.path.join(os.path.join(folder_path, folder))
-        pathlib.Path(tmp_folder_path).exists()
-        if os.path.exists(tmp_folder_path):
-            folder_path = tmp_folder_path
-            continue
-        else:
-            lst_content = os.listdir(folder_path)
-            for content in lst_content:
-                if folder in content:
-                    folder_path = os.path.join(os.path.join(folder_path, content))
-                    break
+        if folder:
+            tmp_folder_path = os.path.join(os.path.join(folder_path, folder))
+            pathlib.Path(tmp_folder_path).exists()
+            if os.path.exists(tmp_folder_path):
+                folder_path = tmp_folder_path
+                continue
+            else:
+                lst_content = os.listdir(folder_path)
+                for content in lst_content:
+                    if folder in content:
+                        folder_path = os.path.join(os.path.join(folder_path, content))
+                        break
 
     if os.path.isfile(folder_path):
         return folder_path
