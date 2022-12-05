@@ -299,6 +299,8 @@ def make_the_correct_path(language, subject, grade_string, chapter, vt, video_na
 
     if os.path.isfile(folder_path):
         return folder_path
+    elif vt in folder_path:
+        return folder_path
     return None
 
 
@@ -338,7 +340,7 @@ def get_all_local_files(xls, language):
             try:
                 if vt_number is None:
                     vt_number = row.get('Video Topic Number')
-                elif vt_number is None:
+                if vt_number is None:
                     vt_number = (row.get('No of videos in the VT'))
                 if vt_number:
                     vt_number = str(int(vt_number))
@@ -351,7 +353,6 @@ def get_all_local_files(xls, language):
             vt_path = make_the_correct_path(language, subject, grade_string, chapter, vt)
             if vt_path:
                 vt = vt_path.split(os.path.sep)[-1]
-
             video_name = str(row.get('Branded video link') or row.get('Branded video'))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'

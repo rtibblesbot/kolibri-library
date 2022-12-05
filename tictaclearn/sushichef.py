@@ -131,7 +131,7 @@ class TicTacLearnChef(SushiChef):
             video_file = files.VideoFile(path=file_path)
             video_node = nodes.VideoNode(
                 title=title,
-                source_id=file_path,
+                source_id='video_local_{}'.format(file_path),
                 license=licenses.CC_BYLicense("TicTacLearn"),
                 files=[video_file]
             )
