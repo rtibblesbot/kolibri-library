@@ -120,29 +120,9 @@ def get_all_local_folder_paths(root_folder):
     desktop = pathlib.Path(root_folder)
     for folder_path in desktop.rglob('*.mp4'):
         file_path = folder_path.__str__()
+        abs_file_path = os.path.abspath(file_path)
         splitted_path = file_path.split(os.path.sep)
-        dict_all_local_files[splitted_path[-1]] = file_path
-
-        # video_name = splitted_path[-1]
-        # vt_name = splitted_path[-2]
-        # chapter = splitted_path[-3]
-        # grade_string = splitted_path[-4]
-        # subject = splitted_path[-5]
-        #
-        # if grade_string not in dict_all_local_files:
-        #     dict_all_local_files[grade_string] = {}
-        # if subject not in dict_all_local_files[grade_string]:
-        #     dict_all_local_files[grade_string][subject] = {}
-        # if chapter not in dict_all_local_files[grade_string][subject]:
-        #     dict_all_local_files[grade_string][subject][chapter] = {}
-        # if vt_name not in dict_all_local_files[grade_string][subject][chapter]:
-        #     dict_all_local_files[grade_string][subject][chapter][vt_name] = {}
-        # if content_type not in dict_all_local_files[grade_string][subject][chapter][vt_name]:
-        #     dict_all_local_files[grade_string][subject][chapter][vt_name][content_type] = {}
-        # if video_name not in dict_all_local_files[grade_string][subject][chapter][vt_name][
-        #     content_type] and file_path:
-        #     dict_all_local_files[grade_string][subject][chapter][vt_name][content_type][
-        #         video_name] = str(file_path)
+        dict_all_local_files[splitted_path[-1]] = abs_file_path
     return dict_all_local_files
 
 
