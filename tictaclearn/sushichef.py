@@ -177,7 +177,7 @@ class TicTacLearnChef(SushiChef):
                     source_id="{}-{}".format(language, grade),
                     author="TicTacLearn",
                     description='',
-                    thumbnail=TTL_MAIN_LOGO,
+                    # thumbnail=TTL_MAIN_LOGO,
                     language=getlang_by_name(language)
                 )
 
@@ -188,7 +188,7 @@ class TicTacLearnChef(SushiChef):
                         source_id="{}-{}-{}".format(language, grade, subject),
                         author="TicTacLearn",
                         description='',
-                        thumbnail=TTL_MAIN_LOGO,
+                        # thumbnail=TTL_MAIN_LOGO,
                         language=getlang_by_name(language)
                     )
                     for chapter, chapter_value in subject_value.items():
@@ -199,7 +199,7 @@ class TicTacLearnChef(SushiChef):
                                 source_id="{}-{}-{}-{}".format(language, grade, subject, chapter),
                                 author="TicTacLearn",
                                 description='',
-                                thumbnail=TTL_MAIN_LOGO,
+                                # thumbnail=TTL_MAIN_LOGO,
                                 language=getlang_by_name(language)
                             )
                             for topic, topic_value in chapter_value.items():
@@ -214,7 +214,7 @@ class TicTacLearnChef(SushiChef):
                                             description="Chapter Assessment",
                                             language=getlang_by_name(language),
                                             license=licenses.CC_BYLicense("TicTacLearn"),
-                                            thumbnail=TTL_MAIN_LOGO,
+                                            # thumbnail=TTL_MAIN_LOGO,
                                             exercise_data={
                                                 "mastery_model": exercises.M_OF_N,
                                                 "m": len(questions),
@@ -230,7 +230,7 @@ class TicTacLearnChef(SushiChef):
                                         source_id="{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic),
                                         author="TicTacLearn",
                                         description='',
-                                        thumbnail=TTL_MAIN_LOGO,
+                                        # thumbnail=TTL_MAIN_LOGO,
                                         language=getlang_by_name(language)
                                     )
                                     for content_type, content in topic_value.items():
@@ -255,7 +255,7 @@ class TicTacLearnChef(SushiChef):
                                                 author="TicTacLearn",
                                                 description="{} Assessment".format(topic),
                                                 license=licenses.CC_BYLicense("TicTacLearn"),
-                                                thumbnail=TTL_MAIN_LOGO,
+                                                # thumbnail=TTL_MAIN_LOGO,
                                                 exercise_data={
                                                     "mastery_model": exercises.M_OF_N,
                                                     "m": len(questions),
