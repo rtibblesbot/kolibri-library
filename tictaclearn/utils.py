@@ -115,6 +115,37 @@ def read_videos_xls(xls):
     return data_dict
 
 
+def get_all_local_folder_paths(root_folder):
+    dict_all_local_files = {}
+    desktop = pathlib.Path(root_folder)
+    content_type = 'video'
+    for folder_path in desktop.rglob('*.mp4'):
+        file_path = folder_path.__str__()
+        splitted_path = file_path.split(os.path.sep)
+        video_name = splitted_path[-1]
+        vt_name = splitted_path[-2]
+        chapter = splitted_path[-3]
+        grade_string = splitted_path[-4]
+        subject = splitted_path[-5]
+
+        if grade_string not in dict_all_local_files:
+            dict_all_local_files[grade_string] = {}
+        if subject not in dict_all_local_files[grade_string]:
+            dict_all_local_files[grade_string][subject] = {}
+        if chapter not in dict_all_local_files[grade_string][subject]:
+            dict_all_local_files[grade_string][subject][chapter] = {}
+        if vt_name not in dict_all_local_files[grade_string][subject][chapter]:
+            dict_all_local_files[grade_string][subject][chapter][vt_name] = {}
+        if content_type not in dict_all_local_files[grade_string][subject][chapter][vt_name]:
+            dict_all_local_files[grade_string][subject][chapter][vt_name][content_type] = {}
+        if video_name not in dict_all_local_files[grade_string][subject][chapter][vt_name][
+            content_type] and file_path:
+            dict_all_local_files[grade_string][subject][chapter][vt_name][content_type][
+                video_name] = str(file_path)
+    return dict_all_local_files
+
+
+
 def read_assessment_xls(dict_xls, data):
     for key in dict_xls:
         data_from_xls = pandas.read_excel(dict_xls.get(key), keep_default_na=False, na_values='', engine='openpyxl')
