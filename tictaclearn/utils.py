@@ -123,6 +123,11 @@ def get_all_local_folder_paths(root_folder):
         abs_file_path = os.path.abspath(file_path)
         splitted_path = file_path.split(os.path.sep)
         dict_all_local_files[splitted_path[-1]] = abs_file_path
+    for folder_path in desktop.rglob('*.MP4'):
+        file_path = folder_path.__str__()
+        abs_file_path = os.path.abspath(file_path)
+        splitted_path = file_path.split(os.path.sep)
+        dict_all_local_files[splitted_path[-1]] = abs_file_path
     return dict_all_local_files
 
 
@@ -383,6 +388,7 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             if video_name not in dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name][
                 content_type]:
                 file_path = dict_all_files_paths.get(video_name)
-                dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name][content_type][
-                    video_name] = str(file_path)
+                if file_path:
+                    dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name][content_type][
+                        video_name] = str(file_path)
     return dict_all_files_with_local_path
