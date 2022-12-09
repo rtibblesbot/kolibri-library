@@ -333,8 +333,9 @@ class TicTacLearnChef(SushiChef):
             pass
 
         language = getlang(CHANNEL_LANGUAGE)
-        dict_all_files = get_all_local_files(EXCEL_PATH, language.name)
-        print(dict_all_files)
+        root_folder = 'downloads/{}'.format(str(language).capitalize())
+        dict_all_files_paths = get_all_local_folder_paths(root_folder)
+        dict_all_files = get_all_local_files(EXCEL_PATH, language.name, dict_all_files_paths)
         dict_assessment_lang = DICT_ASSESSMENT_XLS.get(CHANNEL_LANGUAGE)
         data = read_assessment_xls(dict_assessment_lang, dict_all_files)
 
