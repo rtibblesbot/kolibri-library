@@ -126,12 +126,12 @@ class TicTacLearnChef(SushiChef):
 
         return video_node
 
-    def video_node_from_local_storage(self, title, file_path):
+    def video_node_from_local_storage(self, title, file_path, topic_name):
         if os.path.exists(file_path):
-            video_file = files.VideoFile(path=file_path)
+            video_file = files.VideoFile(path=file_path, ffmpeg_settings={"max_width": 720})
             video_node = nodes.VideoNode(
                 title=title,
-                source_id='video_local_{}'.format(file_path),
+                source_id='video_local_topic_name_{}'.format(title),
                 license=licenses.CC_BYLicense("TicTacLearn"),
                 files=[video_file]
             )
@@ -238,11 +238,13 @@ class TicTacLearnChef(SushiChef):
                                             for file_name in content:
                                                 try:
                                                     video_node = self.video_node_from_local_storage(
-                                                        file_name, content.get(file_name))
+                                                        file_name, content.get(file_name), topic)
                                                     topic_node.add_child(video_node)
                                                 except Exception as e:
                                                     LOGGER.info(e)
-                                                    LOGGER.info("{}-{}-{}-{}-{}".format(language, grade, subject, chapter, topic))
+                                                    LOGGER.info(
+                                                        "{}-{}-{}-{}-{}".format(language, grade, subject, chapter,
+                                                                                topic))
                                                     LOGGER.info("Error getting video from local with path: {}".format(
                                                         content))
                                         else:

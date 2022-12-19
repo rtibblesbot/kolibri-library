@@ -120,16 +120,10 @@ def get_all_local_folder_paths(root_folder):
     desktop = pathlib.Path(root_folder)
     for folder_path in desktop.rglob('*.mp4'):
         file_path = folder_path.__str__()
-        abs_file_path = os.path.abspath(file_path)
+        abs_file_path = os.path.abspath(file_path.replace("'", "_"))
         splitted_path = file_path.split(os.path.sep)
-        dict_all_local_files[splitted_path[-1]] = abs_file_path
-    for folder_path in desktop.rglob('*.MP4'):
-        file_path = folder_path.__str__()
-        abs_file_path = os.path.abspath(file_path)
-        splitted_path = file_path.split(os.path.sep)
-        dict_all_local_files[splitted_path[-1]] = abs_file_path
+        dict_all_local_files[splitted_path[-1].lower()] = abs_file_path
     return dict_all_local_files
-
 
 
 def read_assessment_xls(dict_xls, data):
@@ -346,10 +340,11 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             chapter_number = row.get('Chapter No')
             if chapter_number is None:
                 chapter_number = row.get('Chapter Number')
-            chapter_name = str(row['Chapter Name']).replace('?', '_')
+            chapter_name = str(parse.unquote(row.get('Chapter Name')).replace('?', '_'))
             chapter = None
             try:
-                chapter = 'Chapter_{}_{}'.format(int(chapter_number), chapter_name.strip().replace(' ', '_').upper())
+                chapter = 'Chapter_{}_{}'.format(int(chapter_number),
+                                                 str(chapter_name.strip().replace(' ', '_').replace("'", "'")).upper())
             except Exception as ex:
                 print(chapter_name)
                 print(ex)
@@ -367,9 +362,6 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             vt_name = str(row['Topic Name']).lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
-            vt_path = make_the_correct_path(language, subject, grade_string, chapter, vt)
-            if vt_path:
-                vt = vt_path.split(os.path.sep)[-1]
             video_name = str(row.get('Branded video link') or row.get('Branded video'))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'
@@ -381,14 +373,14 @@ def get_all_local_files(xls, language, dict_all_files_paths):
                 dict_all_files_with_local_path[language][grade_string][subject] = {}
             if chapter not in dict_all_files_with_local_path[language][grade_string][subject]:
                 dict_all_files_with_local_path[language][grade_string][subject][chapter] = {}
-            if vt_name not in dict_all_files_with_local_path[language][grade_string][subject][chapter]:
-                dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name] = {}
-            if content_type not in dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name]:
-                dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name][content_type] = {}
-            if video_name not in dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name][
+            if vt not in dict_all_files_with_local_path[language][grade_string][subject][chapter]:
+                dict_all_files_with_local_path[language][grade_string][subject][chapter][vt] = {}
+            if content_type not in dict_all_files_with_local_path[language][grade_string][subject][chapter][vt]:
+                dict_all_files_with_local_path[language][grade_string][subject][chapter][vt][content_type] = {}
+            if video_name not in dict_all_files_with_local_path[language][grade_string][subject][chapter][vt][
                 content_type]:
-                file_path = dict_all_files_paths.get(video_name)
+                file_path = dict_all_files_paths.get(video_name.lower())
                 if file_path:
-                    dict_all_files_with_local_path[language][grade_string][subject][chapter][vt_name][content_type][
+                    dict_all_files_with_local_path[language][grade_string][subject][chapter][vt][content_type][
                         video_name] = str(file_path)
     return dict_all_files_with_local_path
