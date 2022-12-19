@@ -269,11 +269,12 @@ class TicTacLearnChef(SushiChef):
                                             topic_node.add_child(exercise_node)
 
                                     chapter_node.add_child(topic_node)
+                                chapter_node.sort_children()
                             subject_node.add_child(chapter_node)
+                        subject_node.sort_children()
                     grade_node.add_child(subject_node)
-                language_node.add_child(grade_node)
-            channel.add_child(language_node)
-
+                grade_node.sort_children()
+                channel.add_child(grade_node)
         return channel
 
     def get_file_id(self, url):
