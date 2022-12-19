@@ -121,7 +121,7 @@ def get_all_local_folder_paths(root_folder):
     for folder_path in desktop.rglob('*.mp4'):
         file_path = folder_path.__str__()
         splitted_path = file_path.split(os.path.sep)
-        dict_all_local_files[splitted_path[-1].lower()] = file_path.lower()
+        dict_all_local_files[splitted_path[-1].lower()] = file_path
     return dict_all_local_files
 
 
@@ -362,7 +362,7 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             vt_name = str(row['Topic Name']).lower().strip()
             vt_name = vt_name.replace('?', '_')
             vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
-            video_name = str(row.get('Branded video link') or row.get('Branded video'))
+            video_name = str(row.get('Branded video link') or str(row.get('Branded video')))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'
             if language not in dict_all_files_with_local_path:
