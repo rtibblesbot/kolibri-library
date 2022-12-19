@@ -340,7 +340,7 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             chapter_number = row.get('Chapter No')
             if chapter_number is None:
                 chapter_number = row.get('Chapter Number')
-            chapter_name = str(parse.unquote(row.get('Chapter Name')).replace('?', '_'))
+            chapter_name = str(parse.unquote(str(row.get('Chapter Name'))).replace('?', '_'))
             chapter = None
             try:
                 chapter = 'Chapter_{}_{}'.format(int(chapter_number),
