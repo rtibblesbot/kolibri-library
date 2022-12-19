@@ -273,8 +273,7 @@ class TicTacLearnChef(SushiChef):
                             subject_node.add_child(chapter_node)
                         subject_node.sort_children()
                     grade_node.add_child(subject_node)
-                language_node.add_child(grade_node)
-            channel.add_child(language_node)
+                channel.add_child(grade_node)
 
         return channel
 
