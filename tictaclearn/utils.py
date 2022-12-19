@@ -125,7 +125,6 @@ def get_all_local_folder_paths(root_folder):
     return dict_all_local_files
 
 
-
 def read_assessment_xls(dict_xls, data):
     for key in dict_xls:
         data_from_xls = pandas.read_excel(dict_xls.get(key), keep_default_na=False, na_values='', engine='openpyxl')
@@ -252,7 +251,8 @@ def read_assessment_xls(dict_xls, data):
 
 def get_image_path(image_path, image_string):
     # path_arr = image_string.replace(" ", "").split('/')
-    path = os.path.join(image_path, image_string)
+    path_image = image_string.replace("/", os.path.sep)
+    path = os.path.join(image_path, path_image)
     if not os.path.isfile(path):
         add_to_failed(image_path)
     return path
