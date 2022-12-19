@@ -120,10 +120,10 @@ def get_all_local_folder_paths(root_folder):
     desktop = pathlib.Path(root_folder)
     for folder_path in desktop.rglob('*.mp4'):
         file_path = folder_path.__str__()
-        abs_file_path = os.path.abspath(file_path.replace("'", "_"))
         splitted_path = file_path.split(os.path.sep)
-        dict_all_local_files[splitted_path[-1].lower()] = abs_file_path
+        dict_all_local_files[splitted_path[-1].lower()] = file_path.lower()
     return dict_all_local_files
+
 
 
 def read_assessment_xls(dict_xls, data):
