@@ -39,82 +39,6 @@ def integer_to_roman(num):
     return ans
 
 
-def read_videos_xls(xls):
-    """
-    Build dict for channel structure
-    Dict structure:
-        Language > Grade > Subject > Chapter > Topic Name > Content Type > Content
-    """
-    wb = load_workbook(xls)
-    sheetnames = wb.sheetnames
-    dict_sheet_names = {}
-    for sheet_name in sheetnames:
-        if 'english' in sheet_name.lower():
-            if 'english' not in dict_sheet_names:
-                dict_sheet_names['english'] = [sheet_name]
-            else:
-                dict_sheet_names['english'].append(sheet_name)
-
-    # building dict row by row
-    data_dict = {}
-    for language in dict_sheet_names:
-        for sheet in dict_sheet_names[language]:
-            data_from_xls = pandas.read_excel(xls, sheet_name=sheet, keep_default_na=False, na_values='')
-            for index, row in data_from_xls.iterrows():
-                # Skip any content that does not have a link and all assessments
-                # as we will be getting assessment data from a separate xls
-                # adding language keys to dict
-                # converting strings to lower due to inconsistent naming convention in xls
-                # language = row["Language"].lower().strip()
-                if language not in data_dict:
-                    data_dict[language] = {}
-
-                # addingggrade keys to dict
-                grade = row["Grade"]
-                if grade not in data_dict[language]:
-                    data_dict[language][grade] = {}
-
-                subject = sheet.split(' ')[0]
-                if subject not in data_dict[language][grade]:
-                    data_dict[language][grade][subject] = {}
-
-                chapter_num = row['Chapter Number']
-                chapter_name = row["Chapter Name"].lower().strip()
-                chapter_name = chapter_name.replace('?', '')
-                chapter = "{} - {}".format(chapter_num, chapter_name)
-
-                if chapter not in data_dict[language][grade][subject]:
-                    data_dict[language][grade][subject][chapter] = {}
-
-                topic_name = row["Topic Name"].lower().strip()
-                if topic_name not in data_dict[language][grade][subject][chapter]:
-                    data_dict[language][grade][subject][chapter][topic_name] = {}
-                # adding chapter assessment
-                # data_dict[language][grade][subject][chapter][topic_name]["chapter assessment"] = {}
-
-                # Assessment = Exercise, Video = Video
-                content_type = 'Video'
-                if content_type not in data_dict[language][grade][subject][chapter][topic_name]:
-                    data_dict[language][grade][subject][chapter][topic_name][content_type] = {}
-                if row.get("Branded video link"):
-                    link = row["Branded video link"].lower().strip()
-                elif row.get("Branded video"):
-                    link = row["Branded video"].lower().strip()
-                else:
-                    link = row.get("Link to Content").lower().strip()
-                    if 'dropbox' in link.lower():
-                        print()
-
-                if link not in data_dict[language][grade][subject][chapter][topic_name][content_type]:
-                    data_dict[language][grade][subject][chapter][topic_name][content_type][link] = {
-                        "title": row["Video topic as per Youtube"],
-                        "copyright": 'TicTacLearn',
-                        "license": 'TicTacLearn',
-                        "icon": logo
-                    }
-    return data_dict
-
-
 def get_all_local_folder_paths(root_folder):
     dict_all_local_files = {}
     desktop = pathlib.Path(root_folder)
@@ -126,22 +50,27 @@ def get_all_local_folder_paths(root_folder):
 
 
 def read_assessment_xls(dict_xls, data):
+    """
+    Build dict for channel structure
+    Dict structure:
+        Language > Grade > Subject > Chapter > Topic Name > Content Type > Content
+    """
+
     for key in dict_xls:
         data_from_xls = pandas.read_excel(dict_xls.get(key), keep_default_na=False, na_values='', engine='openpyxl')
         # to map to correct option given which is the right answer
         for index, row in data_from_xls.iterrows():
             question_parts = [x.strip() for x in row["Question Set Name"].split("|")]
             topic = None
-            chapter_title = None
             if len(question_parts) == 4:
                 chapter_title = question_parts[0]
             elif len(question_parts) == 5:
                 # if normal assessment, chapter is located at str_parts[1] and topic is located at str_parts[0]
-                topic = question_parts[0].lower().strip()
+                topic = str(question_parts[0].strip().lower()).capitalize()
                 chapter_title = question_parts[1].strip()
             elif len(question_parts) == 7 or len(question_parts) == 6:
                 # if normal assessment, chapter is located at str_parts[1] and topic is located at str_parts[0]
-                topic = question_parts[0].lower().strip()
+                topic = str(question_parts[0].strip().lower()).capitalize()
                 chapter_title = question_parts[1].strip()
             else:
                 print("Error: Question Set Name not in correct format")
@@ -157,7 +86,7 @@ def read_assessment_xls(dict_xls, data):
             else:
                 subject = row["Subject"].capitalize()
 
-            chapter = "Chapter_{}_{}".format(row["ChapterNo"], chapter_title.replace(' ', '_').upper())
+            chapter = "{} - {}".format(row["ChapterNo"], chapter_title.lower().title())
             image_path = os.path.abspath(os.path.join(DICT_IMAGES.get(subject), language))
             content_type = "assessment"
 
@@ -241,9 +170,8 @@ def read_assessment_xls(dict_xls, data):
                         and data[language][grade][subject].get(chapter) \
                         and chapter_assessment not in data[language][grade][subject][chapter]:
                     data[language][grade][subject][chapter][chapter_assessment] = {}
-                if data[language][grade].get(subject) and data[language][grade][subject].get(chapter) and \
-                        data[language][grade][subject][chapter].get(chapter_assessment):
-                    data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
+                    if data[language][grade].get(subject) and data[language][grade][subject].get(chapter):
+                        data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
             # location where to add question objects
 
     return data
@@ -340,28 +268,16 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             chapter_number = row.get('Chapter No')
             if chapter_number is None:
                 chapter_number = row.get('Chapter Number')
-            chapter_name = str(parse.unquote(str(row.get('Chapter Name'))).replace('?', '_'))
+            chapter_name = str(parse.unquote(str(row.get('Chapter Name'))))
             chapter = None
             try:
-                chapter = 'Chapter_{}_{}'.format(int(chapter_number),
-                                                 str(chapter_name.strip().replace(' ', '_').replace("'", "'")).upper())
+                chapter = '{} - {}'.format(int(chapter_number), str(chapter_name.strip().replace("'", "'")).lower().title())
             except Exception as ex:
                 print(chapter_name)
                 print(ex)
-            vt_number = row.get('Video Topic Number ')
-            try:
-                if vt_number is None:
-                    vt_number = row.get('Video Topic Number')
-                if vt_number is None:
-                    vt_number = (row.get('No of videos in the VT'))
-                if vt_number:
-                    vt_number = str(int(vt_number))
-            except Exception as ex:
-                print(vt_number)
-                print(ex)
-            vt_name = str(row['Topic Name']).lower().strip()
-            vt_name = vt_name.replace('?', '_')
-            vt = 'VT_{}_{}'.format(vt_number, vt_name.strip().replace(' ', '_').upper())
+            vt_name = str(row['Video topic as per Youtube']).strip()
+            vt_name = vt_name.split('|')[0].strip()
+            vt = vt_name.lower().capitalize()
             video_name = str(row.get('Branded video link') or str(row.get('Branded video')))
             video_name = parse.unquote(video_name.split('/')[-1].split('?')[0])
             content_type = 'video'
