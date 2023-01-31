@@ -42,7 +42,8 @@ def integer_to_roman(num):
 def get_all_local_folder_paths(root_folder):
     dict_all_local_files = {}
     desktop = pathlib.Path(root_folder)
-    for folder_path in desktop.rglob('*.mp4'):
+    suffix = '*.[mM][pP]4'
+    for folder_path in desktop.rglob(suffix):
         file_path = folder_path.__str__()
         splitted_path = file_path.split(os.path.sep)
         dict_all_local_files[splitted_path[-1].lower()] = file_path
@@ -271,7 +272,8 @@ def get_all_local_files(xls, language, dict_all_files_paths):
             chapter_name = str(parse.unquote(str(row.get('Chapter Name'))))
             chapter = None
             try:
-                chapter = '{} - {}'.format(int(chapter_number), str(chapter_name.strip().replace("'", "'")).lower().title())
+                chapter = '{} - {}'.format(int(chapter_number),
+                                           str(chapter_name.strip().replace("'", "'")).lower().title())
             except Exception as ex:
                 print(chapter_name)
                 print(ex)
