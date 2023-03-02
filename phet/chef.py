@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import json
 import re
@@ -20,6 +21,7 @@ from requests.packages.urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
 from deep_translator import GoogleTranslator
+from metadata_tags import METADATA_BY_SLUG
 
 retry_strategy = Retry(
     total=5,
@@ -111,8 +113,8 @@ CHANNEL_DESCRIPTIONS = {
 }
 
 # CHANNEL_ID = "d5c3b3aa38fd46c09b4643cea5d21779"  # Test channel ID
-CHANNEL_NAME = {"en": "channel PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations"  # Unique ID for content source
+CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
+CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations_TEST"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://phet.colorado.edu"  # Who is providing the content
 CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
@@ -166,13 +168,15 @@ class PhETSushiChef(SushiChef):
     def construct_channel(self, **kwargs):
         # channel = self.get_channel(**kwargs)
         channel_info = self.channel_info
-        LANGUAGE = kwargs.get("lang", "en")
-        self.translator = GoogleTranslator(source='en', target=LANGUAGE)
+        LANGUAGE = CHANNEL_LANGUAGE
+        if not LANGUAGE:
+            LANGUAGE = kwargs.get("lang", "en")
+        self.translator = GoogleTranslator(source='auto', target=LANGUAGE)
         dict_downloaded_paths = {}
         title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
         if not title:
             title = channel_info['CHANNEL_TITLE'].get('en')
-            title = f'{title}-{LANGUAGE}'
+            title = '{}-{}'.format(title, LANGUAGE)
         description = channel_info.get('CHANNEL_DESCRIPTION').get(LANGUAGE)
         if not description:
             description = channel_info.get('CHANNEL_DESCRIPTION').get("en")
@@ -184,7 +188,7 @@ class PhETSushiChef(SushiChef):
             title=title,
             thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
             description=description,
-            language="en",
+            language=LANGUAGE,
         )
 
         # r = sess.get("https://phet.colorado.edu/services/metadata/1.1/simulations?format=json&type=html&locale=" + LANGUAGE)
@@ -222,6 +226,10 @@ class PhETSushiChef(SushiChef):
         """
         print("Processing category:", cat_id)
         cat = categories[str(cat_id)]
+        cat_name = None
+        dict_cat_name = cat['strings']
+        if dict_cat_name.get('en'):
+            cat_name = dict_cat_name.get('en')
         # loop through all subtopics and recursively add them
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
@@ -235,17 +243,38 @@ class PhETSushiChef(SushiChef):
             title = title.replace(" And ", " and ")
             title = title.replace("Mathconcepts", "Concepts")
             title = title.replace("Mathapplications", "Applications")
-            if language == "ar":
+            if language == 'en':
+                pass
+            elif language == "ar":
                 title = ARABIC_NAME_CATEGORY[title]
             elif language == 'ht':
                 title = HAITIAN_NAME_CATEGORY[title]
             else:
                 title = self.translator.translate(title)
             # create the topic node, and add it to the parent
-            subtopic = TopicNode(
-                source_id=subcat["name"],
-                title=title,
-            )
+            metadata = {}
+            if METADATA_BY_SLUG.get(cat_name):
+                metadata = METADATA_BY_SLUG.get(cat_name)
+            sub_name = subcat.get('strings').get('en')
+            sub_cat_metadata = METADATA_BY_SLUG.get(sub_name.lower())
+            if sub_cat_metadata:
+                if metadata.get('grade_levels'):
+                    metadata.get('grade_levels').append(sub_cat_metadata.get('grade_levels'))
+                if metadata.get('categories'):
+                    metadata.get('categories').append(sub_cat_metadata.get('categories'))
+                if not metadata:
+                    metadata.update(sub_cat_metadata)
+            if metadata:
+                subtopic = TopicNode(
+                    source_id=subcat["name"],
+                    title=title,
+                    **metadata
+                )
+            else:
+                subtopic = TopicNode(
+                    source_id=subcat["name"],
+                    title=title
+                )
             parent.add_child(subtopic)
             # recursively download the contents of the topic
             self.download_category(subtopic, child_id, categories, sims, keywords, language, dict_downloaded_paths)
@@ -268,6 +297,8 @@ class PhETSushiChef(SushiChef):
         # localized_sim = sim["localizedSimulations"][0]
         run_url = sim.get('defaultData').get('runUrl')
         title = sim.get('defaultData').get('title')
+        if sim.get('highGradeLevel'):
+            grade_level = sim.get('highGradeLevel').get('key')
         if sim.get('localizedData') and sim.get('localizedData').get(language):
             if sim.get('localizedData').get(language).get('runUrl'):
                 run_url = sim.get('localizedData').get(language).get('runUrl')
@@ -334,7 +365,7 @@ class PhETSushiChef(SushiChef):
         )
 
         # if there's a video, extract it and put it in the topic right before the sim
-        if sim_detail_data.get('defaultData') and sim_detail_data.get('defaultData').get('simPrimerVideoData'):
+        if sim_detail_data.get('defaultData') and sim_detail_data.get('defaultData').get('simPrimerVimeoData'):
             videos = sim_detail_data["defaultData"]["simPrimerVimeoData"]['files']
             if videos:
                 video_url = [v for v in videos if v.get("height") == 540][0]["link"]

@@ -1,2 +1,4 @@
 ricecooker
 translate
+requests
+deep_translator
