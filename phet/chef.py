@@ -116,7 +116,7 @@ CHANNEL_DESCRIPTIONS = {
 CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations_TEST"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://phet.colorado.edu"  # Who is providing the content
-CHANNEL_LANGUAGE = "en"  # Language of channel
+CHANNEL_LANGUAGE = "sk"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
 
 
@@ -131,6 +131,7 @@ class PhETSushiChef(SushiChef):
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL
     }
     translator = None
+    lang_en_translator = None
 
     def get_channel(self, **kwargs):
         LANGUAGE = kwargs.get("lang", "en")
@@ -172,6 +173,8 @@ class PhETSushiChef(SushiChef):
         if not LANGUAGE:
             LANGUAGE = kwargs.get("lang", "en")
         self.translator = GoogleTranslator(source='auto', target=LANGUAGE)
+        self.lang_en_translator = GoogleTranslator(source=CHANNEL_LANGUAGE, target='en')
+
         dict_downloaded_paths = {}
         title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
         if not title:
@@ -230,9 +233,12 @@ class PhETSushiChef(SushiChef):
         dict_cat_name = cat['strings']
         if dict_cat_name.get('en'):
             cat_name = dict_cat_name.get('en')
+        elif dict_cat_name.get(CHANNEL_LANGUAGE):
+            cat_name = dict_cat_name.get(CHANNEL_LANGUAGE)
         # loop through all subtopics and recursively add them
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
+            sub_cat_metadata = None
             # look up the child category by ID
             subcat = categories[str(child_id)]
             # skip it if it's in our blacklist
@@ -243,6 +249,7 @@ class PhETSushiChef(SushiChef):
             title = title.replace(" And ", " and ")
             title = title.replace("Mathconcepts", "Concepts")
             title = title.replace("Mathapplications", "Applications")
+            print("title", title)
             if language == 'en':
                 pass
             elif language == "ar":
@@ -253,10 +260,16 @@ class PhETSushiChef(SushiChef):
                 title = self.translator.translate(title)
             # create the topic node, and add it to the parent
             metadata = {}
-            if METADATA_BY_SLUG.get(cat_name):
-                metadata = METADATA_BY_SLUG.get(cat_name)
-            sub_name = subcat.get('strings').get('en')
-            sub_cat_metadata = METADATA_BY_SLUG.get(sub_name.lower())
+            print("cat_name",cat_name)
+            if cat_name and METADATA_BY_SLUG.get(cat_name.lower()):
+                metadata = METADATA_BY_SLUG.get(cat_name.lower())
+            if subcat.get('strings'):
+                sub_name = subcat.get('strings').get(CHANNEL_LANGUAGE)
+                print("sub_name", sub_name)
+                if CHANNEL_LANGUAGE != 'en':
+                    sub_name_translated = self.lang_en_translator.translate(text=sub_name)
+                    print("sub_name_translated",sub_name_translated)
+                    sub_cat_metadata = METADATA_BY_SLUG.get(sub_name_translated.lower())
             if sub_cat_metadata:
                 if metadata.get('grade_levels'):
                     metadata.get('grade_levels').append(sub_cat_metadata.get('grade_levels'))
@@ -264,6 +277,11 @@ class PhETSushiChef(SushiChef):
                     metadata.get('categories').append(sub_cat_metadata.get('categories'))
                 if not metadata:
                     metadata.update(sub_cat_metadata)
+            if not metadata:
+                cat_translated = self.lang_en_translator.translate(text=title)
+                if METADATA_BY_SLUG.get(cat_translated.lower()):
+                    metadata = METADATA_BY_SLUG.get(cat_translated.lower())
+            print(metadata)
             if metadata:
                 subtopic = TopicNode(
                     source_id=subcat["name"],
