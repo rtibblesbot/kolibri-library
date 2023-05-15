@@ -254,7 +254,7 @@ def make_html5zip_from_text_item(text_item):
     template = Template(template_src)
 
     # extract properties
-    time_object = json.dumps(text_item['time_object'])
+    time_object = text_item['time_object']
     title = text_item["title"]
     content = text_item["body"]
     author=text_item["author"]["name"],
