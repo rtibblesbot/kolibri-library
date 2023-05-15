@@ -249,10 +249,12 @@ def make_html5zip_from_text_item(text_item):
 
     # load template
     template_path = os.path.join(HTML5APP_TEMPLATE, "index.template.html")
+    script_highlighter_path = os.path.join(HTML5APP_TEMPLATE, "text-highlighter-script.js")
     template_src = open(template_path).read()
     template = Template(template_src)
 
     # extract properties
+    time_object = json.dumps(text_item['time_object'])
     title = text_item["title"]
     content = text_item["body"]
     author=text_item["author"]["name"],
@@ -271,13 +273,15 @@ def make_html5zip_from_text_item(text_item):
         description=description,
         show_splash_image=show_splash_image,
         show_audio_element = show_audio_element,
-        audio_href = audio_href
+        audio_href = audio_href,
+        time_object=time_object
     )
 
     # save to zip file
     with HTMLWriter(zip_path, "w") as zipper:
         # index.html
         zipper.write_index_contents(index_html)
+        zipper.write_file(script_highlighter_path,filename='text-highlighter-script.js')
         # css/styles.css
         with open(os.path.join(HTML5APP_TEMPLATE, "css/styles.css")) as stylesf:
             zipper.write_contents("styles.css", stylesf.read(), directory="css/")
@@ -293,7 +297,7 @@ def make_html5zip_from_text_item(text_item):
 
 def html5_node_from_kamkalima_text_item(text_item):
     zip_path, audio_file = make_html5zip_from_text_item(text_item)
-
+    print(zip_path)
     files=[
         {
             "file_type": file_types.HTML5,
@@ -419,10 +423,10 @@ class KamkalimaChef(JsonTreeChef):
         ricecooker_json_tree = dict(
             # channel_id = 'e5d5dac2cd8d4059baddaa348714fa7c',  # test channel id
             # channel_id = 'd76da4d36cfd59279b575dfc6017aa13',    # main channel_id
-            channel_id = 'kamkalima_test_id',    # test channel_id
-            title="Kamkalima (العربيّة)",  # a humand-readbale title
+            channel_id = 'kamkalima_test_id_test',    # test channel_id
+            title="Kamkalima (العربيّة) Test",  # a humand-readbale title
             source_domain=KAMKALIMA_DOMAIN,  # content provider's domain
-            source_id="audios-and-texts_test",  # an alphanumeric channel ID
+            source_id="audios-and-texts_test-test",  # an alphanumeric channel ID
             description=KAMKALIMA_CHANNEL_DESCRIPTION,
             thumbnail="kk-logo.png",  # logo created from SVG
             language=getlang("ar").code,  # language code of channel
