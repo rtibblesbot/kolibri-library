@@ -254,7 +254,7 @@ def make_html5zip_from_text_item(text_item):
     template = Template(template_src)
 
     # extract properties
-    time_object = text_item['time_object']
+    time_object = json.loads(text_item['time_object'])
     title = text_item["title"]
     content = text_item["body"]
     author=text_item["author"]["name"],
@@ -502,7 +502,7 @@ class KamkalimaChef(JsonTreeChef):
                         grade_topic_node["children"].append(theme_topic_node)
                     
                     reading_topic_node["children"].append(grade_topic_node)
-                
+
         channel["children"].append(reading_topic_node)
 
 
