@@ -20,7 +20,7 @@
     {% if show_audio_element %}
     <br>
     <div class = "audio_style">
-      <audio controls src="{{ audio_href }}"></audio>
+      <audio id="audio-player" controls src="{{ audio_href }}"></audio>
     </div>
     <br>
     {% endif %}
@@ -31,9 +31,9 @@
 
   </div>
   <script src="text-highlighter-script.js"></script>
+  <script>
+    var timeObject = {{ time_object }};
+    textHighlighter.setTimeObject(timeObject);
+  </script>
 </body>
-<script>
-  var timeObject = {{ time_object }};
-  textHighlighter.setTimeObject(timeObject);
-</script>
 </html>
