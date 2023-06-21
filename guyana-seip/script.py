@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import csv
-import json
 import os
 import re
 
@@ -37,37 +36,6 @@ def convert_csv(csv_path):
     with open(csv_path, "r") as csvfile:
         reader = csv.DictReader(csvfile)
         return [convert_row(row) for row in reader]
-
-
-VIDEO_JSON_FOLDER = os.path.join("chefdata", "video_json")
-
-
-# create a csv folder in chefdata and write video info to it
-def get_youtube_playlist_data():
-    playlists = convert_csv("playlists.csv")
-
-    if not os.path.isdir(VIDEO_JSON_FOLDER):
-        os.makedirs(VIDEO_JSON_FOLDER)
-    for playlist_data in playlists:
-        if not os.path.isfile(
-            os.path.join(VIDEO_JSON_FOLDER, playlist_data["id"] + ".json")
-        ):
-            playlist = YouTubePlaylistUtils(
-                id=playlist_data["id"], cache_dir=YOUTUBE_CACHE_DIR
-            )
-            playlist_info = playlist.get_playlist_info(use_proxy=False)
-            for child in playlist_info["children"]:
-                video = YouTubeVideoUtils(id=child["id"], cache_dir=YOUTUBE_CACHE_DIR)
-                child["details"] = video.get_video_info(use_proxy=False)
-            with open(
-                os.path.join(VIDEO_JSON_FOLDER, playlist_data["id"] + ".json"), "w"
-            ) as outfile:
-                json.dump(playlist_info, outfile)
-    with open(
-        os.path.join(VIDEO_JSON_FOLDER, playlist_data["id"] + ".json")
-    ) as json_file:
-        playlist_data["info"] = json.load(json_file)
-    return playlists
 
 
 # Run constants
@@ -123,10 +91,13 @@ class GuyanaSEIPChef(SushiChef):
             *args, **kwargs
         )  # Create ChannelNode from data in self.channel_info
 
-        playlists = get_youtube_playlist_data()
+        playlists = convert_csv("playlists.csv")
 
         for playlist in playlists:
-            playlist_info = playlist["info"]
+            youtube_playlist = YouTubePlaylistUtils(
+                id=playlist["id"], cache_dir=YOUTUBE_CACHE_DIR
+            )
+            playlist_info = youtube_playlist.get_playlist_info(use_proxy=False)
             if playlist_info is None:
                 LOGGER.warning(
                     "Skipping playlist {0} as not available from YouTube".format(
@@ -163,7 +134,8 @@ class GuyanaSEIPChef(SushiChef):
             )
 
             for child in playlist_info["children"]:
-                video_details = child["details"]
+                video = YouTubeVideoUtils(id=child["id"], cache_dir=YOUTUBE_CACHE_DIR)
+                video_details = video.get_video_info(use_proxy=False)
                 if video_details is None:
                     LOGGER.warning(
                         "Skipping video {0} as not available from YouTube".format(
