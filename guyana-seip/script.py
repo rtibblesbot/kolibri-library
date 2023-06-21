@@ -10,6 +10,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes import files
 from ricecooker.classes import licenses
 from ricecooker.classes import nodes
+from ricecooker.config import LOGGER
 from ricecooker.utils.youtube import YouTubePlaylistUtils
 from ricecooker.utils.youtube import YouTubeVideoUtils
 
@@ -126,6 +127,13 @@ class GuyanaSEIPChef(SushiChef):
 
         for playlist in playlists:
             playlist_info = playlist["info"]
+            if playlist_info is None:
+                LOGGER.warning(
+                    "Skipping playlist {0} as not available from YouTube".format(
+                        playlist["id"]
+                    )
+                )
+                continue
 
             # Get channel description if there is any
             playlist_description = playlist_info["description"]
@@ -156,6 +164,13 @@ class GuyanaSEIPChef(SushiChef):
 
             for child in playlist_info["children"]:
                 video_details = child["details"]
+                if video_details is None:
+                    LOGGER.warning(
+                        "Skipping video {0} as not available from YouTube".format(
+                            child["id"]
+                        )
+                    )
+                    continue
                 video_source_id = "GuyanaSEIP-{0}-{1}".format(
                     playlist["id"], video_details["id"]
                 )
