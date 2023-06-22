@@ -35,7 +35,19 @@ def convert_row(row):
 def convert_csv(csv_path):
     with open(csv_path, "r") as csvfile:
         reader = csv.DictReader(csvfile)
-        return [convert_row(row) for row in reader]
+        grade_topics = []
+        grade_topic = None
+        for row in reader:
+            if row["Level 1 folders"]:
+                grade_topic = {
+                    "title": row["Level 1 folders"],
+                    "grade_level": row["grade_level"],
+                    "children": [],
+                }
+                grade_topics.append(grade_topic)
+            grade_topic["children"].append(convert_row(row))
+
+        return grade_topics
 
 
 # Run constants
@@ -45,7 +57,7 @@ CHANNEL_SOURCE_ID = "GuyanaLearningChannel"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://www.youtube.com/@GuyanaLearningChannel/playlists"  # Who is providing the content
 CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_DESCRIPTION = "Educational videos from the Guyana Ministry of Education for Grades 1 to 11. Including NGSA booster materials."  # Description of the channel (optional)
-CHANNEL_THUMBNAIL = "https://scontent-sjc3-1.xx.fbcdn.net/v/t39.30808-6/330600658_186248280790338_7083545507183946478_n.jpg?_nc_cat=103&ccb=1-7&_nc_sid=09cbfe&_nc_ohc=pCwUQY41DfYAX_DjO-P&_nc_ht=scontent-sjc3-1.xx&oh=00_AfD9bFU6QI6SZQWszr45l1jc6cdXPVav9JV881ah30aChg&oe=6497FC82"  # Local path or url to image file (optional)
+CHANNEL_THUMBNAIL = "https://yt3.googleusercontent.com/zRAVzOjRY_2DNJlZmH5nLzSmyE1VsGEL_doOVOY0cj9Z-G4pKgET4Q59acLtkRDsIb9L3x5WGxw=s176-c-k-c0x00ffffff-no-rj"  # Local path or url to image file (optional)
 
 COPYRIGHT_HOLDER = (
     "Guyana Ministry of Education"  # Name of content creator or rights holder
@@ -77,6 +89,10 @@ class GuyanaSEIPChef(SushiChef):
         "CHANNEL_DESCRIPTION": CHANNEL_DESCRIPTION,
     }
 
+    SETTINGS = {
+        "compress": True,
+    }
+
     def construct_channel(self, *args, **kwargs):
         """
         Creates ChannelNode and build topic tree
@@ -91,89 +107,105 @@ class GuyanaSEIPChef(SushiChef):
             *args, **kwargs
         )  # Create ChannelNode from data in self.channel_info
 
-        playlists = convert_csv("playlists.csv")
+        grade_topics = convert_csv("playlists.csv")
 
-        for playlist in playlists:
-            youtube_playlist = YouTubePlaylistUtils(
-                id=playlist["id"], cache_dir=YOUTUBE_CACHE_DIR
+        for grade_topic in grade_topics:
+            grade_topic_source_id = "guyana-moe-grade-topic-{0}".format(
+                grade_topic["title"]
             )
-            playlist_info = youtube_playlist.get_playlist_info(use_proxy=False)
-            if playlist_info is None:
-                LOGGER.warning(
-                    "Skipping playlist {0} as not available from YouTube".format(
-                        playlist["id"]
-                    )
-                )
-                continue
-
-            # Get channel description if there is any
-            playlist_description = playlist_info["description"]
-
             grade_levels = [
                 level
                 for level, label in levels.choices
-                if label.lower() == playlist["grade_level"].lower()
+                if label.lower() == grade_topic["grade_level"].lower()
             ]
-
-            categories = [
-                subject
-                for subject, label in subjects.choices
-                if label.lower() == playlist["subject"].lower()
-            ]
-
-            topic_source_id = "aimhi-child-topic-{0}".format(playlist_info["title"])
-            topic_node = nodes.TopicNode(
-                title=playlist_info["title"],
-                source_id=topic_source_id,
+            grade_topic_node = nodes.TopicNode(
+                title=grade_topic["title"],
+                source_id=grade_topic_source_id,
                 author=COPYRIGHT_HOLDER,
                 provider=COPYRIGHT_HOLDER,
-                description=playlist_description,
                 language=CHANNEL_LANGUAGE,
                 grade_levels=grade_levels,
-                categories=categories,
             )
-
-            for child in playlist_info["children"]:
-                video = YouTubeVideoUtils(id=child["id"], cache_dir=YOUTUBE_CACHE_DIR)
-                video_details = video.get_video_info(use_proxy=False)
-                if video_details is None:
+            playlists = grade_topic["children"]
+            for playlist in playlists:
+                youtube_playlist = YouTubePlaylistUtils(
+                    id=playlist["id"], cache_dir=YOUTUBE_CACHE_DIR
+                )
+                playlist_info = youtube_playlist.get_playlist_info(use_proxy=False)
+                if playlist_info is None:
                     LOGGER.warning(
-                        "Skipping video {0} as not available from YouTube".format(
-                            child["id"]
+                        "Skipping playlist {0} as not available from YouTube".format(
+                            playlist["id"]
                         )
                     )
                     continue
-                video_source_id = "GuyanaSEIP-{0}-{1}".format(
-                    playlist["id"], video_details["id"]
-                )
 
-                thumbnail_link = video_details["thumbnail"] or None
+                # Get channel description if there is any
+                playlist_description = playlist_info["description"]
 
-                video_node = nodes.VideoNode(
-                    source_id=video_source_id,
-                    title=video_details["title"],
-                    description=video_details["description"],
+                categories = [
+                    subject
+                    for subject, label in subjects.choices
+                    if label.lower() == playlist["subject"].lower()
+                ]
+
+                topic_source_id = "aimhi-child-topic-{0}".format(playlist_info["title"])
+                topic_node = nodes.TopicNode(
+                    title=playlist_info["title"],
+                    source_id=topic_source_id,
                     author=COPYRIGHT_HOLDER,
-                    language=CHANNEL_LANGUAGE,
                     provider=COPYRIGHT_HOLDER,
-                    thumbnail=thumbnail_link,
-                    license=licenses.get_license(
-                        "CC BY-NC-ND", copyright_holder=COPYRIGHT_HOLDER
-                    ),
-                    files=[
-                        files.YouTubeVideoFile(
-                            youtube_id=video_details["id"], language=CHANNEL_LANGUAGE
-                        )
-                    ],
+                    description=playlist_description,
+                    language=CHANNEL_LANGUAGE,
+                    categories=categories,
                 )
-                topic_node.add_child(video_node)
-                if topic_node.thumbnail is None and thumbnail_link is not None:
-                    # If the topic node does not have a thumbnail set the first
-                    # video's thumbnail as the topic thumbnail, parallel to youtube playlists
-                    topic_node.set_thumbnail(thumbnail_link)
+
+                for child in playlist_info["children"]:
+                    video = YouTubeVideoUtils(
+                        id=child["id"], cache_dir=YOUTUBE_CACHE_DIR
+                    )
+                    video_details = video.get_video_info(use_proxy=False)
+                    if video_details is None:
+                        LOGGER.warning(
+                            "Skipping video {0} as not available from YouTube".format(
+                                child["id"]
+                            )
+                        )
+                        continue
+                    video_source_id = "GuyanaSEIP-{0}-{1}".format(
+                        playlist["id"], video_details["id"]
+                    )
+
+                    thumbnail_link = video_details["thumbnail"] or None
+
+                    video_node = nodes.VideoNode(
+                        source_id=video_source_id,
+                        title=video_details["title"],
+                        description=video_details["description"],
+                        author=COPYRIGHT_HOLDER,
+                        language=CHANNEL_LANGUAGE,
+                        provider=COPYRIGHT_HOLDER,
+                        thumbnail=thumbnail_link,
+                        license=licenses.get_license(
+                            "CC BY-NC-ND", copyright_holder=COPYRIGHT_HOLDER
+                        ),
+                        files=[
+                            files.YouTubeVideoFile(
+                                youtube_id=video_details["id"],
+                                language=CHANNEL_LANGUAGE,
+                            )
+                        ],
+                    )
+                    topic_node.add_child(video_node)
+                    if topic_node.thumbnail is None and thumbnail_link is not None:
+                        # If the topic node does not have a thumbnail set the first
+                        # video's thumbnail as the topic thumbnail, parallel to youtube playlists
+                        topic_node.set_thumbnail(thumbnail_link)
+
+                grade_topic_node.add_child(topic_node)
 
             # add topic to channel
-            channel.add_child(topic_node)
+            channel.add_child(grade_topic_node)
 
         return channel
 
