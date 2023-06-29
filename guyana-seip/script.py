@@ -56,11 +56,12 @@ CHANNEL_NAME = "Guyana Learning Channel"  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "GuyanaLearningChannel"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://www.youtube.com/@GuyanaLearningChannel/playlists"  # Who is providing the content
 CHANNEL_LANGUAGE = "en"  # Language of channel
-CHANNEL_DESCRIPTION = "Educational videos from the Guyana Ministry of Education for Grades 1 to 11. Including NGSA booster materials."  # Description of the channel (optional)
+CHANNEL_DESCRIPTION = "The Guyana Learning Channel provides hundreds of educational videos covering most subjects in primary and secondary education, using a lesson format: in each video a teacher presents a lesson using interactive graphics. Approved by the Ministry of Education, Guyana."  # Description of the channel (optional)
 CHANNEL_THUMBNAIL = "https://yt3.googleusercontent.com/zRAVzOjRY_2DNJlZmH5nLzSmyE1VsGEL_doOVOY0cj9Z-G4pKgET4Q59acLtkRDsIb9L3x5WGxw=s176-c-k-c0x00ffffff-no-rj"  # Local path or url to image file (optional)
+CHANNEL_TAGLINE = "Hundreds of videos covering most of the subjects in primary and secondary education. Approved by the Ministry of Education, Guyana."
 
 COPYRIGHT_HOLDER = (
-    "Guyana Ministry of Education"  # Name of content creator or rights holder
+    "Ministry of Education, Guyana"  # Name of content creator or rights holder
 )
 
 
@@ -87,10 +88,12 @@ class GuyanaSEIPChef(SushiChef):
         "CHANNEL_LANGUAGE": CHANNEL_LANGUAGE,
         "CHANNEL_THUMBNAIL": CHANNEL_THUMBNAIL,
         "CHANNEL_DESCRIPTION": CHANNEL_DESCRIPTION,
+        "CHANNEL_TAGLINE": CHANNEL_TAGLINE,
     }
 
     SETTINGS = {
         "compress": True,
+        "video-height": 720,
     }
 
     def construct_channel(self, *args, **kwargs):
@@ -150,8 +153,18 @@ class GuyanaSEIPChef(SushiChef):
                 ]
 
                 topic_source_id = "aimhi-child-topic-{0}".format(playlist_info["title"])
+
+                title = playlist_info["title"]
+
+                if ":" in title:
+                    title = title.split(":")[0].strip()
+                elif "NGSA Booster" in title:
+                    title = title.split("-")[1].strip()
+                else:
+                    title = title.split("-")[0].strip()
+
                 topic_node = nodes.TopicNode(
-                    title=playlist_info["title"],
+                    title=title,
                     source_id=topic_source_id,
                     author=COPYRIGHT_HOLDER,
                     provider=COPYRIGHT_HOLDER,
@@ -178,6 +191,14 @@ class GuyanaSEIPChef(SushiChef):
 
                     thumbnail_link = video_details["thumbnail"] or None
 
+                    thumbnail_file = None
+
+                    if thumbnail_link:
+                        thumbnail_file = files.ThumbnailFile(thumbnail_link)
+                        thumbnail_file.process_file()
+                        if thumbnail_file.filename is None:
+                            thumbnail_file = None
+
                     video_node = nodes.VideoNode(
                         source_id=video_source_id,
                         title=video_details["title"],
@@ -185,7 +206,7 @@ class GuyanaSEIPChef(SushiChef):
                         author=COPYRIGHT_HOLDER,
                         language=CHANNEL_LANGUAGE,
                         provider=COPYRIGHT_HOLDER,
-                        thumbnail=thumbnail_link,
+                        thumbnail=thumbnail_file,
                         license=licenses.get_license(
                             "CC BY-NC-ND", copyright_holder=COPYRIGHT_HOLDER
                         ),
@@ -203,6 +224,13 @@ class GuyanaSEIPChef(SushiChef):
                         topic_node.set_thumbnail(thumbnail_link)
 
                 grade_topic_node.add_child(topic_node)
+                if (
+                    grade_topic_node.thumbnail is None
+                    and topic_node.thumbnail is not None
+                ):
+                    # If the grade topic node does not have a thumbnail set the first
+                    # topic's thumbnail as the grade topic thumbnail
+                    grade_topic_node.set_thumbnail(topic_node.thumbnail)
 
             # add topic to channel
             channel.add_child(grade_topic_node)
