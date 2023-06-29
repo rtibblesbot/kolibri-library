@@ -11,6 +11,7 @@ from ricecooker.chefs import SushiChef
 from ricecooker.classes import files
 from ricecooker.classes import licenses
 from ricecooker.classes import nodes
+from ricecooker.config import get_storage_path
 from ricecooker.config import LOGGER
 from ricecooker.utils.youtube import YouTubePlaylistUtils
 from ricecooker.utils.youtube import YouTubeVideoUtils
@@ -202,7 +203,9 @@ class GuyanaSEIPChef(SushiChef):
                             thumbnail_file = None
                         else:
                             try:
-                                with Image.open(thumbnail_file.filename) as im:
+                                with Image.open(
+                                    get_storage_path(thumbnail_file.filename)
+                                ) as im:
                                     im.verify()
                             except UnidentifiedImageError:
                                 LOGGER.warning(
