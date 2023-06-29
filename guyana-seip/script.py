@@ -5,6 +5,8 @@ import re
 
 from le_utils.constants.labels import levels
 from le_utils.constants.labels import subjects
+from PIL import Image
+from PIL import UnidentifiedImageError
 from ricecooker.chefs import SushiChef
 from ricecooker.classes import files
 from ricecooker.classes import licenses
@@ -198,6 +200,17 @@ class GuyanaSEIPChef(SushiChef):
                         thumbnail_file.process_file()
                         if thumbnail_file.filename is None:
                             thumbnail_file = None
+                        else:
+                            try:
+                                with Image.open(thumbnail_file.filename) as im:
+                                    im.verify()
+                            except UnidentifiedImageError:
+                                LOGGER.warning(
+                                    "Invalid thumbnail image for video {0}".format(
+                                        video_source_id
+                                    )
+                                )
+                                thumbnail_file = None
 
                     video_node = nodes.VideoNode(
                         source_id=video_source_id,
