@@ -230,6 +230,7 @@ class GuyanaSEIPChef(SushiChef):
                             files.YouTubeVideoFile(
                                 youtube_id=video_details["id"],
                                 language=CHANNEL_LANGUAGE,
+                                high_resolution=True,
                             )
                         ],
                     )
