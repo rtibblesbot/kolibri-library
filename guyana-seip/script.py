@@ -234,10 +234,10 @@ class GuyanaSEIPChef(SushiChef):
                         ],
                     )
                     topic_node.add_child(video_node)
-                    if topic_node.thumbnail is None and thumbnail_link is not None:
+                    if topic_node.thumbnail is None and thumbnail_file is not None:
                         # If the topic node does not have a thumbnail set the first
                         # video's thumbnail as the topic thumbnail, parallel to youtube playlists
-                        topic_node.set_thumbnail(thumbnail_link)
+                        topic_node.set_thumbnail(thumbnail_file)
 
                 grade_topic_node.add_child(topic_node)
                 if (
