@@ -21,7 +21,7 @@ from requests.packages.urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
 from deep_translator import GoogleTranslator
-from metadata_tags import METADATA_BY_SLUG
+from metadata_tags import METADATA_BY_CAT
 
 retry_strategy = Retry(
     total=5,
@@ -116,8 +116,10 @@ CHANNEL_DESCRIPTIONS = {
 CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations_TEST"  # Unique ID for content source
 CHANNEL_DOMAIN = "https://phet.colorado.edu"  # Who is providing the content
-CHANNEL_LANGUAGE = "sk"  # Language of channel
+CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
+pdf_sheet_name = 'Sheet2'
+EXCEL_PATH = 'phet-metadata.xlsx'
 
 
 class PhETSushiChef(SushiChef):
@@ -131,7 +133,8 @@ class PhETSushiChef(SushiChef):
         'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL
     }
     translator = None
-    lang_en_translator = None
+
+    # lang_en_translator = None
 
     def get_channel(self, **kwargs):
         LANGUAGE = kwargs.get("lang", "en")
@@ -172,8 +175,9 @@ class PhETSushiChef(SushiChef):
         LANGUAGE = CHANNEL_LANGUAGE
         if not LANGUAGE:
             LANGUAGE = kwargs.get("lang", "en")
-        self.translator = GoogleTranslator(source='auto', target=LANGUAGE)
-        self.lang_en_translator = GoogleTranslator(source=CHANNEL_LANGUAGE, target='en')
+        if LANGUAGE != 'en':
+            self.translator = GoogleTranslator(source='auto', target=LANGUAGE)
+            self.lang_en_translator = GoogleTranslator(source=CHANNEL_LANGUAGE, target='en')
 
         dict_downloaded_paths = {}
         title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
@@ -181,7 +185,7 @@ class PhETSushiChef(SushiChef):
             title = channel_info['CHANNEL_TITLE'].get('en')
             title = '{}-{}'.format(title, LANGUAGE)
         description = channel_info.get('CHANNEL_DESCRIPTION').get(LANGUAGE)
-        if not description:
+        if not description and self.translator:
             description = channel_info.get('CHANNEL_DESCRIPTION').get("en")
             description = self.translator.translate(description)
 
@@ -204,7 +208,9 @@ class PhETSushiChef(SushiChef):
         #     keywords={kw["id"]: kw["strings"][0][LANGUAGE] for kw in data["keywords"]},
         #     language=LANGUAGE,
         # )
-        r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locate=" + LANGUAGE)
+        if LANGUAGE == 'id':
+            LANGUAGE = 'in'
+        r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locale=" + LANGUAGE)
         r_cat = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/categories?locale=" + LANGUAGE)
         r_keyword = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/keywords?locale=" + LANGUAGE)
         sim_data = json.loads(r_sim.text)
@@ -239,6 +245,9 @@ class PhETSushiChef(SushiChef):
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
             sub_cat_metadata = None
+            metadata = {}
+            if METADATA_BY_CAT.get(child_id):
+                metadata = METADATA_BY_CAT.get(child_id)
             # look up the child category by ID
             subcat = categories[str(child_id)]
             # skip it if it's in our blacklist
@@ -249,7 +258,6 @@ class PhETSushiChef(SushiChef):
             title = title.replace(" And ", " and ")
             title = title.replace("Mathconcepts", "Concepts")
             title = title.replace("Mathapplications", "Applications")
-            print("title", title)
             if language == 'en':
                 pass
             elif language == "ar":
@@ -257,31 +265,29 @@ class PhETSushiChef(SushiChef):
             elif language == 'ht':
                 title = HAITIAN_NAME_CATEGORY[title]
             else:
-                title = self.translator.translate(title)
+                if self.translator:
+                    title = self.translator.translate(title)
             # create the topic node, and add it to the parent
-            metadata = {}
-            print("cat_name",cat_name)
-            if cat_name and METADATA_BY_SLUG.get(cat_name.lower()):
-                metadata = METADATA_BY_SLUG.get(cat_name.lower())
-            if subcat.get('strings'):
-                sub_name = subcat.get('strings').get(CHANNEL_LANGUAGE)
-                print("sub_name", sub_name)
-                if CHANNEL_LANGUAGE != 'en':
-                    sub_name_translated = self.lang_en_translator.translate(text=sub_name)
-                    print("sub_name_translated",sub_name_translated)
-                    sub_cat_metadata = METADATA_BY_SLUG.get(sub_name_translated.lower())
-            if sub_cat_metadata:
-                if metadata.get('grade_levels'):
-                    metadata.get('grade_levels').append(sub_cat_metadata.get('grade_levels'))
-                if metadata.get('categories'):
-                    metadata.get('categories').append(sub_cat_metadata.get('categories'))
-                if not metadata:
-                    metadata.update(sub_cat_metadata)
-            if not metadata:
-                cat_translated = self.lang_en_translator.translate(text=title)
-                if METADATA_BY_SLUG.get(cat_translated.lower()):
-                    metadata = METADATA_BY_SLUG.get(cat_translated.lower())
-            print(metadata)
+            # if cat_name and METADATA_BY_SLUG.get(cat_name.lower()):
+            #     metadata = METADATA_BY_SLUG.get(cat_name.lower())
+            # if subcat.get('strings'):
+            #     sub_name = subcat.get('strings').get(CHANNEL_LANGUAGE)
+            #     print("sub_name", sub_name)
+            #     if CHANNEL_LANGUAGE != 'en':
+            #         sub_name_translated = self.lang_en_translator.translate(text=sub_name)
+            #         print("sub_name_translated", sub_name_translated)
+            #         sub_cat_metadata = METADATA_BY_SLUG.get(sub_name_translated.lower())
+            # if sub_cat_metadata:
+            #     if metadata.get('grade_levels'):
+            #         metadata.get('grade_levels').append(sub_cat_metadata.get('grade_levels'))
+            #     if metadata.get('categories'):
+            #         metadata.get('categories').append(sub_cat_metadata.get('categories'))
+            #     if not metadata:
+            #         metadata.update(sub_cat_metadata)
+            # if not metadata and self.lang_en_translator:
+            #     cat_translated = self.lang_en_translator.translate(text=title)
+            #     if METADATA_BY_SLUG.get(cat_translated.lower()):
+            #         metadata = METADATA_BY_SLUG.get(cat_translated.lower())
             if metadata:
                 subtopic = TopicNode(
                     source_id=subcat["name"],
@@ -323,9 +329,11 @@ class PhETSushiChef(SushiChef):
             if sim.get('localizedData').get(language).get('title'):
                 title = sim.get('localizedData').get(language).get('title')
             else:
-                title = self.translator.translate(text=title)
+                if self.translator:
+                    title = self.translator.translate(text=title)
         else:
-            title = self.translator.translate(text=title)
+            if self.translator:
+                title = self.translator.translate(text=title)
 
         download_url = f'{BASE_URL_DOWNLOAD}{run_url}?download'
         print("\tProcessing sim:", title)
@@ -359,7 +367,8 @@ class PhETSushiChef(SushiChef):
             if title in HAITIAN_NAME_CATEGORY:
                 title = HAITIAN_NAME_CATEGORY[title]
         else:
-            title = self.translator.translate(text=title)
+            if self.translator:
+                title = self.translator.translate(text=title)
         # get thumbnail image
         lst_sim_images = sim.get('defaultData').get('simImages')
         sim_image = lst_sim_images[0].get('url')
