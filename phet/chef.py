@@ -222,7 +222,6 @@ class PhETSushiChef(SushiChef):
         r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locale=" + LANGUAGE)
         r_cat = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/categories?locale=" + LANGUAGE)
         r_keyword = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/keywords?locale=" + LANGUAGE)
-        print(r_keyword)
         sim_data = json.loads(r_sim.text)
         cat_data = json.loads(r_cat.text)
         keyword_data = json.loads(r_keyword.text)
