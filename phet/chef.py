@@ -116,7 +116,7 @@ CHANNEL_DESCRIPTIONS = {
 CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "phet-html5-simulations"  # Unique ID for content source
 CHANNEL_DOMAIN = "phet.colorado.edu"  # Who is providing the content
-CHANNEL_LANGUAGE = "en"  # Language of channel
+CHANNEL_LANGUAGE = "pt"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
 pdf_sheet_name = 'Sheet2'
 EXCEL_PATH = 'phet-metadata.xlsx'
@@ -185,7 +185,7 @@ class PhETSushiChef(SushiChef):
         if LANGUAGE == 'ht':
             title = channel_info['CHANNEL_TITLE'].get('ht')
         else:
-            title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
+            title = channel_info['CHANNEL_TITLE'].get('en')
             title = '{} ({})'.format(title, lang_obj.native_name)
 
         if LANGUAGE == 'en':
