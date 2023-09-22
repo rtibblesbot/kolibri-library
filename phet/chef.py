@@ -114,8 +114,8 @@ CHANNEL_DESCRIPTIONS = {
 
 # CHANNEL_ID = "d5c3b3aa38fd46c09b4643cea5d21779"  # Test channel ID
 CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "channel_PhET_Interactive_Simulations_TEST"  # Unique ID for content source
-CHANNEL_DOMAIN = "https://phet.colorado.edu"  # Who is providing the content
+CHANNEL_SOURCE_ID = "phet-html5-simulations"  # Unique ID for content source
+CHANNEL_DOMAIN = "phet.colorado.edu"  # Who is providing the content
 CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
 pdf_sheet_name = 'Sheet2'
@@ -160,7 +160,7 @@ class PhETSushiChef(SushiChef):
 
         channel = ChannelNode(
             source_domain='phet.colorado.edu',
-            source_id='phet-html5-simulations{}-test'.format(source_id_suffix),
+            source_id='phet-html5-simulations{}'.format(source_id_suffix),
             title='PhET Interactive Simulations ({})'.format(lang_obj.native_name),
             thumbnail='chefdata/phet-logo-TM-partners.png',
             description=description,
@@ -173,6 +173,7 @@ class PhETSushiChef(SushiChef):
         # channel = self.get_channel(**kwargs)
         channel_info = self.channel_info
         LANGUAGE = CHANNEL_LANGUAGE
+
         if not LANGUAGE:
             LANGUAGE = kwargs.get("lang", "en")
         if LANGUAGE != 'en':
@@ -180,10 +181,18 @@ class PhETSushiChef(SushiChef):
             self.lang_en_translator = GoogleTranslator(source=CHANNEL_LANGUAGE, target='en')
 
         dict_downloaded_paths = {}
-        title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
-        if not title:
-            title = channel_info['CHANNEL_TITLE'].get('en')
-            title = '{}-{}'.format(title, LANGUAGE)
+        lang_obj = getlang(LANGUAGE)
+        if LANGUAGE == 'ht':
+            title = channel_info['CHANNEL_TITLE'].get('ht')
+        else:
+            title = channel_info['CHANNEL_TITLE'].get(LANGUAGE)
+            title = '{} ({})'.format(title, lang_obj.native_name)
+
+        if LANGUAGE == 'en':
+            source_id = channel_info['CHANNEL_SOURCE_ID']
+        else:
+            source_id = '{}{}'.format(channel_info['CHANNEL_SOURCE_ID'], LANGUAGE)
+
         description = channel_info.get('CHANNEL_DESCRIPTION').get(LANGUAGE)
         if not description and self.translator:
             description = channel_info.get('CHANNEL_DESCRIPTION').get("en")
@@ -191,7 +200,7 @@ class PhETSushiChef(SushiChef):
 
         channel = ChannelNode(
             source_domain=channel_info['CHANNEL_SOURCE_DOMAIN'],
-            source_id=channel_info['CHANNEL_SOURCE_ID'] + f'-{LANGUAGE}',
+            source_id=source_id,
             title=title,
             thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
             description=description,
@@ -213,6 +222,7 @@ class PhETSushiChef(SushiChef):
         r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locale=" + LANGUAGE)
         r_cat = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/categories?locale=" + LANGUAGE)
         r_keyword = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/keywords?locale=" + LANGUAGE)
+        print(r_keyword)
         sim_data = json.loads(r_sim.text)
         cat_data = json.loads(r_cat.text)
         keyword_data = json.loads(r_keyword.text)
