@@ -31,10 +31,6 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 
 sess = requests.Session()
 cache = FileCache('.webcache')
-forever_adapter = CacheControlAdapter(heuristic=CacheForeverHeuristic(), cache=cache)
-
-sess.mount('http://', forever_adapter)
-sess.mount('https://', forever_adapter)
 sess.mount('http://', adapter)
 sess.mount('https://', adapter)
 ID_BLACKLIST_BY_LANG = {
@@ -116,7 +112,7 @@ CHANNEL_DESCRIPTIONS = {
 CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
 CHANNEL_SOURCE_ID = "phet-html5-simulations"  # Unique ID for content source
 CHANNEL_DOMAIN = "phet.colorado.edu"  # Who is providing the content
-CHANNEL_LANGUAGE = "pt"  # Language of channel
+CHANNEL_LANGUAGE = "en"  # Language of channel
 CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
 pdf_sheet_name = 'Sheet2'
 EXCEL_PATH = 'phet-metadata.xlsx'
@@ -253,7 +249,6 @@ class PhETSushiChef(SushiChef):
         # loop through all subtopics and recursively add them
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
-            sub_cat_metadata = None
             metadata = {}
             if METADATA_BY_CAT.get(child_id):
                 metadata = METADATA_BY_CAT.get(child_id)
@@ -263,50 +258,27 @@ class PhETSushiChef(SushiChef):
             if subcat["name"] in ID_BLACKLIST_BY_LANG.get(language, ID_BLACKLIST_BY_LANG['en']):
                 continue
             # make the title human-readable, and clean it up
-            title = subcat["name"].replace("-", " ").title()
-            title = title.replace(" And ", " and ")
-            title = title.replace("Mathconcepts", "Concepts")
-            title = title.replace("Mathapplications", "Applications")
+
+            title = subcat['strings'].get(language)
             if language == 'en':
                 pass
             elif language == "ar":
                 title = ARABIC_NAME_CATEGORY[title]
             elif language == 'ht':
                 title = HAITIAN_NAME_CATEGORY[title]
-            else:
-                if self.translator:
-                    title = self.translator.translate(title)
-            # create the topic node, and add it to the parent
-            # if cat_name and METADATA_BY_SLUG.get(cat_name.lower()):
-            #     metadata = METADATA_BY_SLUG.get(cat_name.lower())
-            # if subcat.get('strings'):
-            #     sub_name = subcat.get('strings').get(CHANNEL_LANGUAGE)
-            #     print("sub_name", sub_name)
-            #     if CHANNEL_LANGUAGE != 'en':
-            #         sub_name_translated = self.lang_en_translator.translate(text=sub_name)
-            #         print("sub_name_translated", sub_name_translated)
-            #         sub_cat_metadata = METADATA_BY_SLUG.get(sub_name_translated.lower())
-            # if sub_cat_metadata:
-            #     if metadata.get('grade_levels'):
-            #         metadata.get('grade_levels').append(sub_cat_metadata.get('grade_levels'))
-            #     if metadata.get('categories'):
-            #         metadata.get('categories').append(sub_cat_metadata.get('categories'))
-            #     if not metadata:
-            #         metadata.update(sub_cat_metadata)
-            # if not metadata and self.lang_en_translator:
-            #     cat_translated = self.lang_en_translator.translate(text=title)
-            #     if METADATA_BY_SLUG.get(cat_translated.lower()):
-            #         metadata = METADATA_BY_SLUG.get(cat_translated.lower())
+
             if metadata:
                 subtopic = TopicNode(
                     source_id=subcat["name"],
                     title=title,
+                    derive_thumbnail=True,
                     **metadata
                 )
             else:
                 subtopic = TopicNode(
                     source_id=subcat["name"],
-                    title=title
+                    title=title,
+                    derive_thumbnail=True
                 )
             parent.add_child(subtopic)
             # recursively download the contents of the topic
@@ -327,11 +299,11 @@ class PhETSushiChef(SushiChef):
         sim_detail_res = sess.get(
             f'https://phet-api.colorado.edu/partner-services/2.0/metadata/simulations/{sim_id}?locale={language}')
         sim_detail_data = json.loads(sim_detail_res.text)
-        # localized_sim = sim["localizedSimulations"][0]
+        description = None
         run_url = sim.get('defaultData').get('runUrl')
         title = sim.get('defaultData').get('title')
-        if sim.get('highGradeLevel'):
-            grade_level = sim.get('highGradeLevel').get('key')
+        if sim.get('defaultData').get('description'):
+            description = sim.get('defaultData').get('description')
         if sim.get('localizedData') and sim.get('localizedData').get(language):
             if sim.get('localizedData').get(language).get('runUrl'):
                 run_url = sim.get('localizedData').get(language).get('runUrl')
@@ -392,12 +364,14 @@ class PhETSushiChef(SushiChef):
             source_id="sim-%d" % sim["id"],
             files=[HTMLZipFile(zippath)],
             title=title,
-            # description=sim["description"][language][:200],
+            description=description,
             license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
             author=authors,
             # tags=[keywords[topic] for topic in sim["topicIds"]],
             thumbnail=sim_image,
             language=getlang(language),
+            derive_thumbnail=True
+
         )
 
         # if there's a video, extract it and put it in the topic right before the sim
@@ -413,6 +387,7 @@ class PhETSushiChef(SushiChef):
                     license=CC_BYLicense("PhET Interactive Simulations, University of Colorado Boulder"),
                     thumbnail=sim_image,
                     role=roles.COACH,
+                    derive_thumbnail=True
                 )
 
                 topic.add_child(videonode)
@@ -439,10 +414,9 @@ def process_sim_html(content, destpath, **kwargs):
             script.extract()
         # remove menu options that link to online resources
         if 'createTandem("phetWebsiteButton' in str(script):
-            script.string = re.compile(
-                '\{[^}]+createTandem\("phetWebsiteButton"\).*createTandem\("getUpdate"[^\}]*\},').sub("",
-                                                                                                      script.string.replace(
-                                                                                                          "\n", " "))
+            script.extract()
+            # script.string = re.compile(
+            #     '\{[^}]+createTandem\("phetWebsiteButton"\).*createTandem\("getUpdate"[^\}]*\},').sub("",script.string.replace("\n", " "))
 
     return str(soup)
 
