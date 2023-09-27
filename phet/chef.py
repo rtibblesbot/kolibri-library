@@ -302,19 +302,19 @@ class PhETSushiChef(SushiChef):
         description = None
         run_url = sim.get('defaultData').get('runUrl')
         title = sim.get('defaultData').get('title')
-        if sim.get('defaultData').get('description'):
-            description = sim.get('defaultData').get('description')
+        description = sim.get('defaultData').get('description')
         if sim.get('localizedData') and sim.get('localizedData').get(language):
             if sim.get('localizedData').get(language).get('runUrl'):
                 run_url = sim.get('localizedData').get(language).get('runUrl')
             if sim.get('localizedData').get(language).get('title'):
                 title = sim.get('localizedData').get(language).get('title')
-            else:
-                if self.translator:
-                    title = self.translator.translate(text=title)
+            if sim.get('localizedData').get(language).get('description'):
+                description = sim.get('localizedData').get(language).get('description')
+
         else:
             if self.translator:
                 title = self.translator.translate(text=title)
+                description = self.translator.translate(text=description)
 
         download_url = f'{BASE_URL_DOWNLOAD}{run_url}?download'
         print("\tProcessing sim:", title)
