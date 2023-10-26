@@ -260,13 +260,17 @@ class PhETSushiChef(SushiChef):
             # make the title human-readable, and clean it up
 
             title = subcat['strings'].get(language)
+            if not title:
+                title = subcat["name"].replace("-", " ").title()
+                title = title.replace(" And ", " and ")
+                title = title.replace("Mathconcepts", "Concepts")
+                title = title.replace("Mathapplications", "Applications")
             if language == 'en':
                 pass
             elif language == "ar":
                 title = ARABIC_NAME_CATEGORY[title]
             elif language == 'ht':
                 title = HAITIAN_NAME_CATEGORY[title]
-
             if metadata:
                 subtopic = TopicNode(
                     source_id=subcat["name"],
@@ -314,6 +318,7 @@ class PhETSushiChef(SushiChef):
         else:
             if self.translator:
                 title = self.translator.translate(text=title)
+            if description:
                 description = self.translator.translate(text=description)
 
         download_url = f'{BASE_URL_DOWNLOAD}{run_url}?download'
@@ -412,11 +417,12 @@ def process_sim_html(content, destpath, **kwargs):
         # remove Google Analytics and online image bug requests
         if "analytics.js" in str(script):
             script.extract()
-        # remove menu options that link to online resources
-        if 'createTandem("phetWebsiteButton' in str(script):
-            script.extract()
-            # script.string = re.compile(
-            #     '\{[^}]+createTandem\("phetWebsiteButton"\).*createTandem\("getUpdate"[^\}]*\},').sub("",script.string.replace("\n", " "))
+        if 'phetWebsite' in str(script):
+            # remove menu options that link to online resources
+            script.string = re.compile('tandem: e.createTandem\(\"screenshotMenuItem\"\),').sub("", script.string)
+            script.string = re.compile('tandem: e.createTandem\(\"fullScreenMenuItem\"\),').sub("", script.string)
+            script.string = re.compile('tandem: e.createTandem\(\"screenshotMenuItem\"\)').sub("", script.string)
+            script.string = re.compile('string!JOIST/menuItem.reportAProblem').sub("", script.string)
 
     return str(soup)
 
