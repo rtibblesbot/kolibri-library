@@ -302,3 +302,38 @@ def get_all_local_files(xls, language, dict_all_files_paths):
                     dict_all_files_with_local_path[language][grade_string][subject][chapter][vt][content_type][
                         video_name] = str(file_path)
     return dict_all_files_with_local_path
+
+
+def check_video_path_in_excel(xls, language):
+    dict_check_file_paths = {}
+    dict_sheet_names = {}
+    excel_file = pandas.ExcelFile(xls, engine='openpyxl')
+    for sheet_name in excel_file.sheet_names:
+        splitted = sheet_name.split(' ')
+        print(splitted)
+        if splitted[-1] == language:
+            dict_sheet_names[sheet_name] = {'subject': splitted[0], 'language': splitted[-1]}
+        # to map all the sheets in the given excel
+    for sheet_name in dict_sheet_names:
+        data_from_xls = pandas.read_excel(xls, keep_default_na=False, na_values='', sheet_name=[sheet_name],
+                                          engine='openpyxl')
+        for index, row in data_from_xls.get(sheet_name).iterrows():
+            if index:
+                vt_number = None
+                grade = row['Grade']
+                chapter_number = row.get('Chapter No')
+                if chapter_number is None:
+                    chapter_number = row.get('Chapter Number')
+                if row.get('Video Topic Number '):
+                    vt_number = int(row['Video Topic Number '])
+                elif row.get('Video Topic Number'):
+                    vt_number = int(row['Video Topic Number'])
+                if vt_number:
+                    full_video_name = str(row.get('Branded video link') or str(row.get('Branded video')))
+                    video_name = parse.unquote(full_video_name.split('/')[-1].split('?')[0])
+
+                    check_file_name = "G_{}_C{}_VT{}".format(grade, chapter_number, int(vt_number))
+                    print(check_file_name)
+                    if check_file_name not in video_name:
+                        dict_check_file_paths[full_video_name] = check_file_name
+    return dict_check_file_paths
