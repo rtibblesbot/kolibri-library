@@ -1,7 +1,8 @@
 # bcs --sample option not released yet
-git+https://github.com/learningequality/ricecooker#egg=ricecooker
+ricecooker
 future  # tmp workaround for le-pycaption missing dep
 requests
 pyppeteer
 beautifulsoup4
 asyncio
+python-dotenv
