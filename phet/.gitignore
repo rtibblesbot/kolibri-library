@@ -104,3 +104,4 @@ ENV/
 .ricecookerfilecache/
 restore/
 storage/
+node_modules/
