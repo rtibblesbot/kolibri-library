@@ -412,17 +412,23 @@ def process_sim_html(content, destpath, **kwargs):
     content = content.replace("getLinks:function(", "getLinks:function(){return [];},doNothing:function(")
 
     soup = BeautifulSoup(content, "html.parser")
+    href_fixer_tag = soup.new_tag("script", type="text/javascript")
+    href_fixer_tag.string = "if(window.location.href.indexOf('?') <= -1) { window.location.href += '?allowLinks=false&preventFullScreen' }"
+    head_tag = soup.find("head")
+    head_tag.append(href_fixer_tag)
 
     for script in soup.find_all("script"):
         # remove Google Analytics and online image bug requests
         if "analytics.js" in str(script):
             script.extract()
+
         if 'phetWebsite' in str(script):
             # remove menu options that link to online resources
             script.string = re.compile('tandem: e.createTandem\(\"screenshotMenuItem\"\),').sub("", script.string)
             script.string = re.compile('tandem: e.createTandem\(\"fullScreenMenuItem\"\),').sub("", script.string)
-            script.string = re.compile('tandem: e.createTandem\(\"screenshotMenuItem\"\)').sub("", script.string)
             script.string = re.compile('string!JOIST/menuItem.reportAProblem').sub("", script.string)
+
+            script.string = re.compile('string!JOIST/menuItem.phetWebsite').sub("", script.string)
 
     return str(soup)
 
