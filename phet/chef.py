@@ -334,6 +334,7 @@ class PhETSushiChef(SushiChef):
                 filename="index.html",
                 request_fn=sess.get,
                 middleware_callbacks=[process_sim_html],
+                middleware_kwargs={ "sim_title": title },
             )
 
             zippath = create_predictable_zip(dst)
@@ -430,6 +431,30 @@ def process_sim_html(content, destpath, **kwargs):
 
             script.string = re.compile('string!JOIST/menuItem.phetWebsite').sub("", script.string)
 
+    clean_title = kwargs.get("sim_title").replace(" ", "-").replace("'", "-")
+
+    ##############
+    # DEBUG HELP #
+    ##############
+    """
+    Set this to True to dump all sims to processed_sims directory
+    I wanted to make this a command line option but ricecooker does some parsing that doesn't 
+    permit flags without assigned values (e.g. --dump-sims has to be --dump-sims=<anything>)
+    Once the sims are processed, you can run `python -m http.server <port>` to test them in your 
+    browser
+    """
+    if False:
+        import os
+        # check if the processed_sims directory exists 
+        if not os.path.exists("processed_sims"):
+            # create it if not
+            os.makedirs("processed_sims")
+
+        # Write's every sim's HTML to the directory
+        # in a terminal, run: python -m http.server <port> to test sims in your browser
+        with open("processed_sims/{}.html".format(clean_title), 'w') as f:
+            f.write(str(soup))
+            f.close()
     return str(soup)
 
 
