@@ -412,11 +412,12 @@ def process_sim_html(content, destpath, **kwargs):
     # remove online links from "about" modal
     content = content.replace("getLinks:function(", "getLinks:function(){return [];},doNothing:function(")
 
+    # setting up the query parameters for cases in which it works
+    regex = r"(this\.getAllForString\([^,]+,[^w]*)(window\.location\.search)(\s*\))"
+    replacement = r"\1window.location.search === '' ? '?allowLinks=false&disableFullscreen' : window.location.search\3"
+    content = re.sub(regex, replacement, content)
     soup = BeautifulSoup(content, "html.parser")
-    href_fixer_tag = soup.new_tag("script", type="text/javascript")
-    href_fixer_tag.string = "if(window.location.href.indexOf('?') <= -1) { window.location.href += '?allowLinks=false&preventFullScreen' }"
-    head_tag = soup.find("head")
-    head_tag.append(href_fixer_tag)
+
 
     for script in soup.find_all("script"):
         # remove Google Analytics and online image bug requests
@@ -425,10 +426,10 @@ def process_sim_html(content, destpath, **kwargs):
 
         if 'phetWebsite' in str(script):
             # remove menu options that link to online resources
+            # fallbacks in case the above regex work fails
             script.string = re.compile('tandem: e.createTandem\(\"screenshotMenuItem\"\),').sub("", script.string)
             script.string = re.compile('tandem: e.createTandem\(\"fullScreenMenuItem\"\),').sub("", script.string)
             script.string = re.compile('string!JOIST/menuItem.reportAProblem').sub("", script.string)
-
             script.string = re.compile('string!JOIST/menuItem.phetWebsite').sub("", script.string)
 
     clean_title = kwargs.get("sim_title").replace(" ", "-").replace("'", "-")
@@ -443,7 +444,7 @@ def process_sim_html(content, destpath, **kwargs):
     Once the sims are processed, you can run `python -m http.server <port>` to test them in your 
     browser
     """
-    if False:
+    if True:
         import os
         # check if the processed_sims directory exists 
         if not os.path.exists("processed_sims"):
