@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import json
 import re
 import requests
@@ -438,14 +439,11 @@ def process_sim_html(content, destpath, **kwargs):
     # DEBUG HELP #
     ##############
     """
-    Set this to True to dump all sims to processed_sims directory
-    I wanted to make this a command line option but ricecooker does some parsing that doesn't 
-    permit flags without assigned values (e.g. --dump-sims has to be --dump-sims=<anything>)
-    Once the sims are processed, you can run `python -m http.server <port>` to test them in your 
-    browser
+    Set your env var `DUMP_SIMS=true` when running the chef to have the resulting HTML files dumped
+    to a `processed_sims` directory
     """
-    if True:
-        import os
+    if os.environ.get("DUMP_SIMS", False):
+
         # check if the processed_sims directory exists 
         if not os.path.exists("processed_sims"):
             # create it if not
