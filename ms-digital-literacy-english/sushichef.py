@@ -1,29 +1,24 @@
 import os
-import requests
 import time
+import zipfile
 
+import requests
+import xmltodict
 from bs4 import BeautifulSoup
-
+from le_utils.constants import exercises
+from lxml import etree
 from ricecooker.chefs import SushiChef
-from ricecooker.classes.nodes import TopicNode, IMSCPNode
+from ricecooker.classes.files import SubtitleFile
+from ricecooker.classes.files import VideoFile
 from ricecooker.classes.licenses import get_license
-from ricecooker.classes.files import IMSCPZipFile
+from ricecooker.classes.nodes import ExerciseNode
+from ricecooker.classes.nodes import TopicNode
+from ricecooker.classes.nodes import VideoNode
+from ricecooker.classes.questions import SingleSelectQuestion
 from ricecooker.config import LOGGER
 
 SESSION = requests.Session()
 COURSE_URL = "https://www.microsoft.com/en-us/digital-literacy"
-
-"""
-    Web scrapping the links for the course is not possible because MS does not 
-    allow it. This message is returned:
-    Your current User-Agent string appears to be from an automated process, 
-    if this is incorrect, please click this link:
-    <a href="http://www.microsoft.com/en/us/default.aspx?redir=true">
-    United States English Microsoft Homepage</a></p>
-"""
-
-# HELPER METHODS
-################################################################################
 
 
 def make_request(url, timeout=60, method="GET", **kwargs):
@@ -86,26 +81,162 @@ def get_text(element):
         return element.get_text().replace("\r", "").replace("\n", " ").strip()
 
 
-def get_course(index, lesson):
+def strip_ns_prefix(tree):
+    """Strip namespace prefixes from an LXML tree.
+    From https://stackoverflow.com/a/30233635
+    """
+    for element in tree.xpath("descendant-or-self::*[namespace-uri()!='']"):
+        element.tag = etree.QName(element).localname
+
+
+def get_quiz_from_objective(objective):
+    questions = objective.findall("question")
+    exercises = []
+    for item in questions:
+        if item.get("type") == "choice":
+            question = item.find("prompt").text
+            answers = [c.text for c in item.findall("choice")]
+            correct = [c.text for c in item.findall("choice") if c.get("correct")][0]
+            exercises.append(
+                SingleSelectQuestion(
+                    id="question_{}_{}_id".format(
+                        objective.get("name").replace(" ", "_"), item.get("id")
+                    ),
+                    question=question,
+                    all_answers=answers,
+                    correct_answer=correct,
+                )
+            )
+
+    return exercises
+
+
+def get_exercise_node(idx, objectives, lesson):
+    objective = [o for o in objectives if o.get("id") == idx][0]
+    questions = get_quiz_from_objective(objective)
+    node = ExerciseNode(
+        source_id="questions_{}_id".format(objective.get("name").replace(" ", "_")),
+        title="Knowledge check: {}".format(objective.get("name")),
+        author="Microsoft",
+        description="Knowledge check: {}".format(lesson),
+        language="en",
+        license=get_license("CC BY-NC-SA", copyright_holder="Microsoft"),
+        thumbnail=None,
+        exercise_data={
+            "mastery_model": exercises.QUIZ,
+            "randomize": True,
+        },
+        questions=questions,
+    )
+    return node
+
+
+def get_course(lesson, zip_video_file):
+    def tttl_from_mp4(mp4_file):
+        file_path = mp4_file.replace("/Videos/", "/Captions/")
+        file_name = os.path.splitext(file_path)
+        ttml_file = "{}_Video_cc.ttml".format(file_name[0].strip())
+        if not os.path.exists(ttml_file):
+            ttml_file = "{}.ttml".format(file_name[0].strip())
+        return ttml_file
+
+    scorm_file = "chefdata/{}.zip".format(lesson)
+    with zipfile.ZipFile(scorm_file) as zf:
+        zf.extract("imsmanifest.xml", "chefdata")
+        zf.extract("SCO1\en-us\pages.xml", "chefdata")
+
+    # lesson info:
+    manifest = etree.parse("chefdata/imsmanifest.xml").getroot()
+    mt = manifest.find("metadata", manifest.nsmap)
+    strip_ns_prefix(mt)
+    general = xmltodict.parse(etree.tostring(mt.find("lom/general")))["general"]
+    lesson_title = general["title"].get("langstring", {}).get("#text")
+    lesson_desc = general["description"].get("langstring", {}).get("#text")
 
     topic = TopicNode(
-        title="{} - {}".format(index, lesson),
-        source_id="{}_id".format(lesson.replace(" ", "_")),
+        title=lesson_title,
+        source_id="{}_id".format(lesson_title.replace(" ", "_")),
+        description=lesson_desc,
     )
-    node = IMSCPNode(
-        title=lesson,
-        description="{} Course".format(lesson),
-        source_id="{}_id".format(lesson.replace(" ", "-")),
-        license=get_license("CC BY-NC-SA", copyright_holder="Microsoft"),
-        language="en",
-        files=[
-            IMSCPZipFile(
-                path="chefdata/{}.zip".format(lesson),
-                language="en",
-            )
-        ],
+
+    # prepare video and subtitles files:
+    filename = "chefdata/{}.zip".format(zip_video_file)
+    if os.path.exists(filename) and not os.path.exists(
+        "chefdata/{}".format(zip_video_file)
+    ):
+        LOGGER.info("Unzipping files for lesson: {}".format(lesson))
+        with zipfile.ZipFile(filename, "r") as zip_ref:
+            zip_ref.extractall("chefdata/{}".format(zip_video_file))
+
+    list_of_mp4s = []
+    dir_name = "chefdata/{}".format(
+        os.path.basename(os.path.splitext(zip_video_file)[0])
     )
-    topic.add_child(node)
+    for path, _, files in os.walk(dir_name):
+        for f in files:
+            file_path = os.path.join(path, f)
+            if os.path.isfile(file_path) and f.endswith(".mp4"):
+                list_of_mp4s.append(file_path)
+
+    page = etree.parse("chefdata/SCO1\en-us\pages.xml").getroot()
+    level0_elements = page.findall("level0")
+    objectives = page.find("objectives").getchildren()
+    discarded = ("Homepage", "Print your certificate")
+    for level0 in level0_elements:
+        level0_name = level0.get("name")
+        if level0_name in discarded:
+            continue
+        levels1 = level0.getchildren()
+        if len(levels1) == 1:
+            continue
+
+        sub_topic = TopicNode(
+            title=level0_name,
+            source_id="{}_id".format(level0_name.replace(" ", "_")),
+            description=levels1[0].getchildren()[0].text,
+        )
+        topic.add_child(sub_topic)
+
+        for level1 in levels1[1:]:
+            videos = level1.getchildren()
+            if level1.get("name") == "Knowledge check":
+                sub_topic.add_child(
+                    get_exercise_node(level1.get("objectives"), objectives, level0_name)
+                )
+                continue
+            if len(videos) == 0:
+                continue
+            for idx, video in enumerate(videos):
+                if video.tag == "video":
+                    video_file_name = [
+                        v for v in list_of_mp4s if v.endswith(video.get("fileName"))
+                    ]
+                    if len(video_file_name) != 0:
+                        title = (
+                            level1.get("name")
+                            if idx == 0
+                            else "{}-{} part".format(level1.get("name"), idx)
+                        )
+                        video_node = VideoNode(
+                            title=title,
+                            author="Microsoft",
+                            source_id="{}_{}_id".format(
+                                os.path.basename(video_file_name[0]),
+                                level1.get("pageId"),
+                            ),
+                            license=get_license(
+                                "CC BY-NC-SA", copyright_holder="Microsoft"
+                            ),
+                            files=[
+                                VideoFile(path=video_file_name[0], language="en"),
+                                SubtitleFile(
+                                    path=tttl_from_mp4(video_file_name[0]),
+                                    language="en",
+                                ),
+                            ],
+                        )
+                        sub_topic.add_child(video_node)
+
     return topic
 
 
@@ -120,8 +251,8 @@ class DigitalLiteracySushiChef(SushiChef):
         "CHANNEL_DESCRIPTION": "Learn how to gain digital literacy to use devices, software, and the Internet to collaborate with others and discover, use, and create information.",
     }
 
-    def crawl(self, args, options):
-        print("crawling")
+    def crawl(self):
+        LOGGER.info("Crawling...")
         _, page = download_page(COURSE_URL)
         scorm_intro = page.find_all(
             "p",
@@ -132,7 +263,19 @@ class DigitalLiteracySushiChef(SushiChef):
         for li in list_of_lessons.find_all("li"):
             lesson = li.find("a")
             lessons[lesson.get_text()] = lesson.get("href")
-        return lessons
+        self.lessons = lessons
+
+        course_intro = page.find_all(
+            "button",
+            string="English course resources",
+        )
+        list_of_topics = course_intro[0].find_all_next("ul")[0]
+        topics = {}
+        for li in list_of_topics.find_all("li"):
+            topic = li.find("a")
+            if "Course " in topic.get_text():
+                topics[topic.get_text()] = topic.get("href")
+        self.zipped_videos = topics
 
     def download_courses(self):
         for lesson, url in self.lessons.items():
@@ -144,16 +287,33 @@ class DigitalLiteracySushiChef(SushiChef):
                     for chunk in response.iter_content(chunk_size=512):
                         if chunk:  # filter out keep-alive new chunks
                             f.write(chunk)
+            else:
+                LOGGER.info("File already exists for lesson: {}".format(lesson))
+
+        # This is a waste of disk space and bandwidth but scorm files don't
+        # have video subtitles and video files don't have course info !!
+        for lesson, url in self.zipped_videos.items():
+            filename = "chefdata/{}.zip".format(lesson)
+            if not os.path.exists(filename):
+                LOGGER.info("Downloading topic: {}".format(lesson))
+                response = requests.get(url, stream=True)
+                with open(filename, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=512):
+                        if chunk:  # filter out keep-alive new chunks
+                            f.write(chunk)
+            else:
+                LOGGER.info("Video file already exists for lesson: {}".format(lesson))
 
     def pre_run(self, args, options):
-        self.lessons = self.crawl(args, options)
+        self.crawl()
         self.download_courses()
 
     def construct_channel(self, *args, **kwargs):
         channel = self.get_channel(*args, **kwargs)
-        for count, lesson in enumerate(self.lessons):
-            channel.add_child(get_course(count + 1, lesson))
+        video_files = list(self.zipped_videos.keys())
 
+        for count, lesson in enumerate(self.lessons):
+            channel.add_child(get_course(lesson, video_files[count]))
         return channel
 
 
