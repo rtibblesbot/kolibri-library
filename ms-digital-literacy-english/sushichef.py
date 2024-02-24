@@ -1,16 +1,21 @@
 import os
+import subprocess
 import time
 import zipfile
 
 import requests
 import xmltodict
+
 from bs4 import BeautifulSoup
 from le_utils.constants import exercises
 from lxml import etree
+
 from ricecooker.chefs import SushiChef
+from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.files import SubtitleFile
 from ricecooker.classes.files import VideoFile
 from ricecooker.classes.licenses import get_license
+from ricecooker.classes.nodes import DocumentNode
 from ricecooker.classes.nodes import ExerciseNode
 from ricecooker.classes.nodes import TopicNode
 from ricecooker.classes.nodes import VideoNode
@@ -273,7 +278,9 @@ class DigitalLiteracySushiChef(SushiChef):
         topics = {}
         for li in list_of_topics.find_all("li"):
             topic = li.find("a")
-            if "Course " in topic.get_text():
+            if (
+                "Transcript" not in topic.get_text()
+            ):  # skip download of Transcript Files
                 topics[topic.get_text()] = topic.get("href")
         self.zipped_videos = topics
 
@@ -304,6 +311,58 @@ class DigitalLiteracySushiChef(SushiChef):
             else:
                 LOGGER.info("Video file already exists for lesson: {}".format(lesson))
 
+    def get_teacher_resources(self):
+        filename = "chefdata/Teacher Resource files"
+        if not os.path.exists(filename):
+            with zipfile.ZipFile("{}.zip".format(filename), "r") as zip_ref:
+                zip_ref.extractall(filename)
+
+        # convert files to pdf:
+        pdf_files = []
+        for path, _, files in os.walk(filename):
+            for f in files:
+                file_path = os.path.join(path, f)
+                pdf_file_path = "chefdata/teacher_files/{}.pdf".format(
+                    os.path.basename(os.path.splitext(file_path)[0])
+                )
+                if os.path.isfile(file_path) and not os.path.exists(pdf_file_path):
+                    LOGGER.info("Converting {} to pdf...".format(file_path))
+                    args = [
+                        "libreoffice",
+                        "--headless",
+                        "--convert-to",
+                        "pdf",
+                        file_path,
+                        "--outdir",
+                        "chefdata/teacher_files/",
+                    ]
+                    subprocess.run(args)
+                elif os.path.exists(pdf_file_path):
+                    pdf_files.append(pdf_file_path)
+
+        topic = TopicNode(
+            title="Teacher resources",
+            source_id="teacher_resources_id",
+            description="Resources for teachers.",
+        )
+        for index, pdf in enumerate(sorted(pdf_files)):
+            node = DocumentNode(
+                title=os.path.basename(os.path.splitext(pdf)[0]).replace("_", " "),
+                description="Teacher guide",
+                source_id="teacher_resource_{}_id".format(index),
+                license=get_license("CC BY-NC-SA", copyright_holder="Microsoft"),
+                language="en",
+                files=[
+                    DocumentFile(
+                        path=pdf,
+                        language="en",
+                    )
+                ],
+            )
+            topic.add_child(node)
+
+        return topic
+
     def pre_run(self, args, options):
         self.crawl()
         self.download_courses()
@@ -314,6 +373,8 @@ class DigitalLiteracySushiChef(SushiChef):
 
         for count, lesson in enumerate(self.lessons):
             channel.add_child(get_course(lesson, video_files[count]))
+
+        channel.add_child(self.get_teacher_resources())
         return channel
 
 
