@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import time
 import zipfile
 
@@ -173,6 +174,7 @@ def get_course(lesson, zip_video_file):
         with zipfile.ZipFile(filename, "r") as zip_ref:
             zip_ref.extractall("chefdata/{}".format(zip_video_file))
 
+    # get list of mp4 files:
     list_of_mp4s = []
     dir_name = "chefdata/{}".format(
         os.path.basename(os.path.splitext(zip_video_file)[0])
@@ -183,16 +185,17 @@ def get_course(lesson, zip_video_file):
             if os.path.isfile(file_path) and f.endswith(".mp4"):
                 list_of_mp4s.append(file_path)
 
+    # parse xml with all the lessons structure:
     page = etree.parse("chefdata/SCO1\en-us\pages.xml").getroot()
-    level0_elements = page.findall("level0")
+    level0_elements = page.findall("level0")  # parent topic
     objectives = page.find("objectives").getchildren()
     discarded = ("Homepage", "Print your certificate")
-    for level0 in level0_elements:
+    for level0 in level0_elements:  # subtopics with videos and exercises
         level0_name = level0.get("name")
         if level0_name in discarded:
             continue
         levels1 = level0.getchildren()
-        if len(levels1) == 1:
+        if len(levels1) <= 1:
             continue
 
         sub_topic = TopicNode(
@@ -254,6 +257,11 @@ class DigitalLiteracySushiChef(SushiChef):
         "CHANNEL_LANGUAGE": "en",
         "CHANNEL_THUMBNAIL": "chefdata/MDL.jpg",
         "CHANNEL_DESCRIPTION": "Learn how to gain digital literacy to use devices, software, and the Internet to collaborate with others and discover, use, and create information.",
+    }
+
+    SETTINGS = {
+        "compress": True,
+        "ffmpeg_settings": {"video-height": 480},
     }
 
     def crawl(self):
@@ -336,7 +344,11 @@ class DigitalLiteracySushiChef(SushiChef):
                         "--outdir",
                         "chefdata/teacher_files/",
                     ]
-                    subprocess.run(args)
+                    try:
+                        subprocess.run(args)
+                    except FileNotFoundError:
+                        LOGGER.error("LibreOffice must be installed and accesible in order to run this chef.")
+                        sys.exit(1)
                 elif os.path.exists(pdf_file_path):
                     pdf_files.append(pdf_file_path)
 
