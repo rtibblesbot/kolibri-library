@@ -9,6 +9,7 @@ import xmltodict
 
 from bs4 import BeautifulSoup
 from le_utils.constants import exercises
+from le_utils.constants.labels import subjects
 from lxml import etree
 
 from ricecooker.chefs import SushiChef
@@ -128,8 +129,9 @@ def get_exercise_node(idx, objectives, lesson):
         language="en",
         license=get_license("CC BY-NC-SA", copyright_holder="Microsoft"),
         thumbnail=None,
+        categories=[subjects.DIGITAL_LITERACY],
         exercise_data={
-            "mastery_model": exercises.QUIZ,
+            "mastery_model": exercises.NUM_CORRECT_IN_A_ROW_2,
             "randomize": True,
         },
         questions=questions,
@@ -163,6 +165,7 @@ def get_course(lesson, zip_video_file):
         title=lesson_title,
         source_id="{}_id".format(lesson_title.replace(" ", "_")),
         description=lesson_desc,
+        categories=[subjects.DIGITAL_LITERACY],
     )
 
     # prepare video and subtitles files:
@@ -232,6 +235,7 @@ def get_course(lesson, zip_video_file):
                                 os.path.basename(video_file_name[0]),
                                 level1.get("pageId"),
                             ),
+                            categories=[subjects.DIGITAL_LITERACY],
                             license=get_license(
                                 "CC BY-NC-SA", copyright_holder="Microsoft"
                             ),
@@ -347,7 +351,9 @@ class DigitalLiteracySushiChef(SushiChef):
                     try:
                         subprocess.run(args)
                     except FileNotFoundError:
-                        LOGGER.error("LibreOffice must be installed and accesible in order to run this chef.")
+                        LOGGER.error(
+                            "LibreOffice must be installed and accesible in order to run this chef."
+                        )
                         sys.exit(1)
                 elif os.path.exists(pdf_file_path):
                     pdf_files.append(pdf_file_path)
@@ -356,6 +362,7 @@ class DigitalLiteracySushiChef(SushiChef):
             title="Teacher resources",
             source_id="teacher_resources_id",
             description="Resources for teachers.",
+            categories=[subjects.DIGITAL_LITERACY, subjects.FOR_TEACHERS],
         )
         for index, pdf in enumerate(sorted(pdf_files)):
             node = DocumentNode(
@@ -363,6 +370,7 @@ class DigitalLiteracySushiChef(SushiChef):
                 description="Teacher guide",
                 source_id="teacher_resource_{}_id".format(index),
                 license=get_license("CC BY-NC-SA", copyright_holder="Microsoft"),
+                categories=[subjects.DIGITAL_LITERACY, subjects.FOR_TEACHERS],
                 language="en",
                 files=[
                     DocumentFile(
