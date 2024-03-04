@@ -138,8 +138,13 @@ class FundaWandeSushiChef(SushiChef):
             if url in urls:
                 continue  # skip duplicate pdfs/files
             urls.append(url)
-            name = link.get("data-label")
-            topic = link.get("data-cat1")
+            name = link.get("data-label").strip()
+            topic = link.get("data-cat1").strip()
+
+            # let's add the level to the name for the Reading for Meaning Course videos
+            if topic == "Reading for Meaning Course":
+                if element != "a":
+                    name = "{}: {}".format(level, name)
             if (
                 "Covid" in topic
                 or "Phonics" in topic
@@ -149,8 +154,8 @@ class FundaWandeSushiChef(SushiChef):
                 continue  # skip section having these words in their titles
             if topic == "Maths Workbooks":
                 topic = "Maths"
-            level = link.get("data-cat2")
-            term = link.get("data-cat3")
+            level = link.get("data-cat2").strip()
+            term = link.get("data-cat3").strip()
             idx = "{}-{}-{}-{}_id".format(topic, level, term, name)
             idx = idx.replace(" ", "_")
             if topic not in self.topics:
@@ -253,7 +258,7 @@ class FundaWandeSushiChef(SushiChef):
                         language="en",
                     )
                     term = (
-                        "{}/".format(obj_resource["term"])
+                        "{} - ".format(obj_resource["term"])
                         if obj_resource["term"] != "All"
                         else ""
                     )
