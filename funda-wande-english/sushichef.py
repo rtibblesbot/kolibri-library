@@ -2,19 +2,20 @@ import os
 import shutil
 import sys
 import time
+from typing import Dict, List, Optional, Tuple, Union
 
 import fitz
 import requests
 
 from bs4 import BeautifulSoup
 
-from le_utils.constants.labels import resource_type
 from le_utils.constants.labels import subjects
 
 from ricecooker.chefs import SushiChef
 from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.files import VideoFile
 from ricecooker.classes.licenses import get_license
+from ricecooker.classes.nodes import ChannelNode
 from ricecooker.classes.nodes import DocumentNode
 from ricecooker.classes.nodes import TopicNode
 from ricecooker.classes.nodes import VideoNode
@@ -25,7 +26,9 @@ COURSE_URL = "https://fundawande.org"
 SIZE_LIMIT = 15 * 1024 * 1024  # 15 MB
 
 
-def make_request(url, timeout=60, method="GET", **kwargs):
+def make_request(
+    url: str, timeout: int = 60, method: str = "GET", **kwargs
+) -> Optional[requests.Response]:
     """
     Failure-resistant HTTP GET/HEAD request helper method.
     """
@@ -57,8 +60,8 @@ def make_request(url, timeout=60, method="GET", **kwargs):
     return response
 
 
-def download_page(url):
-    """
+def download_page(url: str) -> Tuple[Optional[str], Optional[BeautifulSoup]]:
+    """def download_page(url: str) -> Tuple[Optional[str], Optional[BeautifulSoup]]:
     Download `url` (following redirects) and soupify response contents.
     Returns (final_url, page) where final_url is URL afrer following redirects.
     """
@@ -71,7 +74,7 @@ def download_page(url):
     return (response.url, page)
 
 
-def map_categories(name):
+def map_categories(name: str) -> List[str]:
     """
     Map categories to LE subjects
     """
@@ -106,7 +109,7 @@ def map_categories(name):
 
 class FundaWandeSushiChef(SushiChef):
 
-    channel_info = {
+    channel_info: Dict[str, str] = {
         "CHANNEL_TITLE": "Funda Wande Organization - English",
         "CHANNEL_SOURCE_DOMAIN": "https://fundawande.org/",
         "CHANNEL_SOURCE_ID": "funda-wande",
@@ -115,16 +118,18 @@ class FundaWandeSushiChef(SushiChef):
         "CHANNEL_DESCRIPTION": "Funda Wande is a not-for-profit organization that aims to equip teachers to teach reading-for-meaning and calculating-with-confidence in Grades R-3 in South Africa.",
     }
 
-    SETTINGS = {
+    SETTINGS: Dict[str, Union[bool, Dict[str, int]]] = {
         "compress": True,
         "ffmpeg_settings": {"video-height": 480},
     }
 
-    def crawl(self, section, element):
+    def crawl(self, section: str, element: str) -> Dict[str, Dict[str, str]]:
         LOGGER.info("Crawling... {}".format(section))
+        resources: Dict[str, Dict[str, str]] = {}
         _, page = download_page("{}/{}".format(COURSE_URL, section))
+        if page is None:
+            return resources
         links = page.find_all(element, {"data-cat4": "ENG"})
-        resources = {}
         urls = []
         for link in links:
             if element == "a":
@@ -140,6 +145,8 @@ class FundaWandeSushiChef(SushiChef):
             urls.append(url)
             name = link.get("data-label").strip()
             topic = link.get("data-cat1").strip()
+            level = link.get("data-cat2").strip()
+            term = link.get("data-cat3").strip()
 
             # let's add the level to the name for the Reading for Meaning Course videos
             if topic == "Reading for Meaning Course":
@@ -154,8 +161,6 @@ class FundaWandeSushiChef(SushiChef):
                 continue  # skip section having these words in their titles
             if topic == "Maths Workbooks":
                 topic = "Maths"
-            level = link.get("data-cat2").strip()
-            term = link.get("data-cat3").strip()
             idx = "{}-{}-{}-{}_id".format(topic, level, term, name)
             idx = idx.replace(" ", "_")
             if topic not in self.topics:
@@ -173,7 +178,7 @@ class FundaWandeSushiChef(SushiChef):
 
         return resources
 
-    def download_and_compress_pdfs(self):
+    def download_and_compress_pdfs(self) -> None:
         LOGGER.info("Downloading pdf files...")
         for pdf in self.pdfs.keys():
             pdf_name = "chefdata/{}.pdf".format(pdf)
@@ -211,7 +216,9 @@ class FundaWandeSushiChef(SushiChef):
         self.videos = self.crawl("/video-resources", "button")
         self.download_and_compress_pdfs()
 
-    def get_subtopic_node(self, topic_node, obj, categories):
+    def get_subtopic_node(
+        self, topic_node: TopicNode, obj: Dict[str, str], categories: List[str]
+    ) -> TopicNode:
         if "Grade" not in obj["level"]:
             return topic_node
         if self.using_subtopics:
@@ -228,7 +235,7 @@ class FundaWandeSushiChef(SushiChef):
             subtopic_node = topic_node
         return subtopic_node
 
-    def construct_channel(self, *args, **kwargs):
+    def construct_channel(self, *args, **kwargs) -> ChannelNode:
         channel = self.get_channel(*args, **kwargs)
         used_resorces = []
         for topic in self.topics.keys():
@@ -238,7 +245,8 @@ class FundaWandeSushiChef(SushiChef):
                 title=topic,
                 categories=categories,
             )
-            self.subtopics = {}  # If topic has Grades, let's split it into subtopics
+            self.subtopics: Dict[str, TopicNode] = {}
+            # If topic has Grades, let's split it into subtopics
             self.using_subtopics = "Grade" in self.topics[topic][0]
             self.last_subtopic = None
             for resource in self.topics[topic]:
