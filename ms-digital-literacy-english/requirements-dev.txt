@@ -1,0 +1,6 @@
+black
+mypy
+types-beautifulsoup4
+types-requests
+types-xmltodict
+lxml-stubs

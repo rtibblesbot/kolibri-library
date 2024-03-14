@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 import zipfile
+from typing import cast, Any, Dict, List, Mapping, Optional, Tuple, Union
 
 import requests
 import xmltodict
@@ -17,6 +18,7 @@ from ricecooker.classes.files import DocumentFile
 from ricecooker.classes.files import SubtitleFile
 from ricecooker.classes.files import VideoFile
 from ricecooker.classes.licenses import get_license
+from ricecooker.classes.nodes import ChannelNode
 from ricecooker.classes.nodes import DocumentNode
 from ricecooker.classes.nodes import ExerciseNode
 from ricecooker.classes.nodes import TopicNode
@@ -28,7 +30,9 @@ SESSION = requests.Session()
 COURSE_URL = "https://www.microsoft.com/en-us/digital-literacy"
 
 
-def make_request(url, timeout=60, method="GET", **kwargs):
+def make_request(
+    url: str, timeout: int = 60, method: str = "GET", **kwargs: Any
+) -> Optional[requests.Response]:
     """
     Failure-resistant HTTP GET/HEAD request helper method.
     """
@@ -64,7 +68,7 @@ def make_request(url, timeout=60, method="GET", **kwargs):
     return response
 
 
-def download_page(url):
+def download_page(url: str) -> Tuple[Optional[str], Optional[BeautifulSoup]]:
     """
     Download `url` (following redirects) and soupify response contents.
     Returns (final_url, page) where final_url is URL afrer following redirects.
@@ -78,7 +82,7 @@ def download_page(url):
     return (response.url, page)
 
 
-def get_text(element):
+def get_text(element: Optional[BeautifulSoup]) -> str:
     """
     Extract text contents of `element`, normalizing newlines to spaces and stripping.
     """
@@ -88,26 +92,34 @@ def get_text(element):
         return element.get_text().replace("\r", "").replace("\n", " ").strip()
 
 
-def strip_ns_prefix(tree):
+def strip_ns_prefix(tree: etree._ElementTree) -> None:
     """Strip namespace prefixes from an LXML tree.
     From https://stackoverflow.com/a/30233635
     """
-    for element in tree.xpath("descendant-or-self::*[namespace-uri()!='']"):
+    elements: Union[Any, list[etree._Element]] = tree.xpath(
+        "descendant-or-self::*[namespace-uri()!='']"
+    )
+    for element in elements:
         element.tag = etree.QName(element).localname
 
 
-def get_quiz_from_objective(objective):
-    questions = objective.findall("question")
+def get_quiz_from_objective(objective: etree._Element) -> List[SingleSelectQuestion]:
+    questions: list[etree._Element] = objective.findall("question")
     exercises = []
+    item: etree._Element
     for item in questions:
         if item.get("type") == "choice":
-            question = item.find("prompt").text
+            prompt = item.find("prompt")
+            if prompt is None:
+                continue
+            question = prompt.text
             answers = [c.text for c in item.findall("choice")]
             correct = [c.text for c in item.findall("choice") if c.get("correct")][0]
+            name = objective.get("name") or ""
             exercises.append(
                 SingleSelectQuestion(
                     id="question_{}_{}_id".format(
-                        objective.get("name").replace(" ", "_"), item.get("id")
+                        name.replace(" ", "_"), item.get("id")
                     ),
                     question=question,
                     all_answers=answers,
@@ -118,12 +130,15 @@ def get_quiz_from_objective(objective):
     return exercises
 
 
-def get_exercise_node(idx, objectives, lesson):
+def get_exercise_node(
+    idx: str, objectives: List[etree._Element], lesson: str
+) -> ExerciseNode:
     objective = [o for o in objectives if o.get("id") == idx][0]
     questions = get_quiz_from_objective(objective)
+    name = objective.get("name") or ""
     node = ExerciseNode(
-        source_id="questions_{}_id".format(objective.get("name").replace(" ", "_")),
-        title="Knowledge check: {}".format(objective.get("name")),
+        source_id="questions_{}_id".format(name.replace(" ", "_")),
+        title="Knowledge check: {}".format(name),
         author="Microsoft",
         description="Knowledge check: {}".format(lesson),
         language="en",
@@ -139,8 +154,8 @@ def get_exercise_node(idx, objectives, lesson):
     return node
 
 
-def get_course(lesson, zip_video_file):
-    def tttl_from_mp4(mp4_file):
+def get_course(lesson: str, zip_video_file: str) -> TopicNode:
+    def tttl_from_mp4(mp4_file: str) -> str:
         file_path = mp4_file.replace("/Videos/", "/Captions/")
         file_name = os.path.splitext(file_path)
         ttml_file = "{}_Video_cc.ttml".format(file_name[0].strip())
@@ -155,9 +170,13 @@ def get_course(lesson, zip_video_file):
 
     # lesson info:
     manifest = etree.parse("chefdata/imsmanifest.xml").getroot()
-    mt = manifest.find("metadata", manifest.nsmap)
+    nsmap = manifest.nsmap
+    nsmap = cast(Mapping[str, str], nsmap)
+    mt = manifest.find("metadata", nsmap)
+    mt = cast(etree._ElementTree, mt)
     strip_ns_prefix(mt)
-    general = xmltodict.parse(etree.tostring(mt.find("lom/general")))["general"]
+    general_section = mt.find("lom/general") or etree.Element("general")
+    general = xmltodict.parse(etree.tostring(general_section))["general"]
     lesson_title = general["title"].get("langstring", {}).get("#text")
     lesson_desc = general["description"].get("langstring", {}).get("#text")
 
@@ -191,13 +210,17 @@ def get_course(lesson, zip_video_file):
     # parse xml with all the lessons structure:
     page = etree.parse("chefdata/SCO1\en-us\pages.xml").getroot()
     level0_elements = page.findall("level0")  # parent topic
-    objectives = page.find("objectives").getchildren()
+    objectives_parent = page.find("objectives")
+    if objectives_parent is None:
+        objectives = []
+    else:
+        objectives = list(objectives_parent.iterchildren())
     discarded = ("Homepage", "Print your certificate")
     for level0 in level0_elements:  # subtopics with videos and exercises
-        level0_name = level0.get("name")
+        level0_name = level0.get("name") or ""
         if level0_name in discarded:
             continue
-        levels1 = level0.getchildren()
+        levels1 = list(level0.iterchildren())
         if len(levels1) <= 1:
             continue
 
@@ -254,7 +277,7 @@ def get_course(lesson, zip_video_file):
 
 class DigitalLiteracySushiChef(SushiChef):
 
-    channel_info = {
+    channel_info: Dict[str, str] = {
         "CHANNEL_TITLE": "Microsoft Digital Literacy - English",
         "CHANNEL_SOURCE_DOMAIN": "https://www.microsoft.com/en-us/digital-literacy",
         "CHANNEL_SOURCE_ID": "ms-digital-literacy-english",
@@ -263,14 +286,17 @@ class DigitalLiteracySushiChef(SushiChef):
         "CHANNEL_DESCRIPTION": "Learn how to gain digital literacy to use devices, software, and the Internet to collaborate with others and discover, use, and create information.",
     }
 
-    SETTINGS = {
+    SETTINGS: Dict[str, Union[bool, Dict[str, int]]] = {
         "compress": True,
         "ffmpeg_settings": {"video-height": 480},
     }
 
-    def crawl(self):
+    def crawl(self) -> None:
         LOGGER.info("Crawling...")
         _, page = download_page(COURSE_URL)
+        if page is None:
+            LOGGER.error("Failed to download page: {}".format(COURSE_URL))
+            return
         scorm_intro = page.find_all(
             "p",
             string="Download the English Digital Literacy SCORM packages by course module.",
@@ -296,7 +322,7 @@ class DigitalLiteracySushiChef(SushiChef):
                 topics[topic.get_text()] = topic.get("href")
         self.zipped_videos = topics
 
-    def download_courses(self):
+    def download_courses(self) -> None:
         for lesson, url in self.lessons.items():
             LOGGER.info("Downloading lesson: {}".format(lesson))
             filename = "chefdata/{}.zip".format(lesson)
@@ -323,7 +349,7 @@ class DigitalLiteracySushiChef(SushiChef):
             else:
                 LOGGER.info("Video file already exists for lesson: {}".format(lesson))
 
-    def get_teacher_resources(self):
+    def get_teacher_resources(self) -> TopicNode:
         filename = "chefdata/Teacher Resource files"
         if not os.path.exists(filename):
             with zipfile.ZipFile("{}.zip".format(filename), "r") as zip_ref:
@@ -387,7 +413,7 @@ class DigitalLiteracySushiChef(SushiChef):
         self.crawl()
         self.download_courses()
 
-    def construct_channel(self, *args, **kwargs):
+    def construct_channel(self, *args, **kwargs) -> ChannelNode:
         channel = self.get_channel(*args, **kwargs)
         video_files = list(self.zipped_videos.keys())
 
