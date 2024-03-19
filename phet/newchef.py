@@ -24,6 +24,10 @@ from requests.adapters import HTTPAdapter
 from deep_translator import GoogleTranslator
 from metadata_tags import METADATA_BY_CAT
 
+DEFAULT_LANG = 'en'
+BASE_TITLE = "PhET Interactive Simulations"
+BASE_SOURCE_ID = "phet-html5-simulations------testagain"
+
 retry_strategy = Retry(
     total=5,
     backoff_factor=1
@@ -109,129 +113,103 @@ CHANNEL_DESCRIPTIONS = {
     'ht': 'Pwojè PhET Interactive Simulations ki kreye pa Inivèsite Colorado Boulder ofri similasyon entèraktif matematik ak syans ki angaje elèv yo ak anviwònman entwisyon ki sanble ak yon jwèt. Elèv yo ka aprann matematik, fizik, byoloji, ak chimi atravè eksplorasyon pratik ak dekouvèt. Similasyon yo apwopriye pou tout laj e yo gen ladan plan leson pwofesè k ap gide yo.'
 }
 
-# CHANNEL_ID = "d5c3b3aa38fd46c09b4643cea5d21779"  # Test channel ID
-CHANNEL_NAME = {"en": "PhET Interactive Simulations", "ht": "PhET (Kreyòl ayisyen)"}  # Name of Kolibri channel
-CHANNEL_SOURCE_ID = "phet-html5-simulations"  # Unique ID for content source
-CHANNEL_DOMAIN = "phet.colorado.edu"  # Who is providing the content
-CHANNEL_LANGUAGE = "en"  # Language of channel
-CHANNEL_THUMBNAIL = 'chefdata/phet-logo-TM-partners.png'
-pdf_sheet_name = 'Sheet2'
-EXCEL_PATH = 'phet-metadata.xlsx'
 
+class PhET(SushiChef):
+    def __init__(self, *args, **kwargs):
+        """
+        The class is constructed with these defaults as it is meant to run
+        initially in English only. This is because all sims are available in
+        English and we will gather the other locales as we process them.
 
-class PhETSushiChef(SushiChef):
-    channel_info = {
-        # 'CHANNEL_ID': CHANNEL_ID,
-        'CHANNEL_SOURCE_DOMAIN': CHANNEL_DOMAIN,
-        'CHANNEL_SOURCE_ID': CHANNEL_SOURCE_ID,
-        'CHANNEL_TITLE': CHANNEL_NAME,
-        'CHANNEL_LANGUAGE': CHANNEL_LANGUAGE,
-        'CHANNEL_DESCRIPTION': CHANNEL_DESCRIPTIONS,
-        'CHANNEL_THUMBNAIL': CHANNEL_THUMBNAIL
-    }
-    translator = None
+        TODO: Once the initial gathering of locale data is complete, it should
+        be stored in a file to serve as a cache for future runs. Maybe a
+        --skip-cache option could be watched for?
+        """
+        self.channel_name = BASE_TITLE
+        self.channel_source_id = BASE_SOURCE_ID
+        self.channel_domain = "phet.colorado.edu"
+        self.channel_language = DEFAULT_LANG
+        self.channel_thumbnail = 'chefdata/phet-logo-TM-partners.png'
+        self.channel_description = CHANNEL_DESCRIPTIONS.get(self.channel_language)
 
-    # lang_en_translator = None
+        print("Running Language: ", self.channel_language)
 
-    def get_channel(self, **kwargs):
-        lang_obj = getlang(CHANNEL_LANGUAGE)
+        self.available_locales = set()
+        self.downloaded_locales = set()
 
-        if CHANNEL_LANGUAGE == "en":
-            source_id_suffix = ''
-        else:
-            source_id_suffix = '-{}'.format(CHANNEL_LANGUAGE)
+        super().__init__(PhET, *args, **kwargs)
 
-        description = CHANNEL_DESCRIPTIONS.get(CHANNEL_LANGUAGE, None)
-        if description is None:
-            description = CHANNEL_DESCRIPTIONS['en']
-
-        # channel = ChannelNode(
-        #     source_domain = 'phet.colorado.edu',
-        #     source_id = 'phet-html5-simulations{}'.format(source_id_suffix),
-        #     title = 'PhET Interactive Simulations ({})'.format(lang_obj.native_name),
-        #     thumbnail = 'chefdata/phet-logo-TM-partners.png',
-        #     description = description,
-        #     language=lang_obj,
-        # )
-
-        channel = ChannelNode(
-            source_domain='phet.colorado.edu',
-            source_id='phet-html5-simulations{}'.format(source_id_suffix),
-            title='PhET Interactive Simulations ({})'.format(lang_obj.native_name),
-            thumbnail='chefdata/phet-logo-TM-partners.png',
-            description=description,
-            language=lang_obj,
+    def _update_translators(self):
+        self.translator = GoogleTranslator(
+            source='auto', target=self.channel_language
+        )
+        self.lang_en_translator = GoogleTranslator(
+            source=self.channel_language, target=self.channel_language
         )
 
-        return channel
+    def run_with_locale(self, locale):
+        """
+        After the English chef completes, this method will be called to run another language.
+        """
+        # JP: Not sure why this is necessary but it was in the original code
+        if locale == 'id':
+            locale = 'in'
 
-    def construct_channel(self, **kwargs):
-        # channel = self.get_channel(**kwargs)
-        channel_info = self.channel_info
+        # Setup channel info for new locale
+        self.channel_name = self._localized_channel_title(locale)
+        self.channel_source_id = self.channel_source_id + f'-{locale}'
+        self.channel_language = locale
 
-        if not CHANNEL_LANGUAGE:
-            CHANNEL_LANGUAGE = kwargs.get("lang", "en")
-        if CHANNEL_LANGUAGE != 'en':
-            self.translator = GoogleTranslator(source='auto', target=CHANNEL_LANGUAGE)
-            self.lang_en_translator = GoogleTranslator(source=CHANNEL_LANGUAGE, target='en')
-
-        dict_downloaded_paths = {}
-        lang_obj = getlang(CHANNEL_LANGUAGE)
-        if CHANNEL_LANGUAGE == 'ht':
-            title = channel_info['CHANNEL_TITLE'].get('ht')
-        else:
-            title = channel_info['CHANNEL_TITLE'].get('en')
-            title = '{} ({})'.format(title, lang_obj.native_name)
-
-        if CHANNEL_LANGUAGE == 'en':
-            source_id = channel_info['CHANNEL_SOURCE_ID']
-        else:
-            source_id = '{}{}'.format(channel_info['CHANNEL_SOURCE_ID'], CHANNEL_LANGUAGE)
-
-        description = channel_info.get('CHANNEL_DESCRIPTION').get(CHANNEL_LANGUAGE)
-        if not description and self.translator:
-            description = channel_info.get('CHANNEL_DESCRIPTION').get("en")
-            description = self.translator.translate(description)
-
-        channel = ChannelNode(
-            source_domain=channel_info['CHANNEL_SOURCE_DOMAIN'],
-            source_id=source_id,
-            title=title,
-            thumbnail=channel_info.get('CHANNEL_THUMBNAIL'),
-            description=description,
-            language=CHANNEL_LANGUAGE,
+        # Setup translators for new locale
+        self.translator = GoogleTranslator(
+            source='auto', target=self.channel_language
+        )
+        self.lang_en_translator = GoogleTranslator(
+            source=self.channel_language, target=DEFAULT_LANG
         )
 
-        # r = sess.get("https://phet.colorado.edu/services/metadata/1.1/simulations?format=json&type=html&locale=" + LANGUAGE)
-        # data = json.loads(r.content.decode())
-        # self.download_category(
-        #     parent=channel,
-        #     cat_id="1",
-        #     categories=data["categories"],
-        #     sims={proj["simulations"][0]["id"]: proj["simulations"][0] for proj in data["projects"]},
-        #     keywords={kw["id"]: kw["strings"][0][LANGUAGE] for kw in data["keywords"]},
-        #     language=LANGUAGE,
-        # )
-        if CHANNEL_LANGUAGE == 'id':
-            CHANNEL_LANGUAGE = 'in'
-        r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locale=" + CHANNEL_LANGUAGE)
-        r_cat = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/categories?locale=" + CHANNEL_LANGUAGE)
-        r_keyword = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/keywords?locale=" + CHANNEL_LANGUAGE)
+        self.channel_description = CHANNEL_DESCRIPTIONS.get(
+            locale,
+            self.translator.translate(text=CHANNEL_DESCRIPTIONS.get(DEFAULT_LANG))  # Fallback to translator
+        )
+
+        # Run the chef again with the new locale
+        self.main()
+
+    def construct_channel(self, *args, **kwargs):
+        channel = ChannelNode(
+            source_domain=self.channel_domain,
+            source_id=self.channel_source_id,
+            title=self.channel_name,
+            thumbnail=self.channel_thumbnail,
+            description=self.channel_description,
+            language=self.channel_language,
+        )
+        print("Constructed channel: ", self.channel_name)
+
+        r_sim = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/simulations?locale={self.channel_language}")
+        r_cat = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/categories")
+        r_keyword = sess.get(f"{BASE_URL}/partner-services/2.0/metadata/keywords?locale={self.channel_language}")
+
         sim_data = json.loads(r_sim.text)
         cat_data = json.loads(r_cat.text)
         keyword_data = json.loads(r_keyword.text)
+
+        dict_downloaded_paths = {}
+
         self.download_category(
             parent=channel,
             cat_id="1",
             categories=cat_data,
             sims={sim["id"]: sim for sim in sim_data["simulations"]},
-            keywords={keyword_data.get(key).get("id"): keyword_data.get(key)["strings"][CHANNEL_LANGUAGE] for key in
+            keywords={keyword_data.get(key).get("id"): keyword_data.get(key)["strings"][self.channel_language] for key in
                       keyword_data if keyword_data.get(key)["strings"]},
-            language=LANGUAGE,
+            language=self.channel_language,
             dict_downloaded_paths=dict_downloaded_paths
         )
 
         return channel
+
 
     def download_category(self, parent, cat_id, categories, sims, keywords, language, dict_downloaded_paths):
         """
@@ -241,10 +219,10 @@ class PhETSushiChef(SushiChef):
         cat = categories[str(cat_id)]
         cat_name = None
         dict_cat_name = cat['strings']
-        if dict_cat_name.get('en'):
-            cat_name = dict_cat_name.get('en')
-        elif dict_cat_name.get(CHANNEL_LANGUAGE):
-            cat_name = dict_cat_name.get(CHANNEL_LANGUAGE)
+        if dict_cat_name.get(self.channel_language):
+            cat_name = dict_cat_name.get(self.channel_language)
+        elif dict_cat_name.get(DEFAULT_LANG):
+            cat_name = dict_cat_name.get(DEFAULT_LANG)
         # loop through all subtopics and recursively add them
         # (reverse order seems to give most rational results)
         for child_id in reversed(cat["childrenIds"]):
@@ -254,7 +232,7 @@ class PhETSushiChef(SushiChef):
             # look up the child category by ID
             subcat = categories[str(child_id)]
             # skip it if it's in our blacklist
-            if subcat["name"] in ID_BLACKLIST_BY_LANG.get(language, ID_BLACKLIST_BY_LANG['en']):
+            if subcat["name"] in ID_BLACKLIST_BY_LANG.get(language, ID_BLACKLIST_BY_LANG.get(DEFAULT_LANG, [])):
                 continue
             # make the title human-readable, and clean it up
 
@@ -264,12 +242,13 @@ class PhETSushiChef(SushiChef):
                 title = title.replace(" And ", " and ")
                 title = title.replace("Mathconcepts", "Concepts")
                 title = title.replace("Mathapplications", "Applications")
-            if language == 'en':
+            if language == DEFAULT_LANG:
                 pass
             elif language == "ar":
                 title = ARABIC_NAME_CATEGORY[title]
             elif language == 'ht':
                 title = HAITIAN_NAME_CATEGORY[title]
+
             if metadata:
                 subtopic = TopicNode(
                     source_id=subcat["name"],
@@ -295,6 +274,7 @@ class PhETSushiChef(SushiChef):
                     continue
                 self.download_sim(parent, sims[sim_id], sim_id, keywords, language, dict_downloaded_paths)
 
+
     def download_sim(self, topic, sim, sim_id, keywords, language, dict_downloaded_paths):
         """
         Download, zip, and add a node for a sim, as well as any associated video.
@@ -302,10 +282,19 @@ class PhETSushiChef(SushiChef):
         sim_detail_res = sess.get(
             f'https://phet-api.colorado.edu/partner-services/2.0/metadata/simulations/{sim_id}?locale={language}')
         sim_detail_data = json.loads(sim_detail_res.text)
+
+        # When we're processing the English channel, we want to gather all the available locales
+        if self.channel_language == DEFAULT_LANG:
+            self.available_locales.update(sim_detail_data.get('availableLocales', []))
+
         description = None
         run_url = sim.get('defaultData').get('runUrl')
+        # Ensure we're downloading the localized sim
+        if run_url.endswith("_en.html") and language != DEFAULT_LANG:
+            run_url = run_url.replace("_en.html", f"_{language}.html")
         title = sim.get('defaultData').get('title')
         description = sim.get('defaultData').get('description')
+
         if sim.get('localizedData') and sim.get('localizedData').get(language):
             if sim.get('localizedData').get(language).get('runUrl'):
                 run_url = sim.get('localizedData').get(language).get('runUrl')
@@ -313,8 +302,7 @@ class PhETSushiChef(SushiChef):
                 title = sim.get('localizedData').get(language).get('title')
             if sim.get('localizedData').get(language).get('description'):
                 description = sim.get('localizedData').get(language).get('description')
-
-        else:
+        elif self.channel_language != DEFAULT_LANG:
             if self.translator:
                 title = self.translator.translate(text=title)
             if description:
@@ -352,7 +340,7 @@ class PhETSushiChef(SushiChef):
         elif language == 'ht':
             if title in HAITIAN_NAME_CATEGORY:
                 title = HAITIAN_NAME_CATEGORY[title]
-        else:
+        elif language != DEFAULT_LANG:
             if self.translator:
                 title = self.translator.translate(text=title)
         # get thumbnail image
@@ -399,6 +387,11 @@ class PhETSushiChef(SushiChef):
 
         # add the sim node into the topic
         topic.add_child(simnode)
+
+    def _localized_channel_title(self, locale):
+        if locale == 'ht':
+            return "PhET (Kreyòl ayisyen)"
+        return f'{BASE_TITLE} ({getlang(locale).native_name})'
 
 
 def process_sim_html(content, destpath, **kwargs):
@@ -456,4 +449,20 @@ def process_sim_html(content, destpath, **kwargs):
 
 
 if __name__ == '__main__':
-    PhETSushiChef().main()
+    print('PhET chef started')
+    phet_chef = PhET()
+    phet_chef.main()
+    def run_again():
+        locale = phet_chef.available_locales.pop()
+        try:
+            if getlang(locale):
+                phet_chef.run_with_locale(getlang(locale).primary_code)
+            else:
+                run_again()
+        except KeyError:
+            print("Processed all locales successfully.")
+        except Exception as e:
+            print(f"Error running with locale: '{locale}' ", e)
+        finally:
+            run_again()
+    run_again()
