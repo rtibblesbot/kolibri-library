@@ -52,14 +52,14 @@ METADATA_BY_SLUG = {
     'quantum phenomena': {'grade_levels': [], 'categories': [subjects.PHYSICS]},
     'University': {'grade_levels': [levels.TERTIARY], 'categories': []}
 }
-METADATA_BY_CAT = {22: {'grade_levels': [levels.LOWER_PRIMARY, levels.UPPER_PRIMARY], 'categories': []},
-                   23: {'grade_levels': [levels.LOWER_SECONDARY], 'categories': []},
-                   24: {'grade_levels': [levels.UPPER_SECONDARY], 'categories': []},
-                   25:  {'grade_levels': [levels.TERTIARY], 'categories': []},
-                   4:  {'grade_levels': [], 'categories': [subjects.PHYSICS]},
-                   12: {'grade_levels': [], 'categories': [subjects.BIOLOGY]},
-                   13: {'grade_levels': [], 'categories': [subjects.CHEMISTRY]},
-                   14:  {'grade_levels': [], 'categories': [subjects.EARTH_SCIENCE]},
-                   15:  {'grade_levels': [], 'categories': [subjects.MATHEMATICS]}
+METADATA_BY_CAT = {22: {'grade_levels': [levels.LOWER_PRIMARY, levels.UPPER_PRIMARY] },
+                   23: {'grade_levels': [levels.LOWER_SECONDARY]},
+                   24: {'grade_levels': [levels.UPPER_SECONDARY]},
+                   25:  {'grade_levels': [levels.TERTIARY]},
+                   4:  { 'categories': [subjects.PHYSICS]},
+                   12: { 'categories': [subjects.BIOLOGY]},
+                   13: { 'categories': [subjects.CHEMISTRY]},
+                   14:  { 'categories': [subjects.EARTH_SCIENCE]},
+                   15:  { 'categories': [subjects.MATHEMATICS]}
                    }
 
