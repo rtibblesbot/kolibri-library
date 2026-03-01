@@ -168,11 +168,10 @@ def read_assessment_xls(dict_xls, data):
                 if data.get(language) \
                         and data[language].get(grade) \
                         and data[language][grade].get(subject) \
-                        and data[language][grade][subject].get(chapter) \
-                        and chapter_assessment not in data[language][grade][subject][chapter]:
-                    data[language][grade][subject][chapter][chapter_assessment] = {}
-                    if data[language][grade].get(subject) and data[language][grade][subject].get(chapter):
-                        data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
+                        and data[language][grade][subject].get(chapter):
+                    if chapter_assessment not in data[language][grade][subject][chapter]:
+                        data[language][grade][subject][chapter][chapter_assessment] = {}
+                    data[language][grade][subject][chapter][chapter_assessment][question_id] = question_metadata
             # location where to add question objects
 
     return data
@@ -183,7 +182,7 @@ def get_image_path(image_path, image_string):
     path_image = image_string.replace("/", os.path.sep)
     path = os.path.join(image_path, path_image)
     if not os.path.isfile(path):
-        add_to_failed(image_path)
+        add_to_failed(image_path.split(os.path.sep))
     return path
 
 
