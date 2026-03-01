@@ -328,6 +328,7 @@ class ElejandriaLibrosSpider(scrapy.Spider):
         url = response.css(".book-description a.download-link::attr(href)").get()
         if not url:
             logger.error("Could not find download link: {}".format(url))
+            return
         else:
             document_node.add_file(file_cls(url))
 
