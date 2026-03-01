@@ -68,7 +68,7 @@ class Client:
     def get_video_data(self, id):
         video_url = "https://www.youtube.com/watch?v={}".format(id)
         # Undocumented hack to skip proxies in development
-        useproxy = os.environ.get("PROXY_LIST").strip() != "skip"
+        useproxy = os.environ.get("PROXY_LIST", "").strip() != "skip"
         ytres = YouTubeResource(
             video_url,
             useproxy=useproxy,
