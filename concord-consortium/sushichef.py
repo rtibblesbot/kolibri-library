@@ -80,7 +80,10 @@ class MyChef(SushiChef):
         parsed_urls = list(map(lambda x: urlparse(x), resolved_urls))
 
         # Narrow down to just embeddable models for now # TODO all models, not just embeddable-based
-        embeddable_parsed_urls = list(filter(lambda x: x.path == '/embeddable.html', parsed_urls))
+        # Filter models and parsed_urls together so indices stay aligned
+        embeddable_pairs = [(m, u) for m, u in zip(models, parsed_urls) if u.path == '/embeddable.html']
+        embeddable_models = [pair[0] for pair in embeddable_pairs]
+        embeddable_parsed_urls = [pair[1] for pair in embeddable_pairs]
         embeddable_base_urls = list(map(lambda x: x.scheme + '://' + x.netloc, embeddable_parsed_urls))
         embeddable_fragments = list(map(lambda x: x.fragment, embeddable_parsed_urls))
 
@@ -134,14 +137,14 @@ class MyChef(SushiChef):
 
             # topic_node_title = fragment_json.get('title', 'topic_title')
             topic_node_title = fragment_json.get('title', 'follow redirect to get topic title') # TODO follow fragment_json redirects to get title
-            topic_node_source_id = 'model/' + str(models[i]['id']) # str() in case it's an array with multiple 'about's
+            topic_node_source_id = 'model/' + str(embeddable_models[i]['id']) # str() in case it's an array with multiple 'about's
             topic_node = nodes.TopicNode(title=topic_node_title, source_id=topic_node_source_id)
             channel.add_child(topic_node)
 
             app_node_source_id = 'embeddable/' + os.path.splitext(os.path.basename(embeddable_fragment))[0]
             app_node_title = fragment_json.get('title', 'follow redirect to get app title') # TODO follow fragment_json redirects to get title
             app_node_description = str(fragment_json.get('about', 'follow redirect to get app description')) # str() in case it's an array with multiple 'about's # TODO deal with arrays # TODO follow fragment_json redirects to get title
-            license = get_model_license(models[i])
+            license = get_model_license(embeddable_models[i])
             topic_node.add_child(nodes.HTML5AppNode(
                 source_id=app_node_source_id,
                 title=app_node_title,
@@ -203,8 +206,8 @@ def quietly(func, *args, **kwargs):
 
 def get_model_license(model):
     try:
-        return model.get['license_info']['code']
-    except:
+        return model.get('license_info', {}).get('code', 'unknown_license')
+    except Exception:
         return 'unknown_license'
 
 
