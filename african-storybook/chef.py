@@ -75,7 +75,7 @@ class AfricanStorybookChef(SushiChef):
     """
     channel_info = {
         'CHANNEL_SOURCE_DOMAIN': "www.africanstorybook.org",
-        'CHANNEL_SOURCE_ID': "african-storybook-test",
+        'CHANNEL_SOURCE_ID': "african-storybook",
         'CHANNEL_TITLE': "African Storybook Library (multiple languages)",
         'CHANNEL_THUMBNAIL': "asb120.png",
         'CHANNEL_DESCRIPTION': "Library of picture storybooks in all the languages of African countries, designed to promote basic literacy and reading for learners of young ages and varying literacy levels.",
@@ -221,12 +221,12 @@ async def find_finished_download(dict_page_download):
 def get_languages_and_books():
     with WebDriver("https://www.africanstorybook.org/", delay=10000) as driver:
         time.sleep(5)
-        books = driver.execute("return bookItemsAppr;")
+        books = driver.execute_script("return bookItemsAppr;")
         dict_books = {}
         for book in books:
             print(book)
             if book.get('id') not in dict_books:
-                dict_books = book
+                dict_books[book.get('id')] = book
 
         languages_html = driver.execute_script("return languages;")
         language_id_map = {}
