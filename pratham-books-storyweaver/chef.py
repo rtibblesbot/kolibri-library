@@ -258,6 +258,7 @@ def add_node_document(booklist, level_topic, as_booklist):
                 resp = downloader.make_request(item["link"], clear_cookies=False)
                 resp.raise_for_status()
                 tempf.write(resp.content)
+                tempf.flush()
             except Exception as e:
                 # Do not create the node if download fails
                 LOGGER.info("Error: {} when downloading {}".format(e, item["link"]))
