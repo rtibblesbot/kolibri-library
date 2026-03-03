@@ -144,6 +144,7 @@ SIM_TYPO = {
 }
 
 CHANNEL_DESCRIPTIONS = {
+    "en": "The PhET Interactive Simulations project created by the University of Colorado Boulder provides interactive math and science simulations that engage students with intuitive, game-like environments. Students can learn about math, physics, biology, and chemistry through hands-on exploration and discovery. The simulations are appropriate for all ages and include guiding teacher lesson plans.",
     "ar": "تزوّد هذه القناة والمعمول بمحتواها من قبل جامعة كونيتيكيت الأمريكية مجموعة من برمجيات المحاكاة التي يمكن للمتعلمين في المرحلة الإعدادية والثانوية التفاعل معها لفهم أكبر لما قد يدرسونه من قوانين وتجارب في الرياضيات والعلوم المختلفة وخاصة مادتي الكيمياء والفيزياء.",
 }
 
@@ -223,7 +224,7 @@ class PhET(SushiChef):
     def _get_phet_lang_code(self, kolibri_lang_code):
         code = self.lang_map.get(kolibri_lang_code)
         if not code:
-            raise ("Lang code not mapped!")
+            raise ValueError(f"Lang code not mapped: {kolibri_lang_code}")
         else:
             return code
 
@@ -379,7 +380,7 @@ class PhET(SushiChef):
             if language == DEFAULT_LANG:
                 pass
             elif language == "ar":
-                title = ARABIC_NAME_CATEGORY[title]
+                title = ARABIC_NAME_CATEGORY.get(title, title)
             elif language == "ht":
                 title = HAITIAN_NAME_CATEGORY.get(title, title)
 
@@ -446,9 +447,9 @@ class PhET(SushiChef):
                 metadata["categories"] += new_metadata
 
         low_grade_level_id = sim_detail_data.get("lowGradeLevel", {}).get("id", None)
-        high_grade_level_id = sim_detail_data.get("highGradeLevel", {}).get(
-            "id", low_grade_level_id + 1
-        )  # for the range use
+        high_grade_level_id = sim_detail_data.get("highGradeLevel", {}).get("id", None)
+        if low_grade_level_id is not None and high_grade_level_id is None:
+            high_grade_level_id = low_grade_level_id + 1
 
         if low_grade_level_id and high_grade_level_id:
             for grade_level_id in range(low_grade_level_id, high_grade_level_id):

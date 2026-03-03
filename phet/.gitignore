@@ -106,4 +106,5 @@ restore/
 storage/
 node_modules/
 .vscode/
-chefdata/
+chefdata/*
+!chefdata/phet-logo-TM-partners.png

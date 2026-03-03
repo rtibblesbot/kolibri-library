@@ -8,5 +8,5 @@ By default, it runs all languages at once - each to their own separate channel.
 
 If you want to run a specific language or set of languages, you can pass the keyword argument:
 
-`--langs=pt` - Run the `pt` locale alone
-`--langs=en,ar,es` - Run English, Arabic, and Spanish chefs
+`--lang=pt` - Run the `pt` locale alone
+`--lang=en,ar,es` - Run English, Arabic, and Spanish chefs
