@@ -6,6 +6,7 @@ sushi-chef-african-storybook
 sushi-chef-aiep
 sushi-chef-al-riyadiyat
 sushi-chef-aldarayn
+sushi-chef-artsedge
 sushi-chef-atingi
 sushi-chef-awa2el
 sushi-chef-blockly-games
