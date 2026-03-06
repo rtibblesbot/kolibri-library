@@ -4,9 +4,11 @@ sushi-chef-abdullaheid
 sushi-chef-aflatoun
 sushi-chef-african-storybook
 sushi-chef-aiep
+sushi-chef-aimhi
 sushi-chef-al-riyadiyat
 sushi-chef-aldarayn
 sushi-chef-artsedge
+sushi-chef-arvind-gupta-toys
 sushi-chef-atingi
 sushi-chef-awa2el
 sushi-chef-blockly-games
@@ -55,6 +57,7 @@ sushi-chef-migration-matters
 sushi-chef-mit-blossoms
 sushi-chef-mother-goose-club
 sushi-chef-ms-digital-literacy-english
+sushi-chef-nalibali
 sushi-chef-newz-beat
 sushi-chef-noktta
 sushi-chef-nutrition-facts
@@ -66,6 +69,7 @@ sushi-chef-overcoming-obstacles
 sushi-chef-pbslearningmedia
 sushi-chef-phet
 sushi-chef-pointb-21csguide
+sushi-chef-pradigi
 sushi-chef-pratham-books-storyweaver
 sushi-chef-profuturo
 sushi-chef-proyecto-biosfera
