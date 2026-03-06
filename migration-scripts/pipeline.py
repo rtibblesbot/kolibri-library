@@ -54,11 +54,32 @@ def linearize_history(repo_dir):
         cwd=repo_dir,
     )
 
-    # Rebase --root to linearize
+    # Save the original tree state before linearizing
+    original_tree = run_command(
+        ["git", "rev-parse", "HEAD^{tree}"],
+        cwd=repo_dir,
+    ).strip()
+
+    # Use --strategy-option=theirs since merge commits are present and
+    # conflicts are likely; the tree-fixup below guarantees correctness
     run_command(
-        ["git", "rebase", "--root"],
+        ["git", "rebase", "--root", "--strategy-option=theirs"],
         cwd=repo_dir,
     )
+
+    # Verify the tree matches the original; fix up if auto-resolution diverged
+    new_tree = run_command(
+        ["git", "rev-parse", "HEAD^{tree}"],
+        cwd=repo_dir,
+    ).strip()
+
+    if new_tree != original_tree:
+        # Restore the original tree and commit the correction
+        run_command(["git", "read-tree", "--reset", "-u", original_tree], cwd=repo_dir)
+        run_command(
+            ["git", "commit", "-m", "Restore original tree after linearization"],
+            cwd=repo_dir,
+        )
 
 
 def rewrite_paths(repo_dir, subdirectory):

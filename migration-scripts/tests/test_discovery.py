@@ -256,13 +256,15 @@ class TestCheckMultiBranchAndPrs:
             if "branches" in cmd_str:
                 return "main\n"
             if "gh pr list" in cmd_str:
-                return json.dumps([
-                    {
-                        "number": 1,
-                        "headRefName": "dependabot/pip/pillow-10.0.1",
-                        "author": {"login": "dependabot[bot]"},
-                    }
-                ])
+                return json.dumps(
+                    [
+                        {
+                            "number": 1,
+                            "headRefName": "dependabot/pip/pillow-10.0.1",
+                            "author": {"login": "dependabot[bot]"},
+                        }
+                    ]
+                )
             return ""
 
         with patch("discovery.run_command", side_effect=mock_run_command):
@@ -282,13 +284,15 @@ class TestCheckMultiBranchAndPrs:
             if "branches" in cmd_str:
                 return "main\n"
             if "gh pr list" in cmd_str:
-                return json.dumps([
-                    {
-                        "number": 1,
-                        "headRefName": "feature-branch",
-                        "author": {"login": "someuser"},
-                    }
-                ])
+                return json.dumps(
+                    [
+                        {
+                            "number": 1,
+                            "headRefName": "feature-branch",
+                            "author": {"login": "someuser"},
+                        }
+                    ]
+                )
             return ""
 
         with patch("discovery.run_command", side_effect=mock_run_command):
@@ -311,13 +315,15 @@ class TestCheckMultiBranchAndPrs:
             if "compare" in cmd_str:
                 return '{"ahead_by": 0}'
             if "gh pr list" in cmd_str:
-                return json.dumps([
-                    {
-                        "number": 1,
-                        "headRefName": "dependabot/pip/markdown2-2.4.0",
-                        "author": {"login": "dependabot[bot]"},
-                    }
-                ])
+                return json.dumps(
+                    [
+                        {
+                            "number": 1,
+                            "headRefName": "dependabot/pip/markdown2-2.4.0",
+                            "author": {"login": "dependabot[bot]"},
+                        }
+                    ]
+                )
             return ""
 
         with patch("discovery.run_command", side_effect=mock_run_command):

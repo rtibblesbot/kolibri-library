@@ -246,6 +246,96 @@ class TestRunPipeline:
             shutil.rmtree(os.path.dirname(result_dir), ignore_errors=True)
 
 
+def _create_conflicting_merge_repo(path):
+    """Helper to create a repo with a merge commit that resolved conflicts."""
+    os.makedirs(path, exist_ok=True)
+    run_opts = {"cwd": path, "check": True, "capture_output": True}
+    subprocess.run(["git", "init", "--initial-branch=main"], **run_opts)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], **run_opts)
+    subprocess.run(["git", "config", "user.name", "Test"], **run_opts)
+
+    filepath = os.path.join(path, "shared.txt")
+    with open(filepath, "w") as f:
+        f.write("line1\nline2\nline3\n")
+    subprocess.run(["git", "add", "."], **run_opts)
+    subprocess.run(["git", "commit", "-m", "initial"], **run_opts)
+
+    # Branch modifies same file
+    subprocess.run(["git", "checkout", "-b", "feature"], **run_opts)
+    with open(filepath, "w") as f:
+        f.write("line1\nfeature-change\nline3\n")
+    subprocess.run(["git", "add", "."], **run_opts)
+    subprocess.run(["git", "commit", "-m", "feature change"], **run_opts)
+
+    # Main makes conflicting change
+    subprocess.run(["git", "checkout", "main"], **run_opts)
+    with open(filepath, "w") as f:
+        f.write("line1\nmain-change\nline3\n")
+    subprocess.run(["git", "add", "."], **run_opts)
+    subprocess.run(["git", "commit", "-m", "main change"], **run_opts)
+
+    # Merge fails with conflict
+    subprocess.run(
+        ["git", "merge", "feature", "--no-ff", "-m", "Merge feature"],
+        cwd=path,
+        capture_output=True,
+    )
+
+    # Resolve by combining both changes
+    with open(filepath, "w") as f:
+        f.write("line1\nmain-change\nfeature-change\nline3\n")
+    subprocess.run(["git", "add", "."], **run_opts)
+    subprocess.run(["git", "commit", "-m", "Merge feature (resolved)"], **run_opts)
+
+
+class TestLinearizeHistoryWithConflicts:
+    """Tests for linearize_history() with conflicting merge commits."""
+
+    def test_linearizes_repo_with_conflicting_merge(self, tmp_path):
+        """A merge commit that resolved conflicts should still linearize."""
+        repo = str(tmp_path / "repo")
+        _create_conflicting_merge_repo(repo)
+
+        clone_dir = str(tmp_path / "clone")
+        subprocess.run(
+            ["git", "clone", repo, clone_dir],
+            check=True,
+            capture_output=True,
+        )
+
+        linearize_history(clone_dir)
+
+        # Verify no merge commits remain
+        result = subprocess.run(
+            ["git", "log", "--merges", "--oneline"],
+            cwd=clone_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert result.stdout.strip() == ""
+
+    def test_preserves_final_tree_after_conflict_resolution(self, tmp_path):
+        """After linearizing, the working tree should match the original."""
+        repo = str(tmp_path / "repo")
+        _create_conflicting_merge_repo(repo)
+
+        clone_dir = str(tmp_path / "clone")
+        subprocess.run(
+            ["git", "clone", repo, clone_dir],
+            check=True,
+            capture_output=True,
+        )
+
+        linearize_history(clone_dir)
+
+        # The final file should have BOTH changes (the custom merge resolution)
+        with open(os.path.join(clone_dir, "shared.txt")) as f:
+            content = f.read()
+        assert "main-change" in content
+        assert "feature-change" in content
+
+
 class TestProcessRepo:
     """Tests for process_repo() — context-managed pipeline with error handling."""
 
