@@ -1,3 +1,8 @@
+# Dragon's additions
+cache_dir
+foo
+*.wpu
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -33,20 +33,15 @@ which will then be imported into Kolibri Studio. (example can be found under `ex
 
 * Run `pip install -r requirements.txt` to install the required python libraries.
 
+* Make sure ImageMagick is installed.
+
 
 ## Description
 
 A sous chef is responsible for scraping content from a source and putting it into a folder
 and csv structure (see example `examples/Sample Channel.zip`)
 
-A sous chef skeleton script has been started for you, see [`souschef.py`](./souschef.py).
-
 Sous chef instructions can be found [here](https://github.com/learningequality/ricecooker/blob/master/docs/souschef.md)
-
-_For more examples, see `examples/openstax_souschef.py` (json) and `examples/wikipedia_souschef.py` (html)_
-
-
-
 
 
 ---
