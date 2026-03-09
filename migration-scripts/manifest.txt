@@ -11,6 +11,7 @@ sushi-chef-artsedge
 sushi-chef-arvind-gupta-toys
 sushi-chef-atingi
 sushi-chef-awa2el
+sushi-chef-better-world-ed
 sushi-chef-blockly-games
 sushi-chef-bloom-library
 sushi-chef-careergirls
@@ -28,6 +29,8 @@ sushi-chef-edraak-courses
 sushi-chef-edsitement
 sushi-chef-ekshiksha
 sushi-chef-eld-king-khaled
+sushi-chef-elejandria-libros
+sushi-chef-engageny
 sushi-chef-epaath
 sushi-chef-espressoenglish
 sushi-chef-explorable-explanations
@@ -51,6 +54,7 @@ sushi-chef-kamkalima
 sushi-chef-khan-academy
 sushi-chef-laboratoria
 sushi-chef-lets-read-asia
+sushi-chef-libretext
 sushi-chef-madrasati
 sushi-chef-mathplanet
 sushi-chef-migration-matters
@@ -64,6 +68,7 @@ sushi-chef-nutrition-facts
 sushi-chef-oceanx
 sushi-chef-open-osmosis
 sushi-chef-openstax
+sushi-chef-openupresources
 sushi-chef-orange-ngo
 sushi-chef-overcoming-obstacles
 sushi-chef-pbslearningmedia
@@ -76,6 +81,7 @@ sushi-chef-proyecto-biosfera
 sushi-chef-proyecto-descartes
 sushi-chef-readwritethink
 sushi-chef-refugee-response-crisis-advice
+sushi-chef-rwanda-ict-essentials
 sushi-chef-saylor
 sushi-chef-school-of-thought
 sushi-chef-science-ahmed-al-hoot-ar
@@ -94,6 +100,7 @@ sushi-chef-ted-talks-arabic
 sushi-chef-tess-india
 sushi-chef-tessa
 sushi-chef-thoughtfullearning
+sushi-chef-tictaclearn
 sushi-chef-time-for-kids
 sushi-chef-touchableearth
 sushi-chef-ubongokids
